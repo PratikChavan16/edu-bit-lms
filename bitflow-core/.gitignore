@@ -1,0 +1,9 @@
+/vendor/
+/node_modules/
+/.idea/
+/.vscode/
+.env
+/storage/
+/public/storage
+.phpunit.result.cache
+/docker-data/

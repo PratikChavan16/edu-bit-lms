@@ -1,0 +1,3 @@
+assessment_code,question_id,type,subject_code,question_text,option_a,option_b,option_c,option_d,correct_option,marks,competency_tags
+MCQ-CSE-101-202510,QUE-001,MCQ,CSE-DSA,What is the time complexity of binary search?,O(log n),O(n),O(n log n),O(1),A,2,"algo,binary-search"
+MCQ-CSE-101-202510,QUE-002,MCQ,CSE-DSA,Which data structure uses FIFO order?,Stack,Queue,Heap,Graph,B,2,"data-structure"

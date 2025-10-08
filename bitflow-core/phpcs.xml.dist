@@ -1,0 +1,11 @@
+<?xml version="1.0"?>
+<ruleset name="Bitflow Core Coding Standard">
+    <description>PSR-12 with strict docblock and import ordering.</description>
+    <rule ref="PSR12"/>
+    <rule ref="Generic.Arrays.DisallowLongArraySyntax"/>
+    <rule ref="SlevomatCodingStandard.Namespaces.AlphabeticallySortedUses"/>
+    <rule ref="SlevomatCodingStandard.Namespaces.UseSpacing"/>
+    <rule ref="SlevomatCodingStandard.TypeHints.ParameterTypeHintSpacing"/>
+    <rule ref="SlevomatCodingStandard.TypeHints.ReturnTypeHintSpacing"/>
+    <arg name="basepath" value="."/>
+</ruleset>

@@ -1,0 +1,18 @@
+repos:
+  - repo: local
+    hooks:
+      - id: composer-lint
+        name: composer lint
+        entry: bash -lc "composer lint"
+        language: system
+        pass_filenames: false
+      - id: composer-format-check
+        name: composer format -- --dry-run
+        entry: bash -lc "composer format -- --dry-run"
+        language: system
+        pass_filenames: false
+      - id: composer-test
+        name: composer test
+        entry: bash -lc "composer test"
+        language: system
+        pass_filenames: false

@@ -1,0 +1,1013 @@
+openapi: 3.1.0
+info:
+  title: Bitflow Nova Learner API
+  version: 0.1.0
+  description: |
+    Contract-first specification for the Bitflow Nova learner portal used by students.
+    The API powers personalised dashboards, library access, assessments, documents,
+    and results viewing experiences.
+  contact:
+    name: Learner Experience Squad
+    email: learner-exp@bitflow.example
+servers:
+  - url: https://api.bitflow.test
+    description: Local / development environment
+  - url: https://api.bitflow.staging
+    description: Staging environment
+  - url: https://api.bitflow.prod
+    description: Production environment
+security:
+  - bearerAuth: []
+tags:
+  - name: Dashboard
+    description: Landing page widgets for the learner experience.
+  - name: Library
+    description: Notes, video lectures, assessments, and e-books.
+  - name: Assessments
+    description: Assessment catalogue and submission workflows.
+  - name: Documents
+    description: Student document management and uploads.
+  - name: Results
+    description: Assessment outcomes and grade history.
+  - name: Profile
+    description: Personal, attendance, and fee information.
+  - name: Notifications
+    description: Announcements and alerts.
+paths:
+  /learner/dashboard:
+    get:
+      summary: Fetch learner dashboard data
+      operationId: getLearnerDashboard
+      tags: [Dashboard]
+      parameters:
+        - in: query
+          name: date
+          description: Optional date (YYYY-MM-DD) to contextualise timetable widgets.
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Dashboard content for the authenticated learner.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearnerDashboard'
+  /learner/dashboard/notices:
+    get:
+      summary: List high-priority notices for the dashboard widget
+      operationId: listDashboardNotices
+      tags: [Notifications]
+      responses:
+        '200':
+          description: Notice cards for display.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notice'
+  /learner/timetable:
+    get:
+      summary: Get timetable entries for the learner
+      operationId: getLearnerTimetable
+      tags: [Dashboard]
+      parameters:
+        - in: query
+          name: from
+          description: Start date (inclusive) in YYYY-MM-DD format.
+          schema:
+            type: string
+            format: date
+        - in: query
+          name: to
+          description: End date (exclusive) in YYYY-MM-DD format.
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Ordered list of timetable entries between the requested range.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TimetableEntry'
+  /learner/library/resources:
+    get:
+      summary: Query library resources
+      operationId: listLibraryResources
+      tags: [Library]
+      parameters:
+        - in: query
+          name: type
+          description: Resource type filter.
+          schema:
+            $ref: '#/components/schemas/LibraryResourceType'
+        - in: query
+          name: subjectCode
+          schema:
+            type: string
+        - in: query
+          name: q
+          description: Full-text search across titles and tags.
+          schema:
+            type: string
+        - in: query
+          name: page
+          schema:
+            type: integer
+            minimum: 1
+            default: 1
+        - in: query
+          name: pageSize
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 50
+            default: 20
+      responses:
+        '200':
+          description: Paginated resource catalogue.
+          headers:
+            X-Total-Count:
+              schema:
+                type: integer
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LibraryResource'
+  /learner/library/bookmarks:
+    get:
+      summary: List learner bookmarks
+      operationId: listLibraryBookmarks
+      tags: [Library]
+      responses:
+        '200':
+          description: Learner bookmarks ordered by updated date.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/LibraryResource'
+    post:
+      summary: Bookmark a resource
+      operationId: bookmarkResource
+      tags: [Library]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [resourceId]
+              properties:
+                resourceId:
+                  type: string
+                  format: uuid
+      responses:
+        '201':
+          description: Bookmark created.
+  /learner/library/bookmarks/{resourceId}:
+    delete:
+      summary: Remove a bookmark
+      operationId: unbookmarkResource
+      tags: [Library]
+      parameters:
+        - $ref: '#/components/parameters/ResourceId'
+      responses:
+        '204':
+          description: Bookmark removed.
+  /learner/assessments:
+    get:
+      summary: List assessments available to the learner
+      operationId: listAssessments
+      tags: [Assessments]
+      parameters:
+        - in: query
+          name: type
+          schema:
+            $ref: '#/components/schemas/AssessmentType'
+        - in: query
+          name: status
+          schema:
+            $ref: '#/components/schemas/AssessmentStatus'
+        - in: query
+          name: subjectCode
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Assessments grouped by status buckets.
+          content:
+            application/json:
+              schema:
+                type: object
+                required: [upcoming, inProgress, submitted]
+                properties:
+                  upcoming:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Assessment'
+                  inProgress:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Assessment'
+                  submitted:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Assessment'
+  /learner/assessments/{assessmentId}:
+    get:
+      summary: Get assessment detail and instructions
+      operationId: getAssessment
+      tags: [Assessments]
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      responses:
+        '200':
+          description: Assessment metadata and question payload.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentDetail'
+  /learner/assessments/{assessmentId}/submissions:
+    post:
+      summary: Submit assessment answers
+      operationId: submitAssessment
+      tags: [Assessments]
+      parameters:
+        - $ref: '#/components/parameters/AssessmentId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssessmentSubmissionPayload'
+      responses:
+        '202':
+          description: Submission accepted for processing.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AssessmentSubmissionReceipt'
+  /learner/documents/folders:
+    get:
+      summary: List document folders accessible to the learner
+      operationId: listDocumentFolders
+      tags: [Documents]
+      parameters:
+        - in: query
+          name: includePrivate
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Folder tree for documents workspace.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentFolder'
+    post:
+      summary: Create a learner-owned private folder
+      operationId: createPrivateFolder
+      tags: [Documents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name]
+              properties:
+                name:
+                  type: string
+                description:
+                  type: string
+      responses:
+        '201':
+          description: Folder created.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentFolder'
+  /learner/documents/folders/{folderId}/files:
+    get:
+      summary: List files inside a folder
+      operationId: listFolderFiles
+      tags: [Documents]
+      parameters:
+        - $ref: '#/components/parameters/FolderId'
+      responses:
+        '200':
+          description: Files in requested folder.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentFile'
+    post:
+      summary: Initiate a document upload to a folder
+      operationId: uploadDocument
+      tags: [Documents]
+      parameters:
+        - $ref: '#/components/parameters/FolderId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/DocumentUploadRequest'
+      responses:
+        '201':
+          description: Created upload request with signed URL details.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentUploadSession'
+  /learner/documents/uploads/{uploadId}/complete:
+    post:
+      summary: Mark an upload as complete after PUTting to storage
+      operationId: completeDocumentUpload
+      tags: [Documents]
+      parameters:
+        - $ref: '#/components/parameters/UploadId'
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [checksum]
+              properties:
+                checksum:
+                  type: string
+      responses:
+        '200':
+          description: Updated file record.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DocumentFile'
+  /learner/results:
+    get:
+      summary: List assessment results for the learner
+      operationId: listLearnerResults
+      tags: [Results]
+      parameters:
+        - in: query
+          name: assessmentType
+          schema:
+            $ref: '#/components/schemas/AssessmentType'
+        - in: query
+          name: term
+          description: Academic term identifier.
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Results list ordered by published date.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Result'
+  /learner/results/{resultId}:
+    get:
+      summary: Fetch a detailed result view
+      operationId: getResult
+      tags: [Results]
+      parameters:
+        - $ref: '#/components/parameters/ResultId'
+      responses:
+        '200':
+          description: Detailed assessment result and feedback.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ResultDetail'
+  /learner/profile:
+    get:
+      summary: Get learner profile overview
+      operationId: getLearnerProfile
+      tags: [Profile]
+      responses:
+        '200':
+          description: Profile card including attendance and fee status.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LearnerProfile'
+  /learner/profile/attendance:
+    get:
+      summary: Fetch attendance stats for the learner
+      operationId: getAttendanceStats
+      tags: [Profile]
+      parameters:
+        - in: query
+          name: granularity
+          schema:
+            $ref: '#/components/schemas/AttendanceGranularity'
+        - in: query
+          name: subjectCode
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Attendance series suitable for charting.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceSeries'
+  /learner/profile/fees:
+    get:
+      summary: Fetch fee status for the learner
+      operationId: getFeeStatus
+      tags: [Profile]
+      responses:
+        '200':
+          description: Fee payments and outstanding balances.
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeeStatus'
+  /learner/notifications:
+    get:
+      summary: List announcements and alerts for the learner
+      operationId: listNotifications
+      tags: [Notifications]
+      parameters:
+        - in: query
+          name: includeRead
+          schema:
+            type: boolean
+            default: false
+      responses:
+        '200':
+          description: Announcement feed ordered by priority and recency.
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Notification'
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+  parameters:
+    ResourceId:
+      name: resourceId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    AssessmentId:
+      name: assessmentId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    FolderId:
+      name: folderId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    UploadId:
+      name: uploadId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+    ResultId:
+      name: resultId
+      in: path
+      required: true
+      schema:
+        type: string
+        format: uuid
+  schemas:
+    LearnerDashboard:
+      type: object
+      required: [date, greeting, stats, upcomingLectures, libraryQuickLinks, notices, recentResults]
+      properties:
+        date:
+          type: string
+          format: date
+        greeting:
+          type: string
+        stats:
+          type: array
+          items:
+            $ref: '#/components/schemas/StatPill'
+        upcomingLectures:
+          type: array
+          items:
+            $ref: '#/components/schemas/LectureSummary'
+        libraryQuickLinks:
+          type: array
+          items:
+            $ref: '#/components/schemas/LibraryResource'
+        notices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Notice'
+        recentResults:
+          type: array
+          items:
+            $ref: '#/components/schemas/Result'
+    StatPill:
+      type: object
+      required: [label, value, trend]
+      properties:
+        label:
+          type: string
+        value:
+          type: string
+        trend:
+          type: string
+    LectureSummary:
+      type: object
+      required: [subject, faculty, venue, startAt, endAt]
+      properties:
+        subject:
+          type: string
+        faculty:
+          type: string
+        venue:
+          type: string
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+    Notice:
+      type: object
+      required: [id, text, priority]
+      properties:
+        id:
+          type: string
+          format: uuid
+        text:
+          type: string
+        priority:
+          type: string
+          enum: [high, normal]
+        category:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        expiresAt:
+          type: string
+          format: date-time
+    TimetableEntry:
+      type: object
+      required: [id, subject, startAt, endAt, venue, faculty]
+      properties:
+        id:
+          type: string
+          format: uuid
+        subject:
+          type: string
+        startAt:
+          type: string
+          format: date-time
+        endAt:
+          type: string
+          format: date-time
+        venue:
+          type: string
+        faculty:
+          type: string
+        type:
+          type: string
+          enum: [lecture, lab, tutorial, event]
+    LibraryResourceType:
+      type: string
+      enum: [note, video, assessment, ebook]
+    LibraryResource:
+      type: object
+      required: [id, title, type, subject, updatedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        type:
+          $ref: '#/components/schemas/LibraryResourceType'
+        subject:
+          type: string
+        tags:
+          type: array
+          items:
+            type: string
+        updatedAt:
+          type: string
+          format: date-time
+        fileSizeBytes:
+          type: integer
+        previewUrl:
+          type: string
+          format: uri
+        bookmarked:
+          type: boolean
+    AssessmentType:
+      type: string
+      enum: [mcq, saq, laq, assignment]
+    AssessmentStatus:
+      type: string
+      enum: [scheduled, open, submitted, graded]
+    Assessment:
+      type: object
+      required: [id, title, type, subjectCode, status, openAt, dueAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        type:
+          $ref: '#/components/schemas/AssessmentType'
+        subjectCode:
+          type: string
+        status:
+          $ref: '#/components/schemas/AssessmentStatus'
+        openAt:
+          type: string
+          format: date-time
+        dueAt:
+          type: string
+          format: date-time
+        timeLimitMinutes:
+          type: integer
+        submittedAt:
+          type: string
+          format: date-time
+    AssessmentDetail:
+      allOf:
+        - $ref: '#/components/schemas/Assessment'
+        - type: object
+          required: [instructions]
+          properties:
+            instructions:
+              type: string
+            questions:
+              type: array
+              items:
+                $ref: '#/components/schemas/AssessmentQuestion'
+            attachments:
+              type: array
+              items:
+                $ref: '#/components/schemas/DocumentLink'
+    AssessmentQuestion:
+      type: object
+      required: [id, prompt, type]
+      properties:
+        id:
+          type: string
+          format: uuid
+        prompt:
+          type: string
+        type:
+          type: string
+          enum: [multiple_choice, short_answer, long_answer]
+        choices:
+          type: array
+          items:
+            type: object
+            required: [id, label]
+            properties:
+              id:
+                type: string
+              label:
+                type: string
+        points:
+          type: integer
+    AssessmentSubmissionPayload:
+      type: object
+      required: [answers]
+      properties:
+        draftId:
+          type: string
+          format: uuid
+        answers:
+          type: array
+          items:
+            type: object
+            required: [questionId, response]
+            properties:
+              questionId:
+                type: string
+                format: uuid
+              response:
+                oneOf:
+                  - type: string
+                  - type: array
+                    items:
+                      type: string
+              attachments:
+                type: array
+                items:
+                  $ref: '#/components/schemas/DocumentLink'
+    AssessmentSubmissionReceipt:
+      type: object
+      required: [submissionId, status]
+      properties:
+        submissionId:
+          type: string
+          format: uuid
+        status:
+          type: string
+          enum: [accepted, queued]
+        reference:
+          type: string
+    DocumentFolder:
+      type: object
+      required: [id, name, type]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        type:
+          type: string
+          enum: [admin, learner]
+        quotaBytes:
+          type: integer
+        usedBytes:
+          type: integer
+        requiresAction:
+          type: boolean
+        dueOn:
+          type: string
+          format: date
+        children:
+          type: array
+          items:
+            $ref: '#/components/schemas/DocumentFolder'
+    DocumentFile:
+      type: object
+      required: [id, name, sizeBytes, status]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        sizeBytes:
+          type: integer
+        status:
+          type: string
+          enum: [uploaded, pending_review, verified, rejected]
+        uploadedAt:
+          type: string
+          format: date-time
+        verifiedAt:
+          type: string
+          format: date-time
+        verifier:
+          type: string
+    DocumentUploadRequest:
+      type: object
+      required: [fileName, contentType, sizeBytes]
+      properties:
+        fileName:
+          type: string
+        contentType:
+          type: string
+        sizeBytes:
+          type: integer
+        checksum:
+          type: string
+        expiresInSeconds:
+          type: integer
+    DocumentUploadSession:
+      type: object
+      required: [uploadId, uploadUrl, headers]
+      properties:
+        uploadId:
+          type: string
+          format: uuid
+        uploadUrl:
+          type: string
+          format: uri
+        headers:
+          type: object
+          additionalProperties:
+            type: string
+    Result:
+      type: object
+      required: [id, assessmentTitle, assessmentType, subject, score, status, publishedAt]
+      properties:
+        id:
+          type: string
+          format: uuid
+        assessmentTitle:
+          type: string
+        assessmentType:
+          $ref: '#/components/schemas/AssessmentType'
+        subject:
+          type: string
+        score:
+          type: string
+        status:
+          type: string
+          enum: [pass, fail, pending, in_review]
+        publishedAt:
+          type: string
+          format: date-time
+    ResultDetail:
+      allOf:
+        - $ref: '#/components/schemas/Result'
+        - type: object
+          properties:
+            evaluator:
+              type: string
+            feedback:
+              type: string
+            answers:
+              type: array
+              items:
+                type: object
+                required: [questionId, score, comment]
+                properties:
+                  questionId:
+                    type: string
+                    format: uuid
+                  score:
+                    type: string
+                  comment:
+                    type: string
+                  attachment:
+                    $ref: '#/components/schemas/DocumentLink'
+    LearnerProfile:
+      type: object
+      required: [id, name, programme, year, contact, attendance]
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        avatarUrl:
+          type: string
+          format: uri
+        programme:
+          type: string
+        year:
+          type: string
+        contact:
+          type: object
+          required: [email, phone]
+          properties:
+            email:
+              type: string
+              format: email
+            phone:
+              type: string
+        attendance:
+          $ref: '#/components/schemas/AttendanceSummary'
+        fee:
+          $ref: '#/components/schemas/FeeStatus'
+        emergencyContact:
+          type: object
+          properties:
+            name:
+              type: string
+            phone:
+              type: string
+    AttendanceGranularity:
+      type: string
+      enum: [weekly, monthly, quarterly, yearly]
+    AttendanceSummary:
+      type: object
+      required: [overallPercentage, subjects]
+      properties:
+        overallPercentage:
+          type: number
+          format: float
+        subjects:
+          type: array
+          items:
+            type: object
+            required: [subjectCode, percentage]
+            properties:
+              subjectCode:
+                type: string
+              subjectName:
+                type: string
+              percentage:
+                type: number
+                format: float
+              flagged:
+                type: boolean
+    AttendanceSeries:
+      type: object
+      required: [granularity, points]
+      properties:
+        granularity:
+          $ref: '#/components/schemas/AttendanceGranularity'
+        points:
+          type: array
+          items:
+            type: object
+            required: [label, percentage]
+            properties:
+              label:
+                type: string
+              percentage:
+                type: number
+                format: float
+    FeeStatus:
+      type: object
+      required: [currency, totalDue, totalPaid, nextDueOn, payments]
+      properties:
+        currency:
+          type: string
+          pattern: '^[A-Z]{3}$'
+        totalDue:
+          type: number
+          format: float
+        totalPaid:
+          type: number
+          format: float
+        outstanding:
+          type: number
+          format: float
+        nextDueOn:
+          type: string
+          format: date
+        payments:
+          type: array
+          items:
+            $ref: '#/components/schemas/FeePayment'
+    FeePayment:
+      type: object
+      required: [id, amount, paidOn]
+      properties:
+        id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: float
+        paidOn:
+          type: string
+          format: date
+        reference:
+          type: string
+        method:
+          type: string
+        receiptUrl:
+          type: string
+          format: uri
+    Notification:
+      type: object
+      required: [id, title, body, priority, createdAt, read]
+      properties:
+        id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        body:
+          type: string
+        priority:
+          type: string
+          enum: [high, normal, low]
+        category:
+          type: string
+        createdAt:
+          type: string
+          format: date-time
+        read:
+          type: boolean
+    DocumentLink:
+      type: object
+      required: [name, url]
+      properties:
+        name:
+          type: string
+        url:
+          type: string
+          format: uri

@@ -1,0 +1,12 @@
+{
+  "extends": "../../tsconfig.app.json",
+  "compilerOptions": {
+    "jsx": "react-jsx",
+    "baseUrl": "./src",
+    "paths": {
+      "@bitflow/ui/*": ["./*"]
+    }
+  },
+  "include": ["./tailwind-preset.ts", "./src/**/*"],
+  "exclude": ["dist", "node_modules"]
+}

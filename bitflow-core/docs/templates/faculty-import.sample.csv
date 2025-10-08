@@ -1,0 +1,3 @@
+university_code,college_code,faculty_id,first_name,last_name,email,phone,department_code,designation,joining_date
+mvp,mvp-engg,FAC-0001,Shruti,Joshi,shruti.joshi@example.edu,+919812341111,CSE,HOD,2018-06-01
+mvp,mvp-engg,FAC-0002,Rohan,Sharma,rohan.sharma@example.edu,+919876541234,CSE,Assistant Professor,2020-01-15

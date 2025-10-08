@@ -1,0 +1,62 @@
+@tailwind base;
+@tailwind components;
+@tailwind utilities;
+
+html,
+body,
+#__next {
+  height: 100%;
+}
+
+body {
+  @apply bg-surface text-foreground antialiased;
+}
+
+:root {
+  color-scheme: light;
+  --background: 210 33% 99%;
+  --foreground: 222 47% 11%;
+  --surface: 0 0% 100%;
+  --muted: 216 33% 94%;
+  --muted-foreground: 215 16% 47%;
+  --border: 213 27% 90%;
+  --input: 213 27% 90%;
+  --primary: 221 83% 53%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 217 33% 90%;
+  --secondary-foreground: 221 47% 20%;
+  --success: 142 71% 45%;
+  --success-foreground: 142 30% 98%;
+  --warning: 32 94% 50%;
+  --warning-foreground: 32 30% 98%;
+  --destructive: 0 84% 60%;
+  --destructive-foreground: 0 0% 100%;
+  --ring: 221 83% 53%;
+  --radius-lg: 1.25rem;
+  --radius-md: 0.875rem;
+  --radius-sm: 0.5rem;
+  --shadow: 210 20% 15% / 0.12;
+}
+
+.dark {
+  color-scheme: dark;
+  --background: 222 40% 8%;
+  --foreground: 210 40% 96%;
+  --surface: 222 47% 6%;
+  --muted: 222 40% 14%;
+  --muted-foreground: 220 15% 70%;
+  --border: 217 29% 24%;
+  --input: 217 29% 24%;
+  --primary: 221 83% 53%;
+  --primary-foreground: 0 0% 100%;
+  --secondary: 223 47% 20%;
+  --secondary-foreground: 210 40% 96%;
+  --success: 142 61% 48%;
+  --success-foreground: 140 30% 96%;
+  --warning: 38 92% 61%;
+  --warning-foreground: 38 30% 10%;
+  --destructive: 0 72% 51%;
+  --destructive-foreground: 210 40% 96%;
+  --ring: 221 83% 60%;
+  --shadow: 215 30% 2% / 0.45;
+}

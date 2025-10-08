@@ -1,0 +1,541 @@
+Bitflow Nova Frontend Design Specification
+==========================================
+
+Document purpose
+----------------
+- Define the complete set of portals, pages, components, copy, and interactions required for Bitflow Nova.
+- Provide a single source of truth for designers, frontend engineers, and QA.
+- Ensure accessibility, responsiveness, and white-label branding requirements are met across all experiences.
+
+Table of contents
+-----------------
+1. Design principles & foundations
+   1.1 Branding & theming
+   1.2 Layout grid & spacing
+   1.3 Typography & iconography
+   1.4 Colour palette & state tokens
+   1.5 Accessibility & responsiveness
+2. Global UI elements
+   2.1 Navigation shells (top, side, breadcrumbs)
+   2.2 Status & feedback (toasts, alerts, modals, loaders)
+   2.3 Forms & inputs
+   2.4 Data presentation (tables, cards, charts)
+   2.5 Buttons, links, and interactions
+   2.6 Search & filtering patterns
+3. Portal catalogue overview
+   3.1 Bitflow Central Portal
+   3.2 University Super Admin Portal
+   3.3 University Owner / Executive Portal
+   3.4 College Admin / Principal Portal
+   3.5 Finance Portals (Super Accountant & College Accountant)
+   3.6 Academics Portals (Super Academics, College Academics, HOD)
+   3.7 Faculty Portal
+   3.8 Student Portal
+   3.9 Parent Portal
+   3.10 Helpdesk / Support Portal
+   3.11 Public & Authentication Screens
+4. Page-by-page specifications
+   4.1 Bitflow Central Portal pages
+   4.2 University Super Admin pages
+   4.3 University Owner pages
+   4.4 College Admin / Principal pages
+   4.5 Finance portal pages
+   4.6 Academics portal pages
+   4.7 Faculty portal pages
+   4.8 Student portal pages
+   4.9 Parent portal pages
+   4.10 Helpdesk portal pages
+   4.11 Public/Auth pages
+5. Shared component glossary
+6. Notification & messaging rules
+7. Localization & multi-brand considerations
+8. Appendices (sample copy, dashboard metric dictionary, icon library)
+
+Implementation notes
+--------------------
+- Each page spec includes desktop/tablet/mobile layouts; mobile nav swaps bottom drawer for left sidebar content.
+- Feature flag references use codes from `feature_catalog`. If a module is disabled, associated components hide gracefully.
+- Copy uses sentence case, avoids jargon, and supports dynamic placeholder tokens (e.g., `{collegeName}`).
+- Accessibility: minimum AA compliance, focus outlines, keyboard navigation, ARIA announcements for dynamic content.
+
+1. Design principles & foundations
+----------------------------------
+
+### 1.1 Branding & theming
+- Primary brand (Bitflow default) uses `#1A56DB` blue, but each university or college can override via white-label tokens.
+- Logo placement: left side of header for admin portals; top center on student/parent login screens.
+- Theme tokens stored in `@bitflow/ui` and injected per tenant via CSS variables.
+
+### 1.2 Layout grid & spacing
+- Desktop: 12-column grid, 80px gutters for dashboards, 24px for content pages.
+- Tablet: 8-column grid, 32px outer margins.
+- Mobile: 4-column grid, 16px outer margins.
+- Baseline spacing scale: 4px increments (4, 8, 12, 16, 20, 24, 32, 40, 48).
+
+### 1.3 Typography & iconography
+- Primary typeface: Inter (system fallback: `"Inter", -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif`).
+- Headings use weight 600; body copy 400.
+- Icon set: Lucide icons tailored per module (finance, academics, communication). Icons stored in `packages/ui/icons`.
+- Numeric metrics use tabular lining numbers.
+
+### 1.4 Colour palette & state tokens
+- Success: `#16A34A` (bg `#ECFDF5`), Warning: `#F97316` (bg `#FFF7ED`), Danger: `#DC2626` (bg `#FEF2F2`).
+- Neutral greys: `#0F172A` primary text, `#64748B` secondary, `#E2E8F0` borders, `#F8FAFC` backgrounds.
+- Focus outline: `2px solid #1A56DB` with 2px offset.
+
+### 1.5 Accessibility & responsiveness
+- Minimum font size 14px; 16px default body text.
+- All interactive elements have 44px hit areas.
+- Keyboard navigation order matches visual order; skip-to-content link at top of page.
+- High-contrast theme available via settings toggle (`feature` flag `ACCESSIBILITY_HIGH_CONTRAST`).
+
+2. Global UI elements
+---------------------
+
+### 2.1 Navigation shells
+- **Top bar:** persists across admin portals. Left: product logo + tenant switcher. Center: contextual page title. Right: search, notifications bell (badge), profile avatar dropdown (Profile, Settings, Sign out).
+- **Left sidebar:** primary navigation with grouped sections; collapsible on tablet, hidden behind hamburger on mobile.
+- **Right info rail (where applicable):** quick stats, tips, and support links (e.g., Student portal's ID card preview).
+- **Breadcrumbs:** appear below top bar for deep pages (e.g., `Home > Finance > Payroll > Draft #2025-10`).
+
+### 2.2 Status & feedback
+- Toast notifications slide in top-right (desktop) / bottom (mobile). Copy patterns: “Success – {action} completed.”, “Error – Unable to {action}. Try again.”
+- Inline alerts (info/warn/danger) with icon + title + body text (max 2 lines). Dismissible where applicable.
+- Modal dialogs: overlay with 480px min width (desktop). Primary button right-aligned, secondary left. Title in sentence case.
+- Loading states: skeleton placeholders for 3–5 rows; spinner for short operations (<2s).
+
+### 2.3 Forms & inputs
+- Default input height 44px; label top-left, helper text below field.
+- Sections separated by headings and 16px spacing; multi-step forms show progress indicator.
+- Validation: inline error text in red with icon. Submit button disabled until all required fields valid.
+
+### 2.4 Data presentation
+- Tables support sticky header, sortable columns (caret icon), context menu per row.
+- Cards: variations for metrics (with icon, value, delta), resource summaries (title, description, CTA), status cards.
+- Charts: area charts for trends, donut for breakdowns; accessible text summary provided below chart.
+
+### 2.5 Buttons, links, interactions
+- Primary button: filled brand colour, label case “Action Label”.
+- Secondary button: outline style, neutral text.
+- Tertiary button: ghost style, used for less prominent actions.
+- Icon buttons have tooltip on hover/focus.
+
+### 2.6 Search & filtering patterns
+- Global search bar with segmented results (Content, People, Colleges). Autocomplete suggestions show icon + name + context.
+- Filter drawer for tables: sticky filter chips (e.g., “College: MVP Engineering”) and advanced filter panel triggered by “More filters”.
+- Save filter sets (admins) with name input; appears under “Saved views”.
+
+3. Portal catalogue overview
+----------------------------
+
+Each portal has a unique navigation tree. Summary table:
+
+| Portal | Primary persona | Key modules |
+| --- | --- | --- |
+| Bitflow Central | Bitflow Nova ops team | Provisioning, feature toggles, billing |
+| University Super Admin | University IT/operations head | Colleges mgmt, approvals, analytics |
+| University Owner | Trustees/owners | Executive dashboards, approvals |
+| College Admin | College principal/admin | Students, faculty, attendance, docs |
+| Finance (Super/College Accountant) | Finance leadership | Fees, payroll, vendors |
+| Academics (Super/College/HOD) | Academic leadership | Curriculum, timetable, assessments |
+| Faculty | Teachers | Classes, attendance, content, grading |
+| Student | Students | Dashboard, library, assessments, results |
+| Parent | Parents/guardians | Attendance, results, fees |
+| Helpdesk | Support agents | Tickets, SLAs, knowledge base |
+| Public/Auth | All | Login, forgot password, onboarding |
+
+4. Page-by-page specifications
+------------------------------
+
+### 4.1 Bitflow Central Portal
+
+#### 4.1.1 Dashboard
+- **Purpose:** Provide Bitflow staff with at-a-glance health and quick actions.
+- **Layout:**
+  - Hero row: “Welcome back, {name}” (headline) + sub copy “You have X pending provisioning tasks.”
+  - Metric cards (4): Active universities, Pending approvals, Sandbox spend, Support tickets.
+  - Two-column section: left (Recent activities timeline), right (Infrastructure alerts list).
+  - Bottom row: Quick actions (Provision university, Review change requests, Run backup).
+- **Buttons & copy:** Primary CTA “Provision university” (primary). Secondary actions “View all change requests”, “Open billing”.
+- **Notifications:** Banner if any pipeline failed in last 24h.
+- **Feature flags:** Always enabled.
+
+#### 4.1.2 Universities list
+- Table columns: Name, Domain, Status badge (Live, Staging, Suspended), Colleges count, Storage used, Last backup.
+- Table actions: “View details” (button), row kebab with “Trigger backup”, “Suspend”, “Delete (disabled unless no data)”.
+- Filters: Status, Region, Subscription tier.
+- Empty state copy: “No universities provisioned yet. Use Provision university to get started.”
+
+#### 4.1.3 University detail
+- Header: University logo, name, status pill, quick action buttons (Trigger backup, Open feature toggles, Download config).
+- Tabbed content: Overview, Feature toggles, Usage metrics, Backups, Audit log.
+- Overview: summary cards (Colleges, Active users, Monthly spend), timeline of provisioning events.
+- Feature toggles tab: Table showing Feature name, Scope (University/College overrides), State (On/Off/Preview), Approval status, Last change.
+
+#### 4.1.4 Feature catalog
+- Grid listing features with icon, short description, dependencies.
+- Toggle button disabled if dependencies not met with tooltip “Enable HRMS first”.
+- CTA to “Create new feature” (opens modal with form fields: Feature code, Category, Impact level, Default state, Billing model).
+
+#### 4.1.5 Change requests & approvals
+- Kanban board: columns Pending, In review, Approved, Rejected.
+- Card content: Request title (`Enable Payroll for MVP`), scope badge, requested by, cost impact, notes.
+- Approve modal with comment box (placeholder “Add approval note (optional)”). Buttons: “Approve”, “Reject”, “Request changes”.
+
+#### 4.1.6 Templates manager
+- List of templates (Students import, Faculty import, Assessment questions). Buttons: “Download CSV”, “View schema”, “Upload new version”.
+- Template detail drawer: description, required columns, sample row preview.
+
+#### 4.1.7 Billing overview
+- Chart of monthly revenue vs infra cost.
+- Table of invoices (Client, Amount, Status). CTA “Create invoice”.
+- Notes area for manual payment comments.
+
+#### 4.1.8 Backups dashboard
+- Timeline with icons (success/failure). Buttons to “Download snapshot” (disabled if >7 days old), “Trigger backup”.
+- Danger alert if last backup >24h.
+
+#### 4.1.9 Audit logs
+- Search bar with filters (User, Role, Action type, Date range).
+- Table columns: Timestamp, Actor, Action, Target, Details link.
+- Details modal shows JSON diff.
+
+### 4.2 University Super Admin Portal
+
+#### 4.2.1 Dashboard
+- Hero banner: “Good morning, {name}” + date/time + tagline “Manage all {universityName} institutions from one place.”
+- Metric cards: Total colleges, Active students, Pending approvals, Storage used.
+- Chart row: Attendance trend (line chart), Fee collection vs target (bar).
+- Right info rail: Quick stats (Upcoming audits, Tickets), Support CTA “Contact Bitflow Support”.
+- Quick actions: “Add college”, “Review approvals”, “Generate report”.
+
+#### 4.2.2 Colleges management
+- Table with cover image tile per college (optional), columns: Name, Type (University/College/School), Principal, Active modules (chip list), Status toggle.
+- Buttons: Primary “Add college”, secondary “Import via CSV”.
+- Clicking row opens slide-over with details (branding, quotas, module toggles, assigned admins).
+
+#### 4.2.3 User & role management
+- Search bar “Search by name, email, role”.
+- Filters: Role chips, College dropdown, Status (Active/Suspended/Invited).
+- Buttons: “Invite user”, “Bulk import”.
+- Role assignment modal: multi-select roles with descriptions, copy “Users can hold multiple roles. Conflicting permissions default to the most permissive.”
+
+#### 4.2.4 Feature management
+- Table similar to central portal but scoped to university. Columns: Feature, Default state, College overrides count, Approval status, Last updated.
+- Action button “Request change” opens form with fields: Scope (radio: University/Selected colleges), Desired state (toggle), Effective date, Notes.
+
+#### 4.2.5 Approvals queue
+- Tabbed interface: Feature toggles, Payroll approvals, Bulk uploads, Other requests.
+- Each card displays request summary, required approvers, due-by countdown.
+- Approve modal includes checkbox “Notify requester” (default on) and text area for optional note.
+
+#### 4.2.6 Global content library
+- Filter chips (Subject, Department, Content type). Grid view with content cards (thumbnail, title, tags, length).
+- Buttons: “Upload resource”, “Create folder”. Upload modal includes fields Title, Description, Subject mapping, Access level (All colleges / Specific colleges / Specific roles), File upload control.
+
+#### 4.2.7 Analytics & reports
+- Reports list with categories (Enrollment, Attendance, Finance, Compliance).
+- Each row: report name, description, frequency (On demand / Scheduled), Format (CSV/PDF). Buttons: “Generate now”, “Schedule”.
+
+#### 4.2.8 Backups & restore
+- Similar to central but scoped to university. Additional button “Request Bitflow restore assistance” (opens support ticket form).
+
+### 4.3 University Owner / Executive Portal
+
+#### 4.3.1 Executive dashboard
+- Hero with summary: “Trust overview – {universityName}”.
+- KPI row: Total revenue, Outstanding fees, Payroll liability, Attendance average.
+- Insights cards (two by two): “Top performing colleges”, “Colleges needing attention”, “Student growth vs last year”, “Upcoming compliance deadlines”.
+- Quick approvals section with stacked cards showing requests awaiting owner sign-off.
+- Footer block with “Board meeting notes” link, “Download executive summary (PDF)”.
+
+#### 4.3.2 Approvals
+- Two columns: Pending approvals (feature toggles, financial approvals) and History.
+- Each card includes reason, cost impact, recommended action.
+
+#### 4.3.3 Audit viewer
+- Filter by actor role (Bitflow admin, University staff) and severity.
+- Timeline list with group by day; each item clickable for details.
+
+### 4.4 College Admin / Principal Portal
+
+#### 4.4.1 Dashboard
+- Welcome hero with college logo, motto, term information.
+- Tiles: Student count, Faculty count, Attendance <75% count, Pending document verifications.
+- Middle section: Today’s schedule (list of events, time, location, assigned faculty) with CTA “Open timetable”.
+- Right rail: Quick links (Upload documents, Create announcement, View helpdesk tickets) and Alerts (fee defaulters, low attendance). Announcements card includes “Important notices” widget.
+
+#### 4.4.2 Students list
+- Table columns: Name (avatar + chip for new), Roll number, Course, Year, Attendance %, Fees status (pill: Paid / Due / Overdue), Documents (icon for missing).
+- Actions: Row click opens student profile drawer with tabs (Profile, Attendance, Results, Documents, Fees, Notes).
+- Bulk actions: Send reminder, Export list.
+
+#### 4.4.3 Student profile page
+- Top: Student photo, name, contact info, emergency contact.
+- Tabs:
+  - Overview: Attendance chart (per subject), Academic average, Fee summary, Alerts (e.g., “Attendance below 75% for Physics”).
+  - Attendance: Table by subject, filter by term, action “Request correction”.
+  - Results: Cards per assessment with type, marks, remarks.
+  - Documents: folder view with statuses (Uploaded, Pending, Verified). Buttons “Request document”, “Upload on behalf”.
+  - Fees: Invoice list, payment history, manual adjustments.
+  - Notes: Internal notes history with add note form (textarea placeholder “Add note visible to admins only”).
+
+#### 4.4.4 Faculty management
+- Similar to students list; includes Teaching load (hours/week), Next class, Status (Active/On leave).
+- Buttons: “Add faculty”, “Assign subjects”.
+
+#### 4.4.5 Library approval
+- Queue of resources uploaded by faculty awaiting approval. Card shows title, subject, file type, preview link, approve/reject buttons with comment field.
+
+#### 4.4.6 Documents manager
+- Folder tree view. Each folder shows owner (Admin/Student), due date, required file types.
+- Buttons: “Create folder”, “Request upload” (opens modal with instructions template), “Download all”.
+
+#### 4.4.7 Attendance corrections
+- Table of submitted correction requests with filters (Pending, Approved, Rejected). Each row has details panel with original vs corrected values, comments.
+
+#### 4.4.8 Announcements composer
+- Form fields: Title (max 80 chars), Audience (All students, Year, Department, Custom list), Priority (Normal/High). Rich text editor for message.
+- Preview pane showing how notice appears on student dashboard.
+
+### 4.5 Finance Portals
+
+#### 4.5.1 Super Accountant dashboard
+- KPI row: Total fees collected, Outstanding fees, Payroll amount this month, Vendor payments due.
+- Charts: line chart for monthly revenue, bar for payroll vs budget.
+- Alerts panel: “Payroll draft awaiting approval”, “Vendor payment flagged”.
+
+#### 4.5.2 Chart of accounts
+- Tree view of account hierarchy. Provide search bar “Search accounts by code or name”.
+- Buttons: “Add account” (modal with fields: Name, Code, Parent, Type, Tax category).
+- Info callout: “Global changes affect all colleges.”
+
+#### 4.5.3 Payroll runs
+- Tab: Drafts, Approved, History.
+- Draft card: Run ID, Period (e.g., Oct 2025), Employees, Total amount, Status chip (Awaiting review, Needs approval).
+- CTA buttons: “Open draft”, “Approve”, “Reject”. Opening draft shows table with employees (Name, Department, Gross, Deductions, Net), filters (Department, Employment type). Provide notes field for adjustments.
+
+#### 4.5.4 Vendor management
+- Table columns: Vendor name, Category, GSTIN, Outstanding amount, Last payment, Actions (View, Pay, Archive).
+- Vendor detail slide-out: contact info, invoices list, attachment gallery.
+
+#### 4.5.5 Bank reconciliation
+- Stepper component: 1) Upload statement (file uploader with accepted formats), 2) Review matches (list of auto vs unmatched), 3) Confirm.
+- Unmatched items table with buttons “Match manually”, “Create adjustment”.
+
+#### 4.5.6 College accountant dashboard
+- Focused view per college with summary metrics, quick actions (Record payment, Generate invoice, View defaulters). Table of pending fee reminders.
+
+#### 4.5.7 Fees management
+- Invoice generation wizard: Step 1 Student selection (search + checkboxes). Step 2 Fee components (tuition, lab, transport). Step 3 Review & send (preview invoice PDF). Buttons “Send invoice”, “Save draft”.
+- Reminder schedule panel with toggles for auto reminders (7 days before due, Due date, 7 days overdue).
+
+#### 4.5.8 Receipts & manual payments
+- Form with Payment method (dropdown), Reference number, Amount received, Date, Upload proof (optional). Confirmation banner “Receipt saved”.
+
+### 4.6 Academics Portals
+
+#### 4.6.1 Super Academics dashboard
+- Metrics: Courses managed, Exams this month, Pending approvals, At-risk subjects (low performance). Heatmap showing pass % per college.
+- Buttons: “Update curriculum”, “Review assessments”.
+
+#### 4.6.2 Curriculum templates
+- List of programs with badges (Draft, Published). Each item has actions “Edit”, “Publish”, “Archive”.
+- Template editor: tree view (Year > Semester > Subjects). Right panel displays subject detail (Credits, Outcomes, Assessments). Buttons “Add subject”, “Attach resources”.
+
+#### 4.6.3 Exam policy
+- Tabs: Grading scales, Promotion rules, Retake policy.
+- Form with fields: Passing percentage, Grace marks rule, Retake window (days). Info hints for compliance.
+
+#### 4.6.4 College academics dashboard
+- Widgets: Today’s examinations, Pending result approvals, Faculty substitution requests. Buttons “Create timetable”, “Upload questions”.
+
+#### 4.6.5 Timetable builder
+- Calendar view (Week/Day). Drag-and-drop classes. Sidebar with class templates. Desktop uses grid; mobile uses list view.
+- Conflict alerts (red banner “Conflict: Class overlaps with existing schedule”).
+
+#### 4.6.6 Assessment management
+- List of assessments with status (Draft, Scheduled, Published). Buttons “Create assessment”, “Import MCQs”.
+- Assessment creation form: Title, Type (MCQ/SAQ/LAQ), Subject, Time window, Allow submission type (Typed/Upload).
+- Question bank integration: search and select existing questions.
+
+#### 4.6.7 Result approval
+- Table of assessments awaiting approval. Row details show grade distribution, flagged responses. Buttons “Approve results”, “Send back”.
+
+### 4.7 Faculty Portal
+
+#### 4.7.1 Dashboard
+- Greeting “Welcome, Prof. {lastName}”. Quick stats: Today’s classes, Pending grading, Messages.
+- Agenda list: each entry shows class name, time, room, student count, action buttons “Open class”, “Take attendance”.
+- Quick links: “Upload notes”, “Create assessment”, “Submit payroll query”.
+
+#### 4.7.2 My classes
+- Card per class with subject, section, schedule, attendance % and quick CTA buttons (Attendance, Resources, Assessments).
+
+#### 4.7.3 Attendance capture
+- Two modes: QR scan (camera interface) and manual list.
+- Manual list: table with Student, Status dropdown (Present/Absent/Late/Excused). Bulk actions (Mark all present, Clear). Submit button text “Save attendance”. Confirmation toast “Attendance recorded”.
+
+#### 4.7.4 Content upload
+- Form: Title, Description, Content type (Notes/Video/E-book), Subject, Tags. Upload component with progress bar.
+- Feature flag `LIBRARY_VIDEO_STREAMING` toggles video option; if disabled show info “Video uploads are disabled. Contact admin.”
+
+#### 4.7.5 Assessments & grading
+- Tabs: Assessments, Grading queue, Analytics.
+- Grading queue list: Student name, Submission timestamp, Status (Submitted, In review). Buttons “Open submission”, “Mark as graded”.
+- Grading modal: original question, student answer (text or image preview), score input, rubric dropdown, feedback textarea, Save & next button.
+
+#### 4.7.6 Messages & chat
+- List of channels: Department, Class-specific, Direct messages. Chat composer limited to text + thumb icons. Info banner reminding of retention.
+
+### 4.8 Student Portal
+
+#### 4.8.1 Global layout
+- Top header with college logo, search bar placeholder “Search notes, videos, results…”. Search responds with categories (Notes, Videos, Documents, Results).
+- Left sidebar: Dashboard, Library, Documents, Results, Settings, Help.
+- Right sidebar: Profile card (photo, name, course, year), ID card mini preview (E-ID, College ID, Roll No.), Announcements list with bell icon.
+
+#### 4.8.2 Dashboard
+- Hero: “Hi {firstName}, welcome back!” with current date/time.
+- Section: Important Notices (carousel of high-priority notices; each card shows title, author, posted date, CTA “View all”).
+- Upcoming lectures card: list of next 3 classes with subject, time, venue, faculty. CTA “View timetable”.
+- Library quick links: 3–4 cards showing subject, last updated, “Open notes”.
+- Test results widget: table of last 3 assessments (Type, Subject, Score, Status). CTA “See all results”.
+- Optional AI insights (future) – placeholder area hidden until feature flag enabled.
+
+#### 4.8.3 Library page
+- Top search bar with placeholder “Search resources by keyword…”. Filter by Subject, Resource type (Notes, Video, Assessments, E-books, Bookmarks).
+- Buttons row: `Notes`, `Video Lectures`, `Online assessments`, `E-books`, `Bookmarks` (tabbed). Active tab highlighted.
+- When subject selected, show resource list with card layout: Title, Description, Tags, File size, “Open” button. Bookmark icon top-right.
+- Assessment tab: show categories (MCQ, SAQ, LAQ) with chips; each assessment card displays due date, duration, attempt status (Not started/In progress/Completed). CTA “Start” or “Continue”. For SAQ/LAQ show “Upload answer sheet (PDF/JPEG)” button.
+
+#### 4.8.4 Documents
+- Folder grid with icons: Admin Requested (lock icon), Personal (user icon). Each folder shows storage usage bar and due date if applicable.
+- Upload modal includes instructions from admin (“Upload Aadhaar card PDF – Max 2MB”).
+- Storage banner appears if usage ≥ 80% (“You’ve used 240MB of 300MB. Delete unused files or contact admin.”).
+
+#### 4.8.5 Results page
+- Filter bar: Assessment type (MCQ, SAQ, LAQ, Practical), Subject, Date range.
+- Table columns: Assessment name, Type, Subject, Faculty, Score, Status (Pass/Fail), Actions (“View details”).
+- Details modal shows marks breakdown, teacher feedback, improvement tips.
+
+#### 4.8.6 Settings/Profile
+- Sections: Personal info (read-only except contact), Notifications (toggle push, email disabled), Accessibility (Dark mode, High contrast), Language (English, Hindi, Marathi etc.). Save button with success toast “Settings saved”.
+
+#### 4.8.7 Help
+- FAQ accordion, link to Helpdesk ticket creation (prefilled with student info). CTA “View open tickets”.
+
+### 4.9 Parent Portal
+
+#### 4.9.1 Dashboard
+- Header: “Hello {parentName}” with child switcher dropdown (if multiple children).
+- Card row: Attendance %, Latest result, Fees status, Alerts (e.g., “Field trip consent pending”).
+- Announcements list targeted to parents.
+- Quick links: “View attendance”, “Download fee receipt”, “Message class teacher”.
+
+#### 4.9.2 Attendance
+- Calendar view with coloured dots (Present, Absent, Late). Summary per subject below.
+- Alert banner for subjects <75%. CTA “Request meeting” (opens form to contact faculty).
+
+#### 4.9.3 Results
+- Chart comparing child’s performance vs class average.
+- Table similar to student results but read-only.
+
+#### 4.9.4 Fees
+- Invoice list with statuses, amount, due date. Buttons “Pay online” (if allowed), “Download receipt”.
+- Payment history table.
+
+#### 4.9.5 Messages
+- Direct message interface between parent and faculty/homeroom teacher. Compose area (text only). Info note about response times.
+
+### 4.10 Helpdesk / Support Portal
+
+#### 4.10.1 Ticket inbox
+- Tabs: My queue, All open, SLA breaches, Closed.
+- Ticket card: ID, Subject, Requester, Priority (badge), SLA countdown.
+- Bulk actions: Assign to me, Change priority.
+
+#### 4.10.2 Ticket detail
+- Header with status dropdown (Open, In progress, On hold, Resolved). Buttons: “Add note”, “Reply”, “Escalate”.
+- Conversation timeline with tags (internal note vs public reply). Attachment list (if file attachments enabled for support team only).
+- Related resources panel (links to knowledge base articles).
+
+#### 4.10.3 SLA dashboard
+- Metrics: Average response time, Tickets breached, Satisfaction score.
+- Chart: SLA trend line weekly.
+
+#### 4.10.4 Knowledge base
+- Search bar, categories (Setup, Finance, Academics, Troubleshooting). Article cards with title, updated date, tags.
+
+### 4.11 Public & Authentication screens
+
+#### 4.11.1 Login
+- Split layout: left brand panel (logo, tagline “One system for every college”), right form.
+- Fields: Email/ID, Password, button “Sign in”. Links “Forgot password?”, “Need help? Contact support”.
+- Remember me checkbox (optional). Accessibility: error message “Incorrect credentials. Try again.”
+
+#### 4.11.2 Forgot password
+- Step 1: Enter email/ID, CTA “Send reset link”. Confirmation message “Check your inbox for reset instructions.”
+- Step 2 (reset): New password, Confirm password, button “Set new password”. Password strength meter with copy “Use at least 12 characters, including numbers and symbols.”
+
+#### 4.11.3 First-time setup
+- Welcome message “Hi {name}, let’s secure your account.” Steps: Set new password, Configure 2FA (optional), Upload profile photo, Confirm contact info.
+
+#### 4.11.4 Maintenance/offline page
+- Copy: “We’re performing scheduled maintenance. Please try again after {time}. For urgent issues, contact support@bitflow.nova.”
+
+5. Shared component glossary
+---------------------------
+
+- **MetricCard:** Props (icon, label, value, trend, trendLabel). Variants: positive/negative/neutral.
+- **DataTable:** Supports server-side pagination, column definitions with renderers, row selection, sticky header, inline actions.
+- **StatusBadge:** Variants (success, warning, danger, neutral, info). Used for status fields.
+- **UserAvatar:** Accepts name, photo URL, fallback initials.
+- **AlertBanner:** Props (type, title, message, actionText, onAction). Dismissible by default.
+- **TimelineList:** chronological items with icon, title, description, timestamp.
+- **Modal:** width sizes (sm 360px, md 480px, lg 720px). Focus trap implemented.
+- **Tabs:** supports horizontal and vertical variants; accessible with arrow key navigation.
+- **FormField:** wrapper handling label, helper, error, required indicator.
+- **Stepper:** used for multi-step flows (Payroll, Invoice generation). Each step has title, description, status (complete, current, upcoming).
+- **EmptyState:** icon, title, description, primary CTA. Example text “Nothing here yet. Start by…”
+
+6. Notification & messaging rules
+---------------------------------
+
+- Channel preference (per user): in-app (default), push notifications (mobile), email (disabled globally for now), SMS (future).
+- Announcement priority mapping: Normal (blue icon), High (red border, sticky until dismissed), Critical (full-width banner).
+- Chat messages: text only with two emoji reactions (👍, 👎). Saved messages pinned to top of channel; system purges others after 6 months.
+- Activity feed items follow format “{actor} {action} {object}” with time-ago (e.g., “S. Patel approved Payroll Run #Oct2025 · 3m ago”).
+- Notification drawer groups by day; each item has CTA (e.g., “Open request”). Mark all as read button.
+
+7. Localization & multi-brand considerations
+-------------------------------------------
+
+- Text resources stored in JSON translation files keyed by stable IDs (`dashboard.welcome`).
+- Support English, Hindi, Marathi initially; design ensures space for longer strings (up to 25% expansion).
+- Date/time format uses locale aware functions; default `DD MMM YYYY, hh:mm A` (Asia/Kolkata) but respects user setting.
+- White-label assets per tenant: logos (SVG preferred), brand colours, favicon, authentication background image.
+- Right-to-left languages not required v1 but layout uses logical properties where possible.
+
+8. Appendices
+-------------
+
+### 8.1 Sample copy snippets
+- Dashboard greeting: “Hi {firstName}, welcome back!”
+- Empty state (no documents): “No documents yet. Upload files requested by your college to get started.”
+- Error toast: “Error – Something went wrong. Try again or contact support.”
+
+### 8.2 Dashboard metric dictionary
+- **Active students:** Number of student accounts with login activity in last 30 days.
+- **Pending approvals:** Count of requests awaiting user action (feature toggles, payroll, bulk uploads).
+
+### 8.3 Icon mapping
+- Colleges: `Building2`
+- Attendance: `CheckCircle`
+- Finance: `Wallet`
+- Academics: `BookOpen`
+- Helpdesk: `LifeBuoy`
+
+Revision history
+----------------
+- v0.1 (2025-10-07): Initial complete draft by Bitflow Nova product team.

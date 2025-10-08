@@ -1,0 +1,51 @@
+{
+  "name": "@bitflow/ui",
+  "version": "0.1.0",
+  "type": "module",
+  "sideEffects": false,
+  "main": "./src/index.ts",
+  "exports": {
+    "./tailwind-preset": "./tailwind-preset.ts",
+    "./cn": "./src/lib/cn.ts",
+    "./theme-provider": "./src/providers/theme-provider.tsx",
+    "./button": "./src/components/button.tsx",
+    "./badge": "./src/components/badge.tsx",
+    "./card": "./src/components/card.tsx",
+    "./separator": "./src/components/separator.tsx",
+    "./table": "./src/components/table.tsx",
+    "./switch": "./src/components/switch.tsx",
+    "./input": "./src/components/input.tsx",
+    "./chart-preview": "./src/components/chart-preview.tsx",
+    "./timeline": "./src/components/timeline.tsx"
+  },
+  "scripts": {
+    "build": "tsup src/index.ts --format esm --dts --out-dir dist",
+    "lint": "eslint src --ext .ts,.tsx",
+    "test": "vitest"
+  },
+  "dependencies": {
+    "@radix-ui/react-slot": "^1.1.0",
+    "@radix-ui/react-switch": "^1.1.0",
+    "class-variance-authority": "^0.7.0",
+    "clsx": "^2.1.1",
+    "lucide-react": "^0.446.0",
+    "recharts": "^2.12.2",
+    "tailwind-merge": "^2.4.0",
+    "tailwindcss-animate": "^1.0.7"
+  },
+  "peerDependencies": {
+    "react": "^18.3.1 || ^19.0.0-0",
+    "react-dom": "^18.3.1 || ^19.0.0-0",
+    "tailwindcss": ">=3.4.0"
+  },
+  "devDependencies": {
+    "@types/react": "^18.3.3",
+    "@types/react-dom": "^18.3.0",
+    "@types/recharts": "^1.8.27",
+    "react": "canary",
+    "react-dom": "canary",
+    "tailwindcss": "^3.4.10",
+    "tsup": "^8.1.0",
+    "vitest": "^2.1.3"
+  }
+}

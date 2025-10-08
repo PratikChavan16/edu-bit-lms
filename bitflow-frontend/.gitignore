@@ -1,0 +1,10 @@
+/node_modules/
+/.turbo/
+/.next/
+/out/
+/.idea/
+/.vscode/
+.env
+apps/**/.env
+coverage/
+storybook-static/
