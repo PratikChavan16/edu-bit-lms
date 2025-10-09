@@ -1,0 +1,417 @@
+openapi: 3.0.3
+info:
+  title: BitFlow LMS - File Upload API
+  description: |
+    File upload and management endpoints for BitFlow Learning Management System.
+    Supports single/batch uploads with quota management and access control.
+  version: 1.0.0
+
+servers:
+  - url: http://localhost:8000/api
+    description: Local development server
+  - url: https://api.bitflow.edu
+    description: Production server
+
+tags:
+  - name: File Upload
+    description: File upload operations
+  - name: File Management
+    description: File download, delete, and metadata operations
+  - name: Storage
+    description: Storage quota and usage tracking
+
+paths:
+  /files/upload:
+    post:
+      tags:
+        - File Upload
+      summary: Upload single file
+      description: Upload a single file with metadata
+      operationId: uploadFile
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - file
+              properties:
+                file:
+                  type: string
+                  format: binary
+                  description: File to upload (max 100MB)
+                folder:
+                  type: string
+                  example: documents
+                  description: Target folder path
+                visibility:
+                  type: string
+                  enum: [public, private]
+                  default: private
+                  example: private
+      responses:
+        '201':
+          description: File uploaded successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/FileMetadata'
+        '413':
+          $ref: '#/components/responses/QuotaExceeded'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /files/upload-multiple:
+    post:
+      tags:
+        - File Upload
+      summary: Upload multiple files
+      description: Upload up to 10 files in a single request
+      operationId: uploadMultipleFiles
+      security:
+        - bearerAuth: []
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required:
+                - files
+              properties:
+                files:
+                  type: array
+                  items:
+                    type: string
+                    format: binary
+                  maxItems: 10
+                  description: Array of files to upload (max 10)
+                folder:
+                  type: string
+                  example: assignments
+                visibility:
+                  type: string
+                  enum: [public, private]
+                  default: private
+      responses:
+        '201':
+          description: Files uploaded (partial success possible)
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FileMetadata'
+                  errors:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        file:
+                          type: string
+                          example: large_file.pdf
+                        error:
+                          type: string
+                          example: File exceeds quota
+
+  /files/{fileId}:
+    get:
+      tags:
+        - File Management
+      summary: Get file metadata
+      description: Retrieve metadata for a specific file
+      operationId: getFileMetadata
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+          example: 9d4f5c6e-7a8b-9c0d-1e2f-3a4b5c6d7e8f
+      responses:
+        '200':
+          description: File metadata retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/FileMetadata'
+        '404':
+          $ref: '#/components/responses/FileNotFound'
+
+    delete:
+      tags:
+        - File Management
+      summary: Delete file
+      description: Delete a file and its metadata
+      operationId: deleteFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: File deleted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  message:
+                    type: string
+                    example: File deleted successfully
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/FileNotFound'
+
+  /files/{fileId}/download:
+    get:
+      tags:
+        - File Management
+      summary: Download file
+      description: Download file with access control
+      operationId: downloadFile
+      security:
+        - bearerAuth: []
+      parameters:
+        - name: fileId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: File download URL or binary content
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    type: object
+                    properties:
+                      url:
+                        type: string
+                        format: uri
+                        example: https://s3.amazonaws.com/bucket/files/document.pdf?X-Amz-Signature=...
+                        description: Temporary signed URL (S3) or direct download
+            application/octet-stream:
+              schema:
+                type: string
+                format: binary
+        '403':
+          $ref: '#/components/responses/Forbidden'
+        '404':
+          $ref: '#/components/responses/FileNotFound'
+
+  /files/storage/usage:
+    get:
+      tags:
+        - Storage
+      summary: Get storage usage
+      description: Retrieve current storage usage and quota information
+      operationId: getStorageUsage
+      security:
+        - bearerAuth: []
+      responses:
+        '200':
+          description: Storage usage retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  data:
+                    $ref: '#/components/schemas/StorageUsage'
+
+components:
+  schemas:
+    FileMetadata:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+          example: 9d4f5c6e-7a8b-9c0d-1e2f-3a4b5c6d7e8f
+        user_id:
+          type: string
+          format: uuid
+          example: 8c3e4b5d-6a7b-8c9d-0e1f-2a3b4c5d6e7f
+        path:
+          type: string
+          example: files/users/8c3e4b5d/documents/report.pdf
+        original_name:
+          type: string
+          example: Annual_Report_2024.pdf
+        filename:
+          type: string
+          example: 1705312345_Annual_Report_2024.pdf
+        mime_type:
+          type: string
+          example: application/pdf
+        size:
+          type: integer
+          example: 2458624
+          description: File size in bytes
+        folder:
+          type: string
+          example: documents
+        visibility:
+          type: string
+          enum: [public, private]
+          example: private
+        disk:
+          type: string
+          enum: [local, s3]
+          example: s3
+        uploaded_at:
+          type: string
+          format: date-time
+          example: 2024-01-15T10:30:45Z
+
+    StorageUsage:
+      type: object
+      properties:
+        user_id:
+          type: string
+          format: uuid
+          example: 8c3e4b5d-6a7b-8c9d-0e1f-2a3b4c5d6e7f
+        used_bytes:
+          type: integer
+          example: 524288000
+          description: Total bytes used
+        used_mb:
+          type: number
+          format: float
+          example: 500.00
+          description: Total MB used
+        quota_bytes:
+          type: integer
+          example: 2147483648
+          description: Total quota in bytes
+        quota_mb:
+          type: integer
+          example: 2048
+          description: Total quota in MB
+        available_bytes:
+          type: integer
+          example: 1623195648
+          description: Available space in bytes
+        percentage_used:
+          type: number
+          format: float
+          example: 24.41
+          description: Percentage of quota used
+        file_count:
+          type: integer
+          example: 42
+          description: Total number of files
+
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: 'Token'
+
+  responses:
+    QuotaExceeded:
+      description: Storage quota exceeded
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Storage quota exceeded. Please delete some files or contact administrator.
+              data:
+                $ref: '#/components/schemas/StorageUsage'
+
+    FileNotFound:
+      description: File not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: File not found
+
+    Forbidden:
+      description: Access denied
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: You do not have permission to access this file
+
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: The given data was invalid.
+              errors:
+                type: object
+                properties:
+                  file:
+                    type: array
+                    items:
+                      type: string
+                    example: ["The file field is required.", "The file must not be greater than 102400 kilobytes."]
