@@ -133,6 +133,9 @@ importers:
       '@tanstack/react-query':
         specifier: ^5.51.24
         version: 5.90.2(react@19.3.0-canary-3025aa39-20251007)
+      axios:
+        specifier: ^1.12.2
+        version: 1.12.2
       zod:
         specifier: ^3.23.8
         version: 3.25.76
