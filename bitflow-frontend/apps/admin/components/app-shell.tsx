@@ -3,10 +3,8 @@
 import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { ReactNode } from "react";
-import { cn } from "@bitflow/ui/cn";
-import { Badge } from "@bitflow/ui/badge";
-import { Button } from "@bitflow/ui/button";
-import { Separator } from "@bitflow/ui/separator";
+import { cn, Badge, Button } from "@bitflow/ui";
+import { Separator } from "@bitflow/ui";
 
 const sections = [
   {

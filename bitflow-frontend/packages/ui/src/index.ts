@@ -1,7 +1,14 @@
 // New Glassmorphic Components (Week 1 - Ameya)
 export { Button } from "./components/Button";
 export { Input } from "./components/Input";
-export { Card } from "./components/Card";
+export { 
+  Card, 
+  CardHeader, 
+  CardTitle, 
+  CardDescription, 
+  CardContent, 
+  CardFooter 
+} from "./components/Card";
 export { ProtectedRoute } from "./components/ProtectedRoute";
 
 // Auth Provider

@@ -5,18 +5,18 @@
   "sideEffects": false,
   "main": "./src/index.ts",
   "exports": {
+    ".": "./src/index.ts",
     "./tailwind-preset": "./tailwind-preset.ts",
-    "./cn": "./src/lib/cn.ts",
     "./theme-provider": "./src/providers/theme-provider.tsx",
-    "./button": "./src/components/button.tsx",
     "./badge": "./src/components/badge.tsx",
-    "./card": "./src/components/card.tsx",
     "./separator": "./src/components/separator.tsx",
     "./table": "./src/components/table.tsx",
     "./switch": "./src/components/switch.tsx",
-    "./input": "./src/components/input.tsx",
     "./chart-preview": "./src/components/chart-preview.tsx",
-    "./timeline": "./src/components/timeline.tsx"
+    "./timeline": "./src/components/timeline.tsx",
+    "./button": "./src/components/Button.tsx",
+    "./card": "./src/components/Card.tsx",
+    "./input": "./src/components/Input.tsx"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --out-dir dist",
