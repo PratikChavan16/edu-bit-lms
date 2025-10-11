@@ -16,6 +16,18 @@ export { Modal } from "./components/Modal";
 export { Textarea } from "./components/Textarea";
 export { Select } from "./components/Select";
 export { RadioGroup } from "./components/Radio";
+export { DataTable } from "./components/DataTable";
+export type { Column, DataTableProps } from "./components/DataTable";
+export { DatePicker } from "./components/DatePicker";
+export type { DatePickerProps } from "./components/DatePicker";
+export { FileUpload } from "./components/FileUpload";
+export type { FileUploadProps } from "./components/FileUpload";
+export { Tabs } from "./components/Tabs";
+export type { TabItem, TabsProps } from "./components/Tabs";
+export { ToastProvider, useToast } from "./components/Toast";
+export type { Toast } from "./components/Toast";
+export { Breadcrumbs } from "./components/Breadcrumbs";
+export type { BreadcrumbItem, BreadcrumbsProps } from "./components/Breadcrumbs";
 export { ProtectedRoute, withAuth, useRouteAccess } from "./components/ProtectedRoute";
 
 // Auth Context & Provider
