@@ -53,14 +53,17 @@ class LibraryResourcesTest extends TestCase
             ->assertJsonStructure([
                 'success',
                 'data' => [
-                    'data' => [
-                        '*' => [
-                            'id',
-                            'title',
-                            'type',
-                            'file_url',
-                        ],
+                    '*' => [
+                        'id',
+                        'title',
+                        'type',
+                        'file_url',
                     ],
+                ],
+                'meta' => [
+                    'current_page',
+                    'per_page',
+                    'total',
                 ],
             ]);
     }
@@ -148,8 +151,8 @@ class LibraryResourcesTest extends TestCase
             'approval_status' => 'pending',
         ]);
 
-        $response = $this->patchJson("/api/admin/library/resources/{$resource->id}/approve?college_id={$this->college->id}", [
-            'approval_status' => 'approved',
+        $response = $this->postJson("/api/admin/library/resources/{$resource->id}/approve?college_id={$this->college->id}", [
+            'status' => 'approved',
         ], [
             'Authorization' => 'Bearer ' . $this->token,
         ]);
@@ -180,7 +183,7 @@ class LibraryResourcesTest extends TestCase
         ]);
 
         $response->assertStatus(200);
-        $this->assertCount(3, $response->json('data.data'));
+        $this->assertCount(3, $response->json('data'));
     }
 
     public function test_requires_authentication(): void

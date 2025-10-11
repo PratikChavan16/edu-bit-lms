@@ -16,7 +16,7 @@ class AttendanceRepository
      */
     public function upsertAttendance(array $entries): Collection
     {
-        $records = collect();
+        $records = [];
 
         foreach ($entries as $entry) {
             $attendance = Attendance::updateOrCreate(
@@ -32,10 +32,10 @@ class AttendanceRepository
                 ]
             );
 
-            $records->push($attendance->fresh(['student.user', 'timetableBlock']));
+            $records[] = $attendance->fresh(['student.user', 'timetableBlock']);
         }
 
-        return $records;
+        return new Collection($records);
     }
 
     public function getStudentAttendance(string $studentId, Carbon $from, Carbon $to): Collection

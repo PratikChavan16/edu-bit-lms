@@ -21,8 +21,14 @@ final class AssessmentsController
      */
     private function resolveCollege(Request $request): ?College
     {
-        $college = app('tenant.college');
+        $college = null;
+        
+        // Try to get from container binding (set by middleware in production)
+        if (app()->bound('tenant.college')) {
+            $college = app('tenant.college');
+        }
 
+        // Fallback to query parameter (used in tests and API calls)
         if (!$college && $request->has('college_id')) {
             $college = College::find($request->input('college_id'));
         }

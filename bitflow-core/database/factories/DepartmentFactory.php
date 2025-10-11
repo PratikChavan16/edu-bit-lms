@@ -36,7 +36,7 @@ class DepartmentFactory extends Factory
 
         return [
             'name' => $department['name'],
-            'code' => $department['code'],
+            'code' => $department['code'] . '-' . $this->faker->unique()->randomNumber(3),
             'college_id' => College::factory(),
             'type' => $this->faker->randomElement(['academic', 'administrative', 'support']),
             'status' => $this->faker->randomElement(['active', 'inactive']),

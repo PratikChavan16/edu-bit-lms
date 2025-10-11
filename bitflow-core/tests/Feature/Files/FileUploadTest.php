@@ -62,6 +62,10 @@ class FileUploadTest extends TestCase
 
     public function test_user_can_upload_multiple_files(): void
     {
+        if (!extension_loaded('gd')) {
+            $this->markTestSkipped('GD extension is not installed. Skipping image upload test.');
+        }
+
         $files = [
             UploadedFile::fake()->create('doc1.pdf', 500),
             UploadedFile::fake()->create('doc2.pdf', 500),
@@ -174,6 +178,10 @@ class FileUploadTest extends TestCase
 
     public function test_user_can_upload_image(): void
     {
+        if (!extension_loaded('gd')) {
+            $this->markTestSkipped('GD extension is not installed. Skipping image upload test.');
+        }
+
         $file = UploadedFile::fake()->image('avatar.jpg', 800, 600);
 
         $response = $this->postJson('/api/files/upload', [

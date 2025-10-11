@@ -90,7 +90,7 @@ class TimetableTest extends TestCase
             'course' => 'BSc Computer Science',
         ]);
 
-        $response = $this->getJson("/api/admin/timetable?college_id={$this->college->id}&course=BSc Computer Science", [
+        $response = $this->getJson("/api/admin/timetable?college_id={$this->college->id}&course=BSc Computer Science&year=1", [
             'Authorization' => 'Bearer ' . $this->adminToken,
         ]);
 
@@ -144,9 +144,12 @@ class TimetableTest extends TestCase
             'faculty_id' => $this->faculty->id,
         ]);
 
+        // Get the next date that matches the timetable block's day_of_week
+        $targetDate = now()->next($block->day_of_week);
+
         $data = [
-            'date' => now()->addDays(3)->toDateString(),
-            'type' => 'cancelled',
+            'date' => $targetDate->toDateString(),
+            'action' => 'cancelled',
             'reason' => 'Faculty unavailable',
         ];
 
@@ -158,7 +161,7 @@ class TimetableTest extends TestCase
 
         $this->assertDatabaseHas('timetable_block_exceptions', [
             'timetable_block_id' => $block->id,
-            'type' => 'cancelled',
+            'action' => 'cancelled',
         ]);
     }
 
@@ -181,22 +184,23 @@ class TimetableTest extends TestCase
         TimetableBlock::factory()->create([
             'college_id' => $this->college->id,
             'faculty_id' => $this->faculty->id,
-            'day_of_week' => 1,
+            'day_of_week' => 'monday',
             'start_time' => '09:00',
             'end_time' => '10:00',
-            'room' => 'Room 101',
+            'location' => 'Room 101',
         ]);
 
         $data = [
             'subject' => 'Another Subject',
             'course' => 'BSc Computer Science',
-            'year' => 2024,
+            'year' => 1,
             'section' => 'A',
-            'day_of_week' => 1,
+            'day_of_week' => 'monday',
             'start_time' => '09:30',
             'end_time' => '10:30',
-            'room' => 'Room 101', // Same room, overlapping time
+            'location' => 'Room 101', // Same location, overlapping time
             'faculty_id' => $this->faculty->id,
+            'effective_from' => now()->toDateString(),
         ];
 
         $response = $this->postJson("/api/admin/timetable?college_id={$this->college->id}", $data, [
@@ -204,7 +208,7 @@ class TimetableTest extends TestCase
         ]);
 
         $response->assertStatus(422)
-            ->assertJsonFragment(['message' => 'Time slot conflict detected']);
+            ->assertJsonFragment(['message' => 'The timetable block overlaps with existing entries.']);
     }
 
     public function test_requires_authentication(): void

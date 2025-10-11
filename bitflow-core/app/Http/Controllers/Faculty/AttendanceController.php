@@ -89,7 +89,7 @@ final class AttendanceController
         return response()->json([
             'success' => true,
             'data' => $entries,
-        ]);
+        ], 201);
     }
 
     public function requestCorrection(Request $request, string $attendanceId): JsonResponse

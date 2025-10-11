@@ -24,6 +24,7 @@ return new class extends Migration
             $table->date('effective_from');
             $table->date('effective_to')->nullable();
             $table->timestamps();
+            $table->softDeletes();
 
             $table->index(['college_id', 'day_of_week', 'start_time']);
             $table->index(['faculty_id', 'day_of_week', 'start_time']);

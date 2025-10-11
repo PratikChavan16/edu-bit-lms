@@ -114,10 +114,16 @@ class FeeSummaryFormatter
             return max(0, $invoice['total_amount'] - $invoice['paid_amount']);
         });
 
+        $totalFees = $preparedInvoices->sum(static fn (array $invoice): float => $invoice['total_amount']);
+        $paidAmount = $preparedInvoices->sum(static fn (array $invoice): float => $invoice['paid_amount']);
+
         $lastPayment = $payments->first();
 
         return [
             'items' => $items,
+            'total_fees' => round($totalFees, 2),
+            'paid_amount' => round($paidAmount, 2),
+            'pending_amount' => round($totalOutstanding, 2),
             'meta' => [
                 'currency' => '₹',
                 'invoice_count' => $preparedInvoices->count(),

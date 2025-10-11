@@ -53,6 +53,25 @@ final class FeesController
         ]);
     }
 
+    public function summary(Request $request): JsonResponse
+    {
+        $student = $this->resolveStudent();
+
+        if (!$student) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Student profile not found',
+            ], 404);
+        }
+
+        $summary = $this->feeService->getStudentFeeSummary($student);
+
+        return response()->json([
+            'success' => true,
+            'data' => $summary,
+        ]);
+    }
+
     private function resolveStudent(): ?Student
     {
         $user = Auth::user();

@@ -21,7 +21,7 @@ class LibraryResourceFactory extends Factory
      */
     public function definition(): array
     {
-        $types = ['book', 'notes', 'video', 'assignment', 'question_paper', 'reference'];
+        $types = ['notes', 'video', 'ebook', 'other'];
         $type = fake()->randomElement($types);
 
         return [

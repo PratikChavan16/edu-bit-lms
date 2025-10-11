@@ -1,101 +1,216 @@
-<?php
+<?php<?php
 
-namespace Tests\Unit\Services;
 
-use App\Models\Student;
-use App\Repositories\FeeRepository;
-use App\Services\FeeService;
-use App\Services\FeeSummaryFormatter;
-use Illuminate\Contracts\Pagination\LengthAwarePaginator;
-use Illuminate\Support\Collection;
-use Mockery;
+
+namespace Tests\Unit\Services;namespace Tests\Unit\Services;
+
+
+
+use App\Models\Student;use App\Models\Student;
+
+use App\Repositories\FeeRepository;use App\Repositories\FeeRepository;
+
+use App\Services\FeeService;use App\Services\FeeService;
+
+use App\Services\FeeSummaryFormatter;use App\Services\FeeSummaryFormatter;
+
+use Illuminate\Contracts\Pagination\LengthAwarePaginator;use Illuminate\Contracts\Pagination\LengthAwarePaginator;
+
+use Mockery;use Illuminate\Support\Collection;
+
+use Tests\TestCase;use Mockery;
+
 use Tests\TestCase;
 
 class FeeServiceTest extends TestCase
-{
-    private FeeRepository $repositoryMock;
-    private FeeSummaryFormatter $formatterMock;
+
+{class FeeServiceTest extends TestCase
+
+    private FeeRepository $repositoryMock;{
+
+    private FeeSummaryFormatter $formatterMock;    private FeeRepository $repositoryMock;
+
+    private FeeService $service;    private FeeSummaryFormatter $formatterMock;
+
     private FeeService $service;
 
     protected function setUp(): void
-    {
-        parent::setUp();
-        
-        $this->repositoryMock = Mockery::mock(FeeRepository::class);
-        $this->formatterMock = Mockery::mock(FeeSummaryFormatter::class);
-        $this->service = new FeeService($this->repositoryMock, $this->formatterMock);
+
+    {    protected function setUp(): void
+
+        parent::setUp();    {
+
+                parent::setUp();
+
+        $this->repositoryMock = Mockery::mock(FeeRepository::class);        
+
+        $this->formatterMock = Mockery::mock(FeeSummaryFormatter::class);        $this->repositoryMock = Mockery::mock(FeeRepository::class);
+
+        $this->service = new FeeService($this->repositoryMock, $this->formatterMock);        $this->formatterMock = Mockery::mock(FeeSummaryFormatter::class);
+
+    }        $this->service = new FeeService($this->repositoryMock, $this->formatterMock);
+
     }
 
     protected function tearDown(): void
-    {
-        Mockery::close();
-        parent::tearDown();
+
+    {    protected function tearDown(): void
+
+        Mockery::close();    {
+
+        parent::tearDown();        Mockery::close();
+
+    }        parent::tearDown();
+
     }
 
-    public function test_get_student_fee_summary_returns_formatted_data(): void
-    {
-        $student = Mockery::mock(Student::class);
-        $student->id = 'student-123';
-        
+    public function test_list_structures_calls_repository(): void
+
+    {    public function test_get_student_fee_summary_returns_formatted_data(): void
+
+        $collegeId = 'college-123';    {
+
+        $filters = [];        $student = Mockery::mock(Student::class);
+
+        $perPage = 15;        $student->shouldReceive('setAttribute')->andReturnSelf();
+
+                $student->shouldReceive('getAttribute')->andReturnUsing(function ($key) {
+
+        $paginatorMock = Mockery::mock(LengthAwarePaginator::class);            return match($key) {
+
+                        'id' => 'student-123',
+
+        $this->repositoryMock                default => null,
+
+            ->shouldReceive('listStructures')            };
+
+            ->once()        });
+
+            ->with($collegeId, $filters, $perPage)        $student->id = 'student-123';
+
+            ->andReturn($paginatorMock);        
+
         $feesMock = new Collection([
-            (object)['amount' => 1000, 'status' => 'paid'],
+
+        $result = $this->service->listStructures($collegeId, $filters, $perPage);            (object)['amount' => 1000, 'status' => 'paid'],
+
             (object)['amount' => 500, 'status' => 'pending'],
-        ]);
-        
+
+        $this->assertSame($paginatorMock, $result);        ]);
+
+    }        
+
         $formattedData = [
-            'total_fees' => 1500,
-            'paid_amount' => 1000,
-            'pending_amount' => 500,
-        ];
-        
-        $this->repositoryMock
-            ->shouldReceive('getStudentFees')
-            ->once()
-            ->with('student-123')
-            ->andReturn($feesMock);
-        
+
+    public function test_list_invoices_calls_repository(): void            'items' => [],
+
+    {            'total_fees' => 1500,
+
+        $collegeId = 'college-123';            'paid_amount' => 1000,
+
+        $filters = ['status' => 'pending'];            'pending_amount' => 500,
+
+        $perPage = 20;            'meta' => [],
+
+                ];
+
+        $paginatorMock = Mockery::mock(LengthAwarePaginator::class);        
+
+                $this->repositoryMock
+
+        $this->repositoryMock            ->shouldReceive('getStudentFees')
+
+            ->shouldReceive('listInvoices')            ->once()
+
+            ->once()            ->with('student-123')
+
+            ->with($collegeId, $filters, $perPage)            ->andReturn($feesMock);
+
+            ->andReturn($paginatorMock);        
+
         $this->formatterMock
-            ->shouldReceive('formatSummary')
+
+        $result = $this->service->listInvoices($collegeId, $filters, $perPage);            ->shouldReceive('build')
+
             ->once()
-            ->with($feesMock)
-            ->andReturn($formattedData);
+
+        $this->assertSame($paginatorMock, $result);            ->andReturn($formattedData);
+
+    }
 
         $result = $this->service->getStudentFeeSummary($student);
 
-        $this->assertEquals($formattedData, $result);
-    }
+    public function test_list_invoices_for_student_calls_repository(): void
 
-    public function test_list_fees_for_college(): void
-    {
-        $collegeId = 'college-123';
-        $filters = ['status' => 'pending'];
-        $perPage = 20;
-        
-        $paginatorMock = Mockery::mock(LengthAwarePaginator::class);
-        
-        $this->repositoryMock
+    {        $this->assertEquals($formattedData, $result);
+
+        $student = Mockery::mock(Student::class);    }
+
+        $filters = ['year' => 2024];
+
+        $perPage = 15;    public function test_list_fees_for_college(): void
+
+            {
+
+        $paginatorMock = Mockery::mock(LengthAwarePaginator::class);        $collegeId = 'college-123';
+
+                $filters = ['status' => 'pending'];
+
+        $this->repositoryMock        $perPage = 20;
+
+            ->shouldReceive('listInvoicesForStudent')        
+
+            ->once()        $paginatorMock = Mockery::mock(LengthAwarePaginator::class);
+
+            ->with($student, $filters, $perPage)        
+
+            ->andReturn($paginatorMock);        $this->repositoryMock
+
             ->shouldReceive('listForCollege')
-            ->once()
+
+        $result = $this->service->listInvoicesForStudent($student, $filters, $perPage);            ->once()
+
             ->with($collegeId, $filters, $perPage)
-            ->andReturn($paginatorMock);
+
+        $this->assertSame($paginatorMock, $result);            ->andReturn($paginatorMock);
+
+    }
 
         $result = $this->service->listFeesForCollege($collegeId, $filters, $perPage);
 
-        $this->assertSame($paginatorMock, $result);
-    }
+    public function test_get_invoice_calls_repository(): void
 
-    public function test_list_student_fees(): void
-    {
-        $student = Mockery::mock(Student::class);
-        $filters = ['year' => 2024];
+    {        $this->assertSame($paginatorMock, $result);
+
+        $invoiceId = 'fee-123';    }
+
         
-        $paginatorMock = Mockery::mock(LengthAwarePaginator::class);
-        
+
+        $invoiceMock = Mockery::mock(\App\Models\FeeInvoice::class);    public function test_list_student_fees(): void
+
+            {
+
+        $this->repositoryMock        $student = Mockery::mock(Student::class);
+
+            ->shouldReceive('getInvoice')        $filters = ['year' => 2024];
+
+            ->once()        
+
+            ->with($invoiceId)        $paginatorMock = Mockery::mock(LengthAwarePaginator::class);
+
+            ->andReturn($invoiceMock);        
+
         $this->repositoryMock
-            ->shouldReceive('listForStudent')
+
+        $result = $this->service->getInvoice($invoiceId);            ->shouldReceive('listForStudent')
+
             ->once()
-            ->with($student, $filters, 15)
-            ->andReturn($paginatorMock);
+
+        $this->assertSame($invoiceMock, $result);            ->with($student, $filters, 15)
+
+    }            ->andReturn($paginatorMock);
+
+}
 
         $result = $this->service->listStudentFees($student, $filters);
 

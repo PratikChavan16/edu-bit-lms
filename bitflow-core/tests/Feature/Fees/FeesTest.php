@@ -65,9 +65,7 @@ class FeesTest extends TestCase
             ->assertJsonStructure([
                 'success',
                 'data' => [
-                    'data' => [
-                        '*' => ['id', 'course', 'year', 'amount'],
-                    ],
+                    '*' => ['id', 'course', 'year', 'amount'],
                 ],
             ]);
     }
@@ -76,9 +74,12 @@ class FeesTest extends TestCase
     {
         $data = [
             'course' => 'BSc Computer Science',
-            'year' => 2024,
+            'year' => 2,
             'semester' => 1,
             'amount' => 50000,
+            'component_name' => 'Tuition Fee',
+            'frequency' => 'semester',
+            'effective_from' => now()->toDateString(),
             'components' => [
                 'tuition' => 35000,
                 'library' => 5000,
@@ -125,7 +126,7 @@ class FeesTest extends TestCase
         $data = [
             'amount' => 25000,
             'payment_method' => 'online',
-            'transaction_id' => 'TXN123456',
+            'reference_number' => 'TXN123456',
             'payment_date' => now()->toDateString(),
         ];
 
@@ -138,7 +139,7 @@ class FeesTest extends TestCase
         $this->assertDatabaseHas('fee_payments', [
             'invoice_id' => $invoice->id,
             'amount' => 25000,
-            'transaction_id' => 'TXN123456',
+            'reference_number' => 'TXN123456',
         ]);
     }
 

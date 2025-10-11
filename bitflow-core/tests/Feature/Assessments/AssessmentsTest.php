@@ -123,10 +123,9 @@ class AssessmentsTest extends TestCase
             ->assertJsonStructure([
                 'success',
                 'data' => [
-                    'data' => [
-                        '*' => ['id', 'title', 'type'],
-                    ],
+                    '*' => ['id', 'title', 'type'],
                 ],
+                'meta' => ['current_page', 'per_page', 'total'],
             ]);
     }
 

@@ -4,8 +4,8 @@ namespace Database\Factories;
 
 use App\Models\Attendance;
 use App\Models\Student;
-use App\Models\Subject;
-use App\Models\Faculty;
+use App\Models\TimetableBlock;
+use App\Models\User;
 use Illuminate\Database\Eloquent\Factories\Factory;
 
 /**
@@ -22,15 +22,29 @@ class AttendanceFactory extends Factory
      */
     public function definition(): array
     {
+        // Try to use existing records to avoid constraint violations
+        $student = Student::inRandomOrder()->first();
+        $timetableBlock = TimetableBlock::inRandomOrder()->first();
+        $marker = User::inRandomOrder()->first();
+
+        // Fall back to creating new records if none exist
+        if (!$student) {
+            $student = Student::factory()->create();
+        }
+        if (!$timetableBlock) {
+            $timetableBlock = TimetableBlock::factory()->create();
+        }
+        if (!$marker) {
+            $marker = User::factory()->create();
+        }
+
         return [
-            'student_id' => Student::factory(),
-            'subject_id' => Subject::factory(),
-            'faculty_id' => Faculty::factory(),
-            'date' => fake()->dateTimeBetween('-3 months', 'now'),
+            'student_id' => $student->id,
+            'timetable_block_id' => $timetableBlock->id,
+            'date' => fake()->dateTimeBetween('-30 days', 'now')->format('Y-m-d'),
             'status' => fake()->randomElement(['present', 'absent', 'late', 'excused']),
-            'marked_at' => now(),
-            'marked_by' => Faculty::factory(),
-            'remarks' => fake()->optional(0.2)->sentence(),
+            'marked_by' => $marker->id,
+            'notes' => fake()->optional(0.3)->sentence(),
         ];
     }
 
@@ -61,7 +75,7 @@ class AttendanceFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'status' => 'late',
-            'remarks' => 'Arrived ' . fake()->numberBetween(5, 30) . ' minutes late',
+            'notes' => 'Arrived ' . fake()->numberBetween(5, 30) . ' minutes late',
         ]);
     }
 
@@ -72,7 +86,7 @@ class AttendanceFactory extends Factory
     {
         return $this->state(fn (array $attributes) => [
             'status' => 'excused',
-            'remarks' => fake()->randomElement([
+            'notes' => fake()->randomElement([
                 'Medical leave',
                 'Family emergency',
                 'Official college event',

@@ -69,9 +69,12 @@ class AttendanceTest extends TestCase
 
     public function test_faculty_can_mark_attendance(): void
     {
+        // Get the next date that matches the timetable block's day_of_week
+        $targetDate = now()->next($this->block->day_of_week);
+        
         $data = [
-            'date' => now()->toDateString(),
-            'attendance' => [
+            'date' => $targetDate->toDateString(),
+            'entries' => [
                 [
                     'student_id' => $this->student->id,
                     'status' => 'present',
@@ -94,13 +97,16 @@ class AttendanceTest extends TestCase
 
     public function test_faculty_can_view_attendance(): void
     {
+        // Get the next date that matches the timetable block's day_of_week
+        $targetDate = now()->next($this->block->day_of_week);
+        
         Attendance::factory()->create([
             'timetable_block_id' => $this->block->id,
             'student_id' => $this->student->id,
-            'date' => now()->toDateString(),
+            'date' => $targetDate->toDateString(),
         ]);
 
-        $response = $this->getJson("/api/faculty/timetable/{$this->block->id}/attendance?date=" . now()->toDateString(), [
+        $response = $this->getJson("/api/faculty/timetable/{$this->block->id}/attendance?date=" . $targetDate->toDateString(), [
             'Authorization' => 'Bearer ' . $this->facultyToken,
         ]);
 
@@ -108,7 +114,10 @@ class AttendanceTest extends TestCase
             ->assertJsonStructure([
                 'success',
                 'data' => [
-                    '*' => ['student_id', 'status'],
+                    'date',
+                    'entries' => [
+                        '*' => ['student_id', 'status'],
+                    ],
                 ],
             ]);
     }
@@ -266,9 +275,12 @@ class AttendanceTest extends TestCase
             'college_id' => $this->college->id,
         ]);
 
+        // Get the next date that matches the timetable block's day_of_week
+        $targetDate = now()->next($this->block->day_of_week);
+
         $data = [
-            'date' => now()->toDateString(),
-            'attendance' => [
+            'date' => $targetDate->toDateString(),
+            'entries' => [
                 [
                     'student_id' => $this->student->id,
                     'status' => 'present',

@@ -18,7 +18,12 @@ final class TimetableController
 
     public function index(Request $request): JsonResponse
     {
-        $college = app('tenant.college');
+        $college = null;
+
+        // Check if bound (production) before accessing
+        if (app()->bound('tenant.college')) {
+            $college = app('tenant.college');
+        }
 
         // Fallback to query parameter in tests or when tenant context not available
         if (!$college && $request->has('college_id')) {
@@ -58,7 +63,12 @@ final class TimetableController
 
     public function store(Request $request): JsonResponse
     {
-        $college = app('tenant.college');
+        $college = null;
+
+        // Check if bound (production) before accessing
+        if (app()->bound('tenant.college')) {
+            $college = app('tenant.college');
+        }
 
         // Fallback to query parameter in tests or when tenant context not available
         if (!$college && $request->has('college_id')) {
@@ -82,7 +92,7 @@ final class TimetableController
             'start_time' => ['required', 'date_format:H:i'],
             'end_time' => ['required', 'date_format:H:i', 'after:start_time'],
             'location' => ['nullable', 'string', 'max:120'],
-            'type' => ['nullable', Rule::in(['lecture', 'lab', 'tutorial', 'exam', 'other'])],
+            'type' => ['nullable', Rule::in(['lecture', 'lab', 'tutorial', 'practical'])],
             'effective_from' => ['required', 'date'],
             'effective_to' => ['nullable', 'date', 'after_or_equal:effective_from'],
         ]);
@@ -107,7 +117,7 @@ final class TimetableController
             'start_time' => ['sometimes', 'date_format:H:i'],
             'end_time' => ['sometimes', 'date_format:H:i'],
             'location' => ['nullable', 'string', 'max:120'],
-            'type' => ['nullable', Rule::in(['lecture', 'lab', 'tutorial', 'exam', 'other'])],
+            'type' => ['nullable', Rule::in(['lecture', 'lab', 'tutorial', 'practical'])],
             'effective_from' => ['sometimes', 'date'],
             'effective_to' => ['nullable', 'date', 'after_or_equal:effective_from'],
         ]);

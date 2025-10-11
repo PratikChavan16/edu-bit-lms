@@ -168,6 +168,13 @@ class AssessmentServiceTest extends TestCase
         Carbon::setTestNow('2024-01-15 10:30:00');
         
         $student = Mockery::mock(Student::class);
+        $student->shouldReceive('setAttribute')->andReturnSelf();
+        $student->shouldReceive('getAttribute')->andReturnUsing(function ($key) {
+            return match($key) {
+                'id' => 'student-123',
+                default => null,
+            };
+        });
         $student->id = 'student-123';
         $student->user = Mockery::mock(User::class);
         
@@ -176,6 +183,14 @@ class AssessmentServiceTest extends TestCase
         $files = ['file1.pdf'];
         
         $assessmentMock = Mockery::mock(Assessment::class);
+        $assessmentMock->shouldReceive('setAttribute')->andReturnSelf();
+        $assessmentMock->shouldReceive('getAttribute')->andReturnUsing(function ($key) use ($assessmentId) {
+            return match($key) {
+                'id' => $assessmentId,
+                'type' => 'descriptive',
+                default => null,
+            };
+        });
         $assessmentMock->id = $assessmentId;
         $assessmentMock->type = 'descriptive';
         
@@ -223,6 +238,13 @@ class AssessmentServiceTest extends TestCase
         Carbon::setTestNow('2024-01-15 10:30:00');
         
         $student = Mockery::mock(Student::class);
+        $student->shouldReceive('setAttribute')->andReturnSelf();
+        $student->shouldReceive('getAttribute')->andReturnUsing(function ($key) {
+            return match($key) {
+                'id' => 'student-123',
+                default => null,
+            };
+        });
         $student->id = 'student-123';
         $student->user = Mockery::mock(User::class);
         
@@ -230,6 +252,19 @@ class AssessmentServiceTest extends TestCase
         $answers = ['1' => 'A', '2' => 'B'];
         
         $assessmentMock = Mockery::mock(Assessment::class);
+        $assessmentMock->shouldReceive('setAttribute')->andReturnSelf();
+        $assessmentMock->shouldReceive('getAttribute')->andReturnUsing(function ($key) use ($assessmentId) {
+            return match($key) {
+                'id' => $assessmentId,
+                'type' => 'mcq',
+                'questions' => collect([
+                    (object)['question_number' => 1, 'correct_answer' => 'A', 'marks' => 5],
+                    (object)['question_number' => 2, 'correct_answer' => 'C', 'marks' => 5],
+                ]),
+                'passing_marks' => 5,
+                default => null,
+            };
+        });
         $assessmentMock->id = $assessmentId;
         $assessmentMock->type = 'mcq';
         $assessmentMock->questions = collect([
@@ -239,6 +274,15 @@ class AssessmentServiceTest extends TestCase
         $assessmentMock->passing_marks = 5;
         
         $submissionMock = Mockery::mock(AssessmentSubmission::class);
+        $submissionMock->shouldReceive('setAttribute')->andReturnSelf();
+        $submissionMock->shouldReceive('getAttribute')->andReturnUsing(function ($key) use ($answers) {
+            return match($key) {
+                'answers' => $answers,
+                default => null,
+            };
+        });
+        $submissionMock->shouldReceive('offsetExists')->andReturn(true);
+        $submissionMock->shouldReceive('offsetGet')->with('answers')->andReturn($answers);
         $submissionMock->answers = $answers;
         
         $this->repositoryMock->shouldReceive('getById')->andReturn($assessmentMock);

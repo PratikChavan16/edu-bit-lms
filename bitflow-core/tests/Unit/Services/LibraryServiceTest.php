@@ -52,6 +52,15 @@ class LibraryServiceTest extends TestCase
     public function test_list_learner_resources_adds_student_filters(): void
     {
         $student = Mockery::mock(Student::class);
+        $student->shouldReceive('setAttribute')->andReturnSelf();
+        $student->shouldReceive('getAttribute')->andReturnUsing(function ($key) {
+            return match($key) {
+                'college_id' => 'college-123',
+                'course' => 'Computer Science',
+                'year' => 2024,
+                default => null,
+            };
+        });
         $student->college_id = 'college-123';
         $student->course = 'Computer Science';
         $student->year = 2024;
@@ -73,6 +82,15 @@ class LibraryServiceTest extends TestCase
     public function test_list_learner_resources_respects_custom_filters(): void
     {
         $student = Mockery::mock(Student::class);
+        $student->shouldReceive('setAttribute')->andReturnSelf();
+        $student->shouldReceive('getAttribute')->andReturnUsing(function ($key) {
+            return match($key) {
+                'college_id' => 'college-123',
+                'course' => 'Computer Science',
+                'year' => 2024,
+                default => null,
+            };
+        });
         $student->college_id = 'college-123';
         $student->course = 'Computer Science';
         $student->year = 2024;

@@ -162,6 +162,9 @@ Route::prefix('learner')->middleware('auth:sanctum')->group(function () {
     Route::get('/assessments/{assessmentId}', [LearnerAssessmentsController::class, 'show']);
     Route::post('/assessments/{assessmentId}/submit', [LearnerAssessmentsController::class, 'submit']);
 
+    // Fees
+    Route::get('/fees/summary', [\App\Http\Controllers\Learner\FeesController::class, 'summary']);
+
     // Documents
     Route::get('/documents', [LearnerDocumentsController::class, 'index']);
     Route::get('/documents/folders', [LearnerDocumentsController::class, 'folders']);

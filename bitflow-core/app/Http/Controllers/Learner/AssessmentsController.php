@@ -64,6 +64,23 @@ final class AssessmentsController
             ], 404);
         }
 
+        // Check if assessment exists and is submittable
+        $assessment = \App\Models\Assessment::find($assessmentId);
+        if (!$assessment) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Assessment not found',
+            ], 404);
+        }
+
+        // Check deadline
+        if ($assessment->ends_at && now()->isAfter($assessment->ends_at)) {
+            return response()->json([
+                'success' => false,
+                'error' => 'Assessment submission deadline has passed',
+            ], 422);
+        }
+
         $validated = $request->validate([
             'answers' => ['required', 'array'],
             'uploaded_files' => ['nullable', 'array'],

@@ -84,6 +84,11 @@ class FeeService
         return $this->repository->getInvoice($invoiceId);
     }
 
+    public function getStudentFeeSummary(Student $student): array
+    {
+        return $this->getLearnerFeeSummary($student);
+    }
+
     public function getLearnerFeeSummary(Student $student): array
     {
         $invoices = FeeInvoice::with('payments')

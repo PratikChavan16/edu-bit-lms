@@ -113,6 +113,11 @@ class FeeRepository
     public function recordPayment(array $data): FeePayment
     {
         return DB::transaction(function () use ($data) {
+            // Generate receipt number if not provided
+            if (empty($data['receipt_number'])) {
+                $data['receipt_number'] = 'RCPT-' . date('Ymd') . '-' . strtoupper(substr(uniqid(), -6));
+            }
+
             $payment = FeePayment::create($data);
             $invoice = $payment->invoice;
 

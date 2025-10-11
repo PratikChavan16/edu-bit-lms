@@ -47,7 +47,7 @@ class TimetableBlockFactory extends Factory
             'start_time' => $startTime,
             'end_time' => $endTime,
             'location' => 'Room ' . fake()->numberBetween(101, 505),
-            'type' => fake()->randomElement(['lecture', 'lab', 'tutorial', 'exam', 'other']),
+            'type' => fake()->randomElement(['lecture', 'lab', 'tutorial', 'practical']),
             'effective_from' => now()->startOfMonth(),
             'effective_to' => now()->endOfMonth()->addMonths(3),
         ];

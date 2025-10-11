@@ -16,7 +16,15 @@
     "./switch": "./src/components/switch.tsx",
     "./input": "./src/components/input.tsx",
     "./chart-preview": "./src/components/chart-preview.tsx",
-    "./timeline": "./src/components/timeline.tsx"
+    "./timeline": "./src/components/timeline.tsx",
+    "./data-table": "./src/data-table.tsx",
+    "./line-chart": "./src/line-chart.tsx",
+    "./bar-chart": "./src/bar-chart.tsx",
+    "./progress-circle": "./src/progress-circle.tsx",
+    "./select": "./src/select.tsx",
+    "./date-picker": "./src/date-picker.tsx",
+    "./file-upload": "./src/file-upload.tsx",
+    "./modal": "./src/modal.tsx"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --out-dir dist",
