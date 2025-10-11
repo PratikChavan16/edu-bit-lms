@@ -9,10 +9,17 @@ export {
   CardContent, 
   CardFooter 
 } from "./components/Card";
-export { ProtectedRoute } from "./components/ProtectedRoute";
+export { Alert } from "./components/Alert";
+export { Spinner } from "./components/Spinner";
+export { Checkbox } from "./components/Checkbox";
+export { Modal } from "./components/Modal";
+export { Textarea } from "./components/Textarea";
+export { Select } from "./components/Select";
+export { RadioGroup } from "./components/Radio";
+export { ProtectedRoute, withAuth, useRouteAccess } from "./components/ProtectedRoute";
 
-// Auth Provider
-export { AuthProvider, useAuth } from "./providers/AuthProvider";
+// Auth Context & Provider
+export { AuthProvider, useAuth } from "./context/AuthContext";
 
 // Utils
 export { cn } from "./lib/utils";

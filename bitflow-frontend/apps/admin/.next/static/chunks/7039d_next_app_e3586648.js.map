@@ -1,0 +1,6 @@
+{
+  "version": 3,
+  "sources": [],
+  "sections": [
+    {"offset": {"line": 3, "column": 0}, "map": {"version":3,"sources":["file:///home/envisage/Downloads/BitFlow_LMS/edu-bit-lms/bitflow-frontend/node_modules/.pnpm/next%4015.6.0-canary.49_react-dom%4019.3.0-canary-a4eb2dfa-20251006_react%4019.3.0-canary-a4eb2dfa-_uc47x56iwmn47x4r5d6fvjqgzi/node_modules/next/app.js"],"sourcesContent":["module.exports = require('./dist/pages/_app')\n"],"names":[],"mappings":"AAAA,OAAO,OAAO","ignoreList":[0],"debugId":null}}]
+}

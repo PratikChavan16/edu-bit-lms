@@ -3,6 +3,7 @@ import "./globals.css";
 import { ReactNode } from "react";
 import { Inter } from "next/font/google";
 import { ThemeProvider } from "@bitflow/ui/theme-provider";
+import { AuthProvider } from "@bitflow/ui";
 import { QueryProvider } from "./providers";
 import { AppShell } from "../components/app-shell";
 
@@ -22,9 +23,11 @@ export default function RootLayout({ children }: RootLayoutProps) {
     <html lang="en" className="h-full">
       <body className={`h-full bg-surface text-foreground ${inter.className}`}>
         <ThemeProvider attribute="class" defaultTheme="system" enableSystem disableTransitionOnChange>
-          <QueryProvider>
-            <AppShell>{children}</AppShell>
-          </QueryProvider>
+          <AuthProvider>
+            <QueryProvider>
+              <AppShell>{children}</AppShell>
+            </QueryProvider>
+          </AuthProvider>
         </ThemeProvider>
       </body>
     </html>

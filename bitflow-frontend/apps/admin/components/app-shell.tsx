@@ -17,6 +17,16 @@ const sections = [
     ],
   },
   {
+    title: "Academic",
+    items: [
+      { href: "/timetable/builder", label: "Timetable Builder", badge: "New" },
+      { href: "/students/bulk-upload", label: "Bulk Student Upload", badge: "New" },
+      { href: "/assessments/create", label: "Assessment Builder", badge: "New" },
+      { href: "/assessments/1/grade", label: "Grading Interface", badge: "New" },
+      { href: "/analytics", label: "Analytics Dashboard", badge: "New" },
+    ],
+  },
+  {
     title: "Finance",
     items: [
       { href: "/billing", label: "Billing" },
@@ -38,6 +48,13 @@ type AppShellProps = {
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+
+  // Don't render app shell for auth pages
+  const isAuthPage = pathname?.startsWith('/login') || pathname?.startsWith('/register');
+  
+  if (isAuthPage) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="flex min-h-screen bg-muted/20">
@@ -93,7 +110,7 @@ export function AppShell({ children }: AppShellProps) {
             <p className="text-lg font-semibold">Tuesday, 7 October 2025</p>
           </div>
           <div className="flex items-center gap-3">
-            <Button variant="outline">Support</Button>
+            <Button variant="ghost">Support</Button>
             <Button>Provision university</Button>
           </div>
         </header>
