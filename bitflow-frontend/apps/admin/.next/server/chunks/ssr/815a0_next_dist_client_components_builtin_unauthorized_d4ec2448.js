@@ -1,0 +1,32 @@
+module.exports = [
+"[project]/edu-bit-lms/bitflow-frontend/node_modules/.pnpm/next@15.6.0-canary.49_react-dom@19.3.0-canary-a4eb2dfa-20251006_react@19.3.0-canary-a4eb2dfa-_uc47x56iwmn47x4r5d6fvjqgzi/node_modules/next/dist/client/components/builtin/unauthorized.js [app-rsc] (ecmascript)", ((__turbopack_context__, module, exports) => {
+"use strict";
+
+Object.defineProperty(exports, "__esModule", {
+    value: true
+});
+Object.defineProperty(exports, "default", {
+    enumerable: true,
+    get: function() {
+        return Unauthorized;
+    }
+});
+const _jsxruntime = __turbopack_context__.r("[project]/edu-bit-lms/bitflow-frontend/node_modules/.pnpm/next@15.6.0-canary.49_react-dom@19.3.0-canary-a4eb2dfa-20251006_react@19.3.0-canary-a4eb2dfa-_uc47x56iwmn47x4r5d6fvjqgzi/node_modules/next/dist/server/route-modules/app-page/vendored/rsc/react-jsx-runtime.js [app-rsc] (ecmascript)");
+const _errorfallback = __turbopack_context__.r("[project]/edu-bit-lms/bitflow-frontend/node_modules/.pnpm/next@15.6.0-canary.49_react-dom@19.3.0-canary-a4eb2dfa-20251006_react@19.3.0-canary-a4eb2dfa-_uc47x56iwmn47x4r5d6fvjqgzi/node_modules/next/dist/client/components/http-access-fallback/error-fallback.js [app-rsc] (ecmascript)");
+function Unauthorized() {
+    return /*#__PURE__*/ (0, _jsxruntime.jsx)(_errorfallback.HTTPAccessErrorFallback, {
+        status: 401,
+        message: "You're not authorized to access this page."
+    });
+}
+if ((typeof exports.default === 'function' || typeof exports.default === 'object' && exports.default !== null) && typeof exports.default.__esModule === 'undefined') {
+    Object.defineProperty(exports.default, '__esModule', {
+        value: true
+    });
+    Object.assign(exports.default, exports);
+    module.exports = exports.default;
+} //# sourceMappingURL=unauthorized.js.map
+}),
+];
+
+//# sourceMappingURL=815a0_next_dist_client_components_builtin_unauthorized_d4ec2448.js.map

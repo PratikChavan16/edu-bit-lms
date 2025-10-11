@@ -21,10 +21,10 @@ export const Card = React.forwardRef<HTMLDivElement, CardProps>(
         className={cn(
           'rounded-3xl transition-all duration-200',
           {
-            // Default variant
+            // Default variant - white background with dark text
             'bg-white shadow-2xl': variant === 'default',
 
-            // Glass variant (glassmorphic style)
+            // Glass variant (glassmorphic style) - transparent with inherited text
             'bg-white/10 backdrop-blur-md border border-white/20 shadow-2xl':
               variant === 'glass',
           },
@@ -77,7 +77,7 @@ export const CardDescription = React.forwardRef<
 >(({ className, ...props }, ref) => (
   <p
     ref={ref}
-    className={cn('text-sm text-gray-600 dark:text-gray-400', className)}
+    className={cn('text-sm', className)}
     {...props}
   />
 ));

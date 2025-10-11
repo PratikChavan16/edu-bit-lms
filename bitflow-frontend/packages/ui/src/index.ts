@@ -27,4 +27,7 @@ export * from "./components/table";
 export * from "./components/switch";
 export * from "./components/chart-preview";
 export * from "./components/timeline";
+export * from "./components/label";
+export * from "./components/select";
+export * from "./components/textarea";
 export * from "./providers/theme-provider";

@@ -49,7 +49,7 @@ export const Button = forwardRef<HTMLButtonElement, ButtonProps>(
               variant === 'glass',
 
             // Secondary variant
-            'bg-gray-200 text-gray-900 hover:bg-gray-300 dark:bg-gray-700 dark:text-gray-100 dark:hover:bg-gray-600':
+            'bg-gray-200 text-white hover:bg-gray-300 dark:bg-gray-700 dark:text-white dark:hover:bg-gray-600':
               variant === 'secondary',
 
             // Danger variant

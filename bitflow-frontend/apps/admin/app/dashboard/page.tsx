@@ -50,7 +50,7 @@ export default function DashboardPage() {
           <p className="text-muted-foreground">You have 3 provisioning tasks awaiting review.</p>
         </div>
         <div className="flex gap-2">
-          <Button variant="outline">View backlog</Button>
+          <Button variant="secondary">View backlog</Button>
           <Button>Provision university</Button>
         </div>
       </div>
@@ -115,7 +115,7 @@ function AlertRow({ title, description, variant = "info" }: AlertRowProps) {
     <div className="rounded-lg border border-border bg-surface px-4 py-3">
       <div className="flex items-center justify-between">
         <div>
-          <p className="text-sm font-medium">{title}</p>
+          <p className="text-sm font-medium text-white">{title}</p>
           <p className="text-xs text-muted-foreground">{description}</p>
         </div>
         <Badge variant={variant === "danger" ? "destructive" : variant === "warning" ? "warning" : variant === "success" ? "success" : "secondary"}>

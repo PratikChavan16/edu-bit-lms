@@ -1,0 +1,20 @@
+{
+  "/announcements/page": "app/announcements/page.js",
+  "/attendance/page": "app/attendance/page.js",
+  "/batches/create/page": "app/batches/create/page.js",
+  "/batches/page": "app/batches/page.js",
+  "/colleges/page": "app/colleges/page.js",
+  "/courses/page": "app/courses/page.js",
+  "/dashboard/page": "app/dashboard/page.js",
+  "/departments/page": "app/departments/page.js",
+  "/exams/page": "app/exams/page.js",
+  "/faculty/page": "app/faculty/page.js",
+  "/fees/page": "app/fees/page.js",
+  "/page": "app/page.js",
+  "/results/page": "app/results/page.js",
+  "/students/page": "app/students/page.js",
+  "/subjects/create/page": "app/subjects/create/page.js",
+  "/subjects/page": "app/subjects/page.js",
+  "/timetable/page": "app/timetable/page.js",
+  "/universities/page": "app/universities/page.js"
+}

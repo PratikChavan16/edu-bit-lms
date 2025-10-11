@@ -1,3 +1,5 @@
+"use client";
+
 /**
  * Input Component
  * 
@@ -39,9 +41,9 @@ export const Input = forwardRef<HTMLInputElement, InputProps>(
     return (
       <div className="w-full">
         {label && (
-          <label className="block text-sm font-medium mb-2 text-gray-200">
+          <label className="block text-sm font-medium mb-2">
             {label}
-            {props.required && <span className="text-red-400 ml-1">*</span>}
+            {props.required && <span className="text-red-500 ml-1">*</span>}
           </label>
         )}
         <div className="relative">

@@ -1,0 +1,61 @@
+{
+  "app": {
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/announcements/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/attendance/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/batches/create/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/batches/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/colleges/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/courses/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/dashboard/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/departments/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/exams/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/faculty/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/fees/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/results/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/students/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/subjects/create/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/subjects/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/timetable/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ],
+    "[project]/edu-bit-lms/bitflow-frontend/apps/admin/app/universities/page": [
+      "static/media/83afe278b6a6bb3c-s.p.3a6ba036.woff2"
+    ]
+  },
+  "appUsingSizeAdjust": true,
+  "pages": {},
+  "pagesUsingSizeAdjust": false
+}

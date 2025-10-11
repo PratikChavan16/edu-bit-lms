@@ -60,3 +60,39 @@ body {
   --ring: 221 83% 60%;
   --shadow: 215 30% 2% / 0.45;
 }
+
+/* Text visibility rules: White text on dark backgrounds, Black text on white backgrounds */
+
+/* Default body text on dark background */
+body {
+  color: rgb(255 255 255); /* white */
+}
+
+/* Dark text on white backgrounds (Cards, Tables, Forms) */
+.bg-white,
+.bg-white * {
+  color: rgb(17 24 39) !important; /* gray-900 */
+}
+
+/* Preserve specific color classes */
+.text-white { color: rgb(255 255 255) !important; }
+.text-gray-900 { color: rgb(17 24 39) !important; }
+.text-gray-800 { color: rgb(31 41 55) !important; }
+.text-gray-700 { color: rgb(55 65 81) !important; }
+.text-gray-600 { color: rgb(75 85 99) !important; }
+.text-gray-500 { color: rgb(107 114 128) !important; }
+.text-gray-400 { color: rgb(156 163 175) !important; }
+.text-gray-300 { color: rgb(209 213 219) !important; }
+.text-gray-200 { color: rgb(229 231 235) !important; }
+.text-red-500 { color: rgb(239 68 68) !important; }
+.text-red-600 { color: rgb(220 38 38) !important; }
+.text-primary { color: hsl(var(--primary)) !important; }
+
+/* Muted text should be visible */
+.text-muted-foreground {
+  color: rgb(156 163 175) !important; /* gray-400 for dark backgrounds */
+}
+
+.bg-white .text-muted-foreground {
+  color: rgb(107 114 128) !important; /* gray-500 for white backgrounds */
+}
