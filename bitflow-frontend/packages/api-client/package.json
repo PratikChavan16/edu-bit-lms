@@ -6,8 +6,11 @@
   "main": "./src/index.ts",
   "exports": {
     "./admin": "./src/admin/index.ts",
+    "./faculty": "./src/faculty/index.ts",
     "./learner": "./src/learner/index.ts",
-    "./types": "./src/types.ts"
+    "./auth/useAuth": "./src/auth/useAuth.ts",
+    "./types": "./src/types.ts",
+    "./validation": "./src/validation/schemas.ts"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --out-dir dist",
@@ -15,8 +18,10 @@
     "test": "vitest"
   },
   "dependencies": {
+    "@bitflow/ui": "workspace:^",
     "@tanstack/react-query": "^5.51.24",
-    "zod": "^3.23.8"
+    "zod": "^3.23.8",
+    "zustand": "^4.5.2"
   },
   "peerDependencies": {
     "react": "^18.3.1 || ^19.0.0-0"

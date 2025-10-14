@@ -4,7 +4,7 @@ Sample CSV templates consumed by bulk upload workflows.
 
 | File | Purpose |
 | --- | --- |
-| `students-import.sample.csv` | Create or update student rosters via Super Admin or College Admin portal. |
+| `students-import.sample.csv` | Create or update student rosters via Bitflow Nova or College Admin portal. |
 | `faculty-import.sample.csv` | Bulk onboard faculty with department assignments. |
 | `assessment-questions.sample.csv` | Upload MCQ questions for online assessments. |
 

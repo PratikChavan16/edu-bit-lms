@@ -22,7 +22,8 @@ use App\Models\{
     Document,
     FeeStructure,
     FeeInvoice,
-    FeePayment
+    FeePayment,
+    ParentStudent
 };
 use Carbon\Carbon;
 
@@ -144,7 +145,10 @@ class DemoDataSeeder extends Seeder
             'college_id' => $college->id,
         ]);
 
-        // Create Students
+        // Create Students and Parents
+        $students = [];
+        $parents = [];
+        
         for ($i = 1; $i <= 5; $i++) {
             $studentUser = User::create([
                 'username' => "student_mvp_{$i}",
@@ -157,7 +161,7 @@ class DemoDataSeeder extends Seeder
                 'status' => 'active',
             ]);
 
-            Student::create([
+            $student = Student::create([
                 'user_id' => $studentUser->id,
                 'college_id' => $college->id,
                 'roll_number' => "MVP2024CS{$i}",
@@ -179,6 +183,53 @@ class DemoDataSeeder extends Seeder
             $studentUser->roles()->attach($studentRole->id, [
                 'university_id' => $university->id,
                 'college_id' => $college->id,
+            ]);
+
+            $students[] = $student;
+
+            // Create parent for each student
+            $parentUser = User::create([
+                'username' => "parent_mvp_{$i}",
+                'email' => "parent{$i}@gmail.com",
+                'password' => Hash::make('Parent@123'),
+                'first_name' => "Mr. Rajesh",
+                'last_name' => "Kumar {$i}",
+                'phone' => "+91 887654321{$i}",
+                'status' => 'active',
+            ]);
+
+            $parentRole = Role::where('slug', 'parent')->first();
+            $parentUser->roles()->attach($parentRole->id, [
+                'university_id' => $university->id,
+                'college_id' => $college->id,
+            ]);
+
+            $parents[] = $parentUser;
+
+            // Create parent-student relationship
+            ParentStudent::create([
+                'parent_id' => $parentUser->id,
+                'student_id' => $student->id,
+                'relationship_type' => 'father',
+                'is_primary' => true,
+                'can_view_grades' => true,
+                'can_view_attendance' => true,
+                'can_view_fees' => true,
+                'receive_notifications' => true,
+            ]);
+        }
+
+        // Create a parent with multiple children (parent 1 has student 1 and 2)
+        if (count($students) >= 2 && count($parents) >= 1) {
+            ParentStudent::create([
+                'parent_id' => $parents[0]->id,
+                'student_id' => $students[1]->id,
+                'relationship_type' => 'guardian',
+                'is_primary' => false,
+                'can_view_grades' => true,
+                'can_view_attendance' => true,
+                'can_view_fees' => false,
+                'receive_notifications' => true,
             ]);
         }
 
@@ -343,6 +394,7 @@ class DemoDataSeeder extends Seeder
         if ($firstStudent) {
             Document::create([
                 'folder_id' => $admissionFolder->id,
+                'college_id' => $college->id,
                 'student_id' => $firstStudent->id,
                 'name' => 'Student1 Transfer Certificate',
                 'file_path' => 'documents/tc_student1.pdf',
@@ -409,5 +461,6 @@ class DemoDataSeeder extends Seeder
         $this->command->info('  - Principal: principal_mvp / Principal@123');
         $this->command->info('  - Faculty: prof_sharma / Faculty@123');
         $this->command->info('  - Students: student_mvp_1 to student_mvp_5 / Student@123');
+        $this->command->info('  - Parents: parent_mvp_1 to parent_mvp_5 / Parent@123');
     }
 }

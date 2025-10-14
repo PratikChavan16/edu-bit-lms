@@ -13,6 +13,7 @@ export interface SelectProps {
   options: SelectOption[];
   value?: string | string[];
   onChange?: (value: string | string[]) => void;
+  onValueChange?: (value: string | string[]) => void;
   placeholder?: string;
   multiple?: boolean;
   searchable?: boolean;
@@ -28,6 +29,7 @@ export function Select({
   options,
   value,
   onChange,
+  onValueChange,
   placeholder = 'Select an option',
   multiple = false,
   searchable = false,
@@ -38,6 +40,7 @@ export function Select({
   label,
   required = false,
 }: SelectProps) {
+  const handleChange = onValueChange || onChange;
   const [isOpen, setIsOpen] = useState(false);
   const [searchQuery, setSearchQuery] = useState('');
   const containerRef = useRef<HTMLDivElement>(null);
@@ -85,9 +88,9 @@ export function Select({
       const newValues = currentValues.includes(optionValue)
         ? currentValues.filter((v) => v !== optionValue)
         : [...currentValues, optionValue];
-      onChange?.(newValues);
+      handleChange?.(newValues);
     } else {
-      onChange?.(optionValue);
+      handleChange?.(optionValue);
       setIsOpen(false);
       setSearchQuery('');
     }
@@ -96,7 +99,7 @@ export function Select({
   // Handle clear
   const handleClear = (e: React.MouseEvent) => {
     e.stopPropagation();
-    onChange?.(multiple ? [] : '');
+    handleChange?.(multiple ? [] : '');
   };
 
   // Get display text

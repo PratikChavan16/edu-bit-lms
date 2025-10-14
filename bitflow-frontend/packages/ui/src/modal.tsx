@@ -7,6 +7,7 @@ export interface ModalProps {
   isOpen: boolean;
   onClose: () => void;
   title?: string;
+  description?: string;
   children: React.ReactNode;
   size?: 'sm' | 'md' | 'lg' | 'xl' | 'full';
   showCloseButton?: boolean;
@@ -28,6 +29,7 @@ export function Modal({
   isOpen,
   onClose,
   title,
+  description,
   children,
   size = 'md',
   showCloseButton = true,
@@ -87,9 +89,14 @@ export function Modal({
         {/* Header */}
         {(title || showCloseButton) && (
           <div className="flex items-center justify-between border-b border-gray-200 px-6 py-4">
-            {title && (
-              <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
-            )}
+            <div className="flex-1">
+              {title && (
+                <h2 className="text-xl font-semibold text-gray-900">{title}</h2>
+              )}
+              {description && (
+                <p className="mt-1 text-sm text-gray-600">{description}</p>
+              )}
+            </div>
             {showCloseButton && (
               <button
                 onClick={onClose}

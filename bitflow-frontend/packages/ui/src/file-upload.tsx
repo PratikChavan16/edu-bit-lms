@@ -6,6 +6,7 @@ import { Upload, X, File, FileText, Image as ImageIcon, AlertCircle } from 'luci
 export interface FileUploadProps {
   value?: File[];
   onChange?: (files: File[]) => void;
+  onFilesChange?: (files: File[]) => void;
   accept?: string;
   multiple?: boolean;
   maxSize?: number; // in bytes
@@ -16,14 +17,19 @@ export interface FileUploadProps {
   label?: string;
   required?: boolean;
   showPreview?: boolean;
+  acceptedFileTypes?: string[];
+  maxSizeMB?: number;
 }
 
 export function FileUpload({
   value = [],
   onChange,
+  onFilesChange,
   accept,
+  acceptedFileTypes,
   multiple = false,
   maxSize = 10 * 1024 * 1024, // 10MB default
+  maxSizeMB,
   maxFiles = 5,
   disabled = false,
   className = '',
@@ -32,6 +38,8 @@ export function FileUpload({
   required = false,
   showPreview = true,
 }: FileUploadProps) {
+  // Use onFilesChange if provided, otherwise onChange
+  const handleFilesChange = onFilesChange || onChange;
   const [isDragging, setIsDragging] = useState(false);
   const [uploadError, setUploadError] = useState<string>('');
   const inputRef = useRef<HTMLInputElement>(null);
@@ -107,7 +115,7 @@ export function FileUpload({
     if (!hasError) {
       setUploadError('');
       const newFiles = multiple ? [...currentFiles, ...validFiles] : validFiles;
-      onChange?.(newFiles);
+      handleFilesChange?.(newFiles);
     }
   };
 
@@ -148,7 +156,7 @@ export function FileUpload({
   // Remove file
   const handleRemoveFile = (index: number) => {
     const newFiles = value.filter((_, i) => i !== index);
-    onChange?.(newFiles);
+    handleFilesChange?.(newFiles);
     setUploadError('');
   };
 

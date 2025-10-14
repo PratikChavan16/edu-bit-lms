@@ -2,13 +2,13 @@
 
 import { useState } from 'react';
 import { useRouter } from 'next/navigation';
-import { useAuth } from '@/context/auth-context';
+import { useAuth } from '@bitflow/api-client/auth/useAuth';
 import { Mail, Lock, Eye, EyeOff, AlertCircle } from 'lucide-react';
 
 export default function LoginPage() {
   const router = useRouter();
   const { login } = useAuth();
-  const [email, setEmail] = useState('');
+  const [username, setUsername] = useState('');
   const [password, setPassword] = useState('');
   const [remember, setRemember] = useState(false);
   const [showPassword, setShowPassword] = useState(false);
@@ -21,11 +21,13 @@ export default function LoginPage() {
     setLoading(true);
 
     try {
-      await login(email, password, remember);
-      router.push('/dashboard');
+      await login(username, password);
+      // Give a small delay before redirect to ensure auth state is updated
+      setTimeout(() => {
+        window.location.href = '/dashboard';
+      }, 100);
     } catch (err: any) {
-      setError(err.response?.data?.message || 'Invalid credentials. Please try again.');
-    } finally {
+      setError(err.message || 'Invalid credentials. Please try again.');
       setLoading(false);
     }
   };
@@ -52,23 +54,23 @@ export default function LoginPage() {
           )}
 
           <form onSubmit={handleSubmit} className="space-y-6">
-            {/* Email Field */}
+            {/* Username Field */}
             <div>
-              <label htmlFor="email" className="block text-sm font-medium text-gray-700 mb-2">
-                Email Address
+              <label htmlFor="username" className="block text-sm font-medium text-gray-700 mb-2">
+                Username
               </label>
               <div className="relative">
                 <div className="absolute inset-y-0 left-0 pl-3 flex items-center pointer-events-none">
                   <Mail className="h-5 w-5 text-gray-400" />
                 </div>
                 <input
-                  id="email"
-                  type="email"
+                  id="username"
+                  type="text"
                   required
-                  value={email}
-                  onChange={(e) => setEmail(e.target.value)}
+                  value={username}
+                  onChange={(e) => setUsername(e.target.value)}
                   className="block w-full pl-10 pr-3 py-3 border border-gray-300 rounded-lg focus:ring-2 focus:ring-indigo-600 focus:border-transparent transition-colors"
-                  placeholder="student@example.com"
+                  placeholder="student_mvp_1"
                 />
               </div>
             </div>

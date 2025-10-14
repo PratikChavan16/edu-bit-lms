@@ -4,7 +4,7 @@ This folder contains the contract-first OpenAPI specifications for the Bitflow N
 
 ## Available Specifications
 
-- `admin-portal.openapi.yaml` — Control-plane endpoints used by Bitflow operations staff within the admin portal.
+- `admin-portal.openapi.yaml` — Control-plane endpoints used by Bitflow operations staff within the Bitflow Nova portal (owner/super admin portal).
 - `learner-portal.openapi.yaml` — Student-facing endpoints surfaced through the learner portal.
 - `auth.openapi.yaml` — Authentication endpoints for login, logout, password management.
 - `files.openapi.yaml` — File upload, download, and storage management endpoints.

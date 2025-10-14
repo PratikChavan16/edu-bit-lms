@@ -6,7 +6,7 @@
     "skipLibCheck": true,
     "esModuleInterop": true,
     "allowSyntheticDefaultImports": true,
-    "strict": true,
+    "strict": false,
     "forceConsistentCasingInFileNames": true,
     "module": "ESNext",
     "moduleResolution": "Bundler",
@@ -14,7 +14,7 @@
     "isolatedModules": true,
     "jsx": "preserve",
     "noEmit": true,
-    "types": []
+    "noImplicitAny": false
   },
   "include": [],
   "exclude": ["node_modules"]

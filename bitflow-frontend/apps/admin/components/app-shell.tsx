@@ -2,11 +2,13 @@
 
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { ReactNode } from "react";
+import { ReactNode, useState } from "react";
 import { cn } from "@bitflow/ui/cn";
 import { Badge } from "@bitflow/ui/badge";
 import { Button } from "@bitflow/ui/button";
 import { Separator } from "@bitflow/ui/separator";
+import { useAuthStore } from "@bitflow/api-client/auth/useAuth";
+import { TenantSwitcher } from "./tenant-switcher";
 
 const sections = [
   {
@@ -40,6 +42,13 @@ type AppShellProps = {
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
+  const { isAuthenticated } = useAuthStore();
+  const [showTenantSwitcher, setShowTenantSwitcher] = useState(false);
+  
+  // Don't show app shell for login page
+  if (pathname === '/login' || !isAuthenticated) {
+    return <>{children}</>;
+  }
 
   return (
     <div className="flex min-h-screen bg-muted/20">
@@ -64,7 +73,7 @@ export function AppShell({ children }: AppShellProps) {
                   return (
                     <li key={item.href}>
                       <Link
-                        href={item.href}
+                        href={item.href as any}
                         className={cn(
                           "flex items-center justify-between rounded-md px-3 py-2 text-sm transition-colors",
                           active
@@ -83,11 +92,16 @@ export function AppShell({ children }: AppShellProps) {
           ))}
         </nav>
         <div className="px-6 pb-6">
-          <Button className="w-full" variant="secondary">
+          <Button 
+            className="w-full" 
+            variant="secondary"
+            onClick={() => setShowTenantSwitcher(true)}
+          >
             Switch tenant
           </Button>
         </div>
       </aside>
+      
       <div className="flex flex-1 flex-col">
         <header className="flex h-16 items-center justify-between border-b border-border bg-surface/95 px-6">
           <div>
@@ -101,6 +115,11 @@ export function AppShell({ children }: AppShellProps) {
         </header>
         <main className="flex-1 overflow-y-auto px-6 py-10">{children}</main>
       </div>
+      
+      <TenantSwitcher
+        open={showTenantSwitcher}
+        onOpenChange={setShowTenantSwitcher}
+      />
     </div>
   );
 }

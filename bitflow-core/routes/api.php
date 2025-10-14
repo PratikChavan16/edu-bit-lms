@@ -1,6 +1,7 @@
 <?php
 
 use App\Http\Controllers\Admin\AssessmentsController as AdminAssessmentsController;
+use App\Http\Controllers\Admin\BulkUploadController;
 use App\Http\Controllers\Admin\DashboardController as AdminDashboardController;
 use App\Http\Controllers\Admin\DocumentFoldersController;
 use App\Http\Controllers\Admin\DocumentsController as AdminDocumentsController;
@@ -20,6 +21,8 @@ use App\Http\Controllers\Learner\FeesController as LearnerFeesController;
 use App\Http\Controllers\Learner\LibraryController as LearnerLibraryController;
 use App\Http\Controllers\Faculty\AttendanceController as FacultyAttendanceController;
 use App\Http\Controllers\Faculty\TimetableController as FacultyTimetableController;
+use App\Http\Controllers\ChatController;
+use App\Http\Controllers\Parent\ParentPortalController;
 use Illuminate\Support\Facades\Route;
 
 /*
@@ -57,7 +60,10 @@ Route::prefix('admin')->middleware('auth:sanctum')->group(function () {
     
     // Universities Management
     Route::get('/universities', [UniversitiesController::class, 'index']);
+    Route::post('/universities', [UniversitiesController::class, 'store']);
     Route::get('/universities/{universityId}', [UniversitiesController::class, 'show']);
+    Route::match(['put', 'patch'], '/universities/{universityId}', [UniversitiesController::class, 'update']);
+    Route::delete('/universities/{universityId}', [UniversitiesController::class, 'destroy']);
     
     // Feature Toggles
     Route::get('/feature-toggles', [FeatureTogglesController::class, 'index']);
@@ -67,6 +73,13 @@ Route::prefix('admin')->middleware('auth:sanctum')->group(function () {
     // Students Management (College Admin)
     Route::get('/students', [StudentsController::class, 'index']);
     Route::get('/students/{id}', [StudentsController::class, 'show']);
+
+    // Bulk Upload
+    Route::get('/bulk-upload/templates', [BulkUploadController::class, 'templates']);
+    Route::get('/bulk-upload/templates/{type}/download', [BulkUploadController::class, 'downloadTemplate']);
+    Route::post('/bulk-upload/validate-csv', [BulkUploadController::class, 'validateCsv']);
+    Route::post('/bulk-upload/upload', [BulkUploadController::class, 'upload']);
+    Route::get('/bulk-upload/history', [BulkUploadController::class, 'history']);
 
     // Library Resources Management
     Route::get('/library/resources', [LibraryResourcesController::class, 'index']);
@@ -210,6 +223,20 @@ Route::prefix('faculty')->middleware('auth:sanctum')->group(function () {
     Route::delete('/assessments/{assessmentId}', [\App\Http\Controllers\Faculty\AssessmentsController::class, 'destroy']);
     Route::get('/assessments/{assessmentId}/submissions', [\App\Http\Controllers\Faculty\AssessmentsController::class, 'submissions']);
     Route::post('/assessments/{assessmentId}/submissions/{submissionId}/grade', [\App\Http\Controllers\Faculty\AssessmentsController::class, 'gradeSubmission']);
+    
+    // Grading System
+    Route::get('/grading/assessments', [\App\Http\Controllers\Faculty\GradingController::class, 'getAssessments']);
+    Route::get('/grading/assessments/{assessmentId}/submissions', [\App\Http\Controllers\Faculty\GradingController::class, 'getSubmissions']);
+    Route::post('/grading/submissions/{submissionId}', [\App\Http\Controllers\Faculty\GradingController::class, 'gradeSubmission']);
+    Route::post('/grading/assessments/{assessmentId}/bulk-grade', [\App\Http\Controllers\Faculty\GradingController::class, 'bulkGrade']);
+    Route::get('/grading/statistics', [\App\Http\Controllers\Faculty\GradingController::class, 'getStatistics']);
+    
+    // Resource Management
+    Route::get('/resources', [\App\Http\Controllers\Faculty\ResourceManagementController::class, 'index']);
+    Route::post('/resources', [\App\Http\Controllers\Faculty\ResourceManagementController::class, 'store']);
+    Route::patch('/resources/{resourceId}', [\App\Http\Controllers\Faculty\ResourceManagementController::class, 'update']);
+    Route::delete('/resources/{resourceId}', [\App\Http\Controllers\Faculty\ResourceManagementController::class, 'destroy']);
+    Route::get('/resources/statistics', [\App\Http\Controllers\Faculty\ResourceManagementController::class, 'statistics']);
 });
 
 // File Upload Routes (Protected)
@@ -220,4 +247,43 @@ Route::prefix('files')->middleware('auth:sanctum')->group(function () {
     Route::get('/{fileId}/download', [\App\Http\Controllers\FileUploadController::class, 'download']);
     Route::delete('/{fileId}', [\App\Http\Controllers\FileUploadController::class, 'destroy']);
     Route::get('/storage/usage', [\App\Http\Controllers\FileUploadController::class, 'storageUsage']);
+});
+
+// Chat Routes (Protected)
+Route::prefix('chat')->middleware('auth:sanctum')->group(function () {
+    // Conversations
+    Route::get('/conversations', [ChatController::class, 'getConversations']);
+    Route::post('/conversations', [ChatController::class, 'createConversation']);
+    Route::post('/conversations/direct', [ChatController::class, 'getOrCreateDirectConversation']);
+    Route::get('/conversations/{conversationId}/messages', [ChatController::class, 'getMessages']);
+    Route::post('/conversations/{conversationId}/read', [ChatController::class, 'markAsRead']);
+    Route::post('/conversations/{conversationId}/mute', [ChatController::class, 'toggleMute']);
+    Route::post('/conversations/{conversationId}/pin', [ChatController::class, 'togglePin']);
+    Route::post('/conversations/{conversationId}/archive', [ChatController::class, 'toggleArchive']);
+    
+    // Participants
+    Route::post('/conversations/{conversationId}/participants', [ChatController::class, 'addParticipants']);
+    Route::delete('/conversations/{conversationId}/participants/{userId}', [ChatController::class, 'removeParticipant']);
+    
+    // Messages
+    Route::post('/messages', [ChatController::class, 'sendMessage']);
+    Route::patch('/messages/{messageId}', [ChatController::class, 'updateMessage']);
+    Route::delete('/messages/{messageId}', [ChatController::class, 'deleteMessage']);
+    
+    // Utilities
+    Route::get('/unread-count', [ChatController::class, 'getUnreadCount']);
+    Route::get('/search', [ChatController::class, 'searchMessages']);
+});
+
+// Parent Portal Routes
+Route::prefix('parent')->middleware('auth:sanctum')->group(function () {
+    // Children Management
+    Route::get('/children', [ParentPortalController::class, 'getChildren']);
+    Route::get('/children/{studentId}/dashboard', [ParentPortalController::class, 'getDashboard']);
+    
+    // Student Data
+    Route::get('/children/{studentId}/attendance', [ParentPortalController::class, 'getAttendance']);
+    Route::get('/children/{studentId}/grades', [ParentPortalController::class, 'getGrades']);
+    Route::get('/children/{studentId}/fees', [ParentPortalController::class, 'getFees']);
+    Route::get('/children/{studentId}/timetable', [ParentPortalController::class, 'getTimetable']);
 });

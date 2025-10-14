@@ -24,7 +24,8 @@
     "./select": "./src/select.tsx",
     "./date-picker": "./src/date-picker.tsx",
     "./file-upload": "./src/file-upload.tsx",
-    "./modal": "./src/modal.tsx"
+    "./modal": "./src/modal.tsx",
+    "./toast": "./src/toast/index.tsx"
   },
   "scripts": {
     "build": "tsup src/index.ts --format esm --dts --out-dir dist",
@@ -39,7 +40,8 @@
     "lucide-react": "^0.446.0",
     "recharts": "^2.12.2",
     "tailwind-merge": "^2.4.0",
-    "tailwindcss-animate": "^1.0.7"
+    "tailwindcss-animate": "^1.0.7",
+    "zustand": "^4.5.2"
   },
   "peerDependencies": {
     "react": "^18.3.1 || ^19.0.0-0",

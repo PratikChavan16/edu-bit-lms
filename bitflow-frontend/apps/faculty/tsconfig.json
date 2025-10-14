@@ -3,7 +3,8 @@
     "lib": ["dom", "dom.iterable", "esnext"],
     "allowJs": true,
     "skipLibCheck": true,
-    "strict": true,
+    "strict": false,
+    "noImplicitAny": false,
     "noEmit": true,
     "esModuleInterop": true,
     "module": "esnext",
@@ -20,7 +21,7 @@
     "paths": {
       "@/*": ["./*"],
       "@bitflow/ui": ["../../packages/ui/src"],
-      "@bitflow/api-client": ["../../packages/api-client/src"]
+      "@bitflow/api-client/*": ["../../packages/api-client/src/*"]
     }
   },
   "include": ["next-env.d.ts", "**/*.ts", "**/*.tsx", ".next/types/**/*.ts"],

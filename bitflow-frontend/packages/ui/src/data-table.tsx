@@ -5,7 +5,9 @@ import React, { useState, useMemo } from 'react';
 export interface Column<T> {
   key: string;
   header: string;
+  label?: string;
   accessor?: (row: T) => React.ReactNode;
+  render?: (row: T) => React.ReactNode;
   sortable?: boolean;
   className?: string;
 }
@@ -78,6 +80,9 @@ export function DataTable<T extends Record<string, any>>({
   };
 
   const renderCell = (row: T, column: Column<T>) => {
+    if (column.render) {
+      return column.render(row);
+    }
     if (column.accessor) {
       return column.accessor(row);
     }
@@ -126,7 +131,7 @@ export function DataTable<T extends Record<string, any>>({
                   onClick={() => column.sortable && handleSort(column.key)}
                 >
                   <div className="flex items-center space-x-1">
-                    <span>{column.header}</span>
+                    <span>{column.label || column.header}</span>
                     {column.sortable && sortKey === column.key && (
                       <span className="text-blue-600">
                         {sortDirection === 'asc' ? '↑' : '↓'}
