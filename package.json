@@ -1,0 +1,37 @@
+{
+  "name": "sai-lms-fees-management",
+  "version": "1.0.0",
+  "description": "Accountant and Admin Portal for Sai Group of Institute Fee Management",
+  "main": "server.js",
+  "scripts": {
+    "start": "node backend/server.js",
+    "dev": "nodemon backend/server.js",
+    "client": "cd frontend && npm start",
+    "dev:full": "concurrently \"npm run dev\" \"npm run client\"",
+    "install-all": "npm install && cd frontend && npm install"
+  },
+  "keywords": [
+    "lms",
+    "fee-management",
+    "student-portal"
+  ],
+  "author": "Sai Group of Institute",
+  "license": "MIT",
+  "dependencies": {
+    "bcryptjs": "^2.4.3",
+    "cors": "^2.8.5",
+    "csv-parser": "^3.0.0",
+    "dotenv": "^16.3.1",
+    "exceljs": "^4.4.0",
+    "express": "^4.18.2",
+    "express-validator": "^7.0.1",
+    "jsonwebtoken": "^9.0.2",
+    "mongoose": "^7.6.3",
+    "multer": "^1.4.5-lts.1",
+    "pdfkit": "^0.17.2"
+  },
+  "devDependencies": {
+    "concurrently": "^8.2.1",
+    "nodemon": "^3.0.1"
+  }
+}
