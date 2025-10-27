@@ -1,0 +1,255 @@
+﻿# Faculty Portal - Template
+openapi: 3.1.0
+info:
+	title: Faculty/Teacher API
+	version: 1.0.0
+	description: |
+		Endpoints for faculty to manage courses, attendance, assessments, gradebook,
+		materials, timetable, messages, leaves, and exam duties. JWT (RS256) with
+		role=faculty required. College and faculty scope enforced via middleware and RLS.
+servers:
+	- url: https://api.edu-bit-lms.example.com
+		description: Production
+	- url: https://staging.api.edu-bit-lms.example.com
+		description: Staging
+security:
+	- bearerAuth: []
+components:
+	securitySchemes:
+		bearerAuth:
+			type: http
+			scheme: bearer
+			bearerFormat: JWT
+	parameters:
+		CourseId:
+			name: course_id
+			in: path
+			required: true
+			schema: { type: string, format: uuid }
+		AssessmentId:
+			name: assessment_id
+			in: path
+			required: true
+			schema: { type: string, format: uuid }
+		StudentId:
+			name: student_id
+			in: path
+			required: true
+			schema: { type: string, format: uuid }
+	schemas:
+		ApiError:
+			type: object
+			properties:
+				code: { type: string }
+				message: { type: string }
+				details: { type: object, additionalProperties: true }
+		FacultyMe:
+			type: object
+			properties:
+				id: { type: string, format: uuid }
+				name: { type: string }
+				email: { type: string, format: email }
+				college_id: { type: string, format: uuid }
+				permissions:
+					type: array
+					items: { type: string }
+		Course:
+			type: object
+			properties:
+				id: { type: string, format: uuid }
+				code: { type: string }
+				title: { type: string }
+				section: { type: string }
+				term: { type: string }
+				student_count: { type: integer }
+		AttendanceMark:
+			type: object
+			required: [student_id, status]
+			properties:
+				student_id: { type: string, format: uuid }
+				status: { $ref: '#/components/schemas/AttendanceStatus' }
+				note: { type: string }
+				device_ts: { type: string, format: date-time }
+				source: { $ref: '#/components/schemas/AttendanceSource' }
+		AttendanceStatus:
+			type: string
+			enum: [PRESENT, ABSENT, LATE, EXCUSED]
+		AttendanceSource:
+			type: string
+			enum: [ONLINE, OFFLINE, IMPORTED]
+		AttendanceUpsertRequest:
+			type: object
+			required: [date, marks]
+			properties:
+				date: { type: string, format: date }
+				marks:
+					type: array
+					items: { $ref: '#/components/schemas/AttendanceMark' }
+		Assessment:
+			type: object
+			properties:
+				id: { type: string, format: uuid }
+				course_id: { type: string, format: uuid }
+				title: { type: string }
+				type: { $ref: '#/components/schemas/AssessmentType' }
+				weight: { type: number, minimum: 0, maximum: 100 }
+				due_at: { type: string, format: date-time }
+				status: { $ref: '#/components/schemas/VisibilityStatus' }
+		AssessmentType:
+			type: string
+			enum: [QUIZ, ASSIGNMENT, LAB, PROJECT, MIDTERM, ENDSEM, VIVA]
+		VisibilityStatus:
+			type: string
+			enum: [DRAFT, PUBLISHED]
+		GradeItem:
+			type: object
+			properties:
+				student_id: { type: string, format: uuid }
+				marks: { type: number }
+				status: { $ref: '#/components/schemas/GradeStatus' }
+		GradeStatus:
+			type: string
+			enum: [DRAFT, PUBLISHED, REVISED]
+paths:
+	/faculty/me:
+		get:
+			summary: Get current faculty profile and permissions
+			responses:
+				'200':
+					description: OK
+					content:
+						application/json:
+							schema: { $ref: '#/components/schemas/FacultyMe' }
+				'401': { description: Unauthorized, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+
+	/faculty/courses:
+		get:
+			summary: List courses assigned to the current faculty
+			parameters:
+				- in: query
+					name: term
+					schema: { type: string }
+			responses:
+				'200':
+					description: OK
+					content:
+						application/json:
+							schema:
+								type: array
+								items: { $ref: '#/components/schemas/Course' }
+
+	/courses/{course_id}/attendance:
+		get:
+			summary: Get attendance for a given date
+			parameters:
+				- $ref: '#/components/parameters/CourseId'
+				- in: query
+					name: date
+					required: true
+					schema: { type: string, format: date }
+			responses:
+				'200':
+					description: OK
+					content:
+						application/json:
+							schema:
+								type: object
+								properties:
+									date: { type: string, format: date }
+									marks:
+										type: array
+										items: { $ref: '#/components/schemas/AttendanceMark' }
+		put:
+			summary: Upsert attendance for the given date
+			parameters:
+				- $ref: '#/components/parameters/CourseId'
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema: { $ref: '#/components/schemas/AttendanceUpsertRequest' }
+			responses:
+				'200': { description: Saved }
+				'409': { description: Conflict, content: { application/json: { schema: { $ref: '#/components/schemas/ApiError' } } } }
+
+	/courses/{course_id}/assessments:
+		get:
+			summary: List assessments in a course
+			parameters:
+				- $ref: '#/components/parameters/CourseId'
+			responses:
+				'200':
+					description: OK
+					content:
+						application/json:
+							schema:
+								type: array
+								items: { $ref: '#/components/schemas/Assessment' }
+		post:
+			summary: Create an assessment
+			parameters:
+				- $ref: '#/components/parameters/CourseId'
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema: { $ref: '#/components/schemas/Assessment' }
+			responses:
+				'201': { description: Created }
+
+	/courses/{course_id}/assessments/{assessment_id}/grades:
+		put:
+			summary: Upsert grades for an assessment
+			parameters:
+				- $ref: '#/components/parameters/CourseId'
+				- $ref: '#/components/parameters/AssessmentId'
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema:
+							type: object
+							properties:
+								items:
+									type: array
+									items: { $ref: '#/components/schemas/GradeItem' }
+			responses:
+				'200': { description: Saved }
+
+	/courses/{course_id}/materials:
+		get:
+			summary: List course materials
+			parameters:
+				- $ref: '#/components/parameters/CourseId'
+			responses:
+				'200': { description: OK }
+		post:
+			summary: Upload a material metadata (file upload via pre-signed URL flow)
+			parameters:
+				- $ref: '#/components/parameters/CourseId'
+			responses:
+				'201': { description: Created }
+
+	/faculty/timetable:
+		get:
+			summary: Weekly timetable for the faculty
+			responses:
+				'200': { description: OK }
+
+	/faculty/messages:
+		post:
+			summary: Send a course announcement or 1:1 message with guardrails
+			responses:
+				'202': { description: Accepted }
+
+	/faculty/leaves:
+		post:
+			summary: Create a leave request
+			responses:
+				'201': { description: Created }
+
+	/faculty/exams/duties:
+		get:
+			summary: List exam invigilation duties
+			responses:
+				'200': { description: OK }

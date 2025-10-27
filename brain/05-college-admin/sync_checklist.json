@@ -1,0 +1,628 @@
+﻿{
+  "portal_name": "College Admin Portal",
+  "portal_id": "05-college-admin",
+  "version": "1.0.0",
+  "last_updated": "2024-10-25",
+  "sync_checklist": {
+    "staff_management": {
+      "entity": "staff",
+      "master_source": "college_admin",
+      "sync_targets": [
+        {
+          "portal": "principal",
+          "sync_type": "real_time",
+          "fields": [
+            "staff_id",
+            "employee_id",
+            "full_name",
+            "email",
+            "phone",
+            "department_id",
+            "designation",
+            "status",
+            "joining_date",
+            "termination_date"
+          ],
+          "webhook_url": "/api/v1/webhooks/staff-sync",
+          "sync_frequency": "on_change",
+          "retry_policy": {
+            "max_retries": 3,
+            "backoff": "exponential"
+          },
+          "validation": {
+            "required_fields": ["staff_id", "employee_id", "full_name", "email"],
+            "unique_constraints": ["employee_id", "email"]
+          }
+        },
+        {
+          "portal": "faculty",
+          "sync_type": "conditional",
+          "condition": "is_teaching_staff == true",
+          "fields": [
+            "staff_id",
+            "employee_id",
+            "full_name",
+            "email",
+            "phone",
+            "department_id",
+            "subjects_eligible",
+            "qualification"
+          ],
+          "webhook_url": "/api/v1/faculty/staff-link",
+          "sync_frequency": "on_change",
+          "account_provisioning": true
+        },
+        {
+          "portal": "accountant",
+          "sync_type": "real_time",
+          "fields": [
+            "staff_id",
+            "employee_id",
+            "full_name",
+            "bank_account_number",
+            "ifsc_code",
+            "salary",
+            "employment_type",
+            "status"
+          ],
+          "webhook_url": "/api/v1/accountant/staff-financial",
+          "sync_frequency": "on_change",
+          "encryption": "field_level"
+        }
+      ],
+      "conflict_resolution": "last_write_wins",
+      "audit_log": true,
+      "data_retention": "7_years"
+    },
+    "attendance": {
+      "entity": "staff_attendance",
+      "master_source": "college_admin",
+      "sync_targets": [
+        {
+          "portal": "principal",
+          "sync_type": "batch",
+          "fields": [
+            "attendance_id",
+            "staff_id",
+            "date",
+            "check_in",
+            "check_out",
+            "status",
+            "work_hours"
+          ],
+          "webhook_url": "/api/v1/principal/attendance-summary",
+          "sync_frequency": "daily",
+          "batch_size": 1000,
+          "sync_time": "23:00:00 UTC"
+        },
+        {
+          "portal": "accountant",
+          "sync_type": "batch",
+          "fields": [
+            "staff_id",
+            "month",
+            "present_days",
+            "absent_days",
+            "leave_days",
+            "overtime_hours"
+          ],
+          "webhook_url": "/api/v1/accountant/attendance-payroll",
+          "sync_frequency": "monthly",
+          "sync_day": "last_day_of_month"
+        }
+      ],
+      "aggregation": {
+        "enabled": true,
+        "metrics": ["present_days", "absent_days", "leave_days", "attendance_percentage"]
+      }
+    },
+    "infrastructure": {
+      "entity": "assets",
+      "master_source": "college_admin",
+      "sync_targets": [
+        {
+          "portal": "principal",
+          "sync_type": "real_time",
+          "fields": [
+            "asset_id",
+            "asset_code",
+            "name",
+            "category",
+            "location",
+            "status",
+            "purchase_date",
+            "purchase_cost",
+            "current_value"
+          ],
+          "webhook_url": "/api/v1/principal/infrastructure-assets",
+          "sync_frequency": "on_change"
+        },
+        {
+          "portal": "accountant",
+          "sync_type": "real_time",
+          "fields": [
+            "asset_id",
+            "asset_code",
+            "purchase_cost",
+            "current_value",
+            "depreciation_rate",
+            "vendor_id",
+            "warranty_expiry"
+          ],
+          "webhook_url": "/api/v1/accountant/asset-financials",
+          "sync_frequency": "on_change"
+        }
+      ],
+      "related_entities": {
+        "work_orders": {
+          "sync_type": "on_completion",
+          "fields": [
+            "work_order_id",
+            "asset_id",
+            "title",
+            "cost",
+            "completed_date",
+            "vendor_id"
+          ],
+          "sync_targets": ["principal", "accountant"]
+        }
+      }
+    },
+    "transport": {
+      "entity": "buses",
+      "master_source": "college_admin",
+      "sync_targets": [
+        {
+          "portal": "student",
+          "sync_type": "real_time",
+          "fields": [
+            "bus_id",
+            "bus_number",
+            "route_id",
+            "current_latitude",
+            "current_longitude",
+            "speed",
+            "status",
+            "eta",
+            "last_updated"
+          ],
+          "webhook_url": "/api/v1/student/transport-tracking",
+          "sync_frequency": "real_time",
+          "update_interval": "10_seconds"
+        },
+        {
+          "portal": "parent",
+          "sync_type": "real_time",
+          "fields": [
+            "bus_id",
+            "bus_number",
+            "current_location",
+            "eta",
+            "delay_minutes",
+            "next_stop"
+          ],
+          "webhook_url": "/api/v1/parent/bus-tracking",
+          "sync_frequency": "real_time",
+          "notification_triggers": ["delay", "emergency", "arrival"]
+        },
+        {
+          "portal": "accountant",
+          "sync_type": "batch",
+          "fields": [
+            "bus_id",
+            "maintenance_cost",
+            "fuel_cost",
+            "driver_salary",
+            "route_revenue"
+          ],
+          "webhook_url": "/api/v1/accountant/transport-financials",
+          "sync_frequency": "monthly"
+        }
+      ],
+      "related_entities": {
+        "transport_routes": {
+          "sync_type": "on_change",
+          "fields": ["route_id", "route_name", "stops", "distance", "estimated_time"],
+          "sync_targets": ["student", "parent"]
+        },
+        "bus_assignments": {
+          "sync_type": "real_time",
+          "fields": ["assignment_id", "student_id", "bus_id", "stop_id", "fee_amount"],
+          "sync_targets": ["student", "accountant"]
+        }
+      }
+    },
+    "hostel": {
+      "entity": "hostel_rooms",
+      "master_source": "college_admin",
+      "sync_targets": [
+        {
+          "portal": "student",
+          "sync_type": "real_time",
+          "fields": [
+            "room_id",
+            "hostel_id",
+            "room_number",
+            "capacity",
+            "occupied",
+            "available_beds",
+            "amenities",
+            "fee_per_semester"
+          ],
+          "webhook_url": "/api/v1/student/hostel-availability",
+          "sync_frequency": "on_change"
+        },
+        {
+          "portal": "accountant",
+          "sync_type": "batch",
+          "fields": [
+            "room_id",
+            "hostel_id",
+            "monthly_revenue",
+            "maintenance_cost",
+            "occupancy_rate"
+          ],
+          "webhook_url": "/api/v1/accountant/hostel-financials",
+          "sync_frequency": "monthly"
+        }
+      ],
+      "related_entities": {
+        "hostel_assignments": {
+          "sync_type": "real_time",
+          "fields": [
+            "assignment_id",
+            "student_id",
+            "room_id",
+            "bed_number",
+            "fee_amount",
+            "check_in_date",
+            "check_out_date"
+          ],
+          "sync_targets": ["student", "accountant"]
+        }
+      }
+    },
+    "documents": {
+      "entity": "documents",
+      "master_source": "college_admin",
+      "sync_targets": [
+        {
+          "portal": "principal",
+          "sync_type": "metadata_only",
+          "fields": [
+            "document_id",
+            "title",
+            "category",
+            "uploaded_by",
+            "upload_date",
+            "file_size",
+            "file_type"
+          ],
+          "webhook_url": "/api/v1/principal/documents-metadata",
+          "sync_frequency": "on_upload",
+          "access_control": "role_based"
+        }
+      ],
+      "storage_sync": {
+        "primary_storage": "aws_s3",
+        "bucket": "edubit-college-admin-documents",
+        "backup_storage": "azure_blob",
+        "replication": "cross_region",
+        "lifecycle_policy": {
+          "transition_to_glacier": "365_days",
+          "delete_after": "7_years"
+        }
+      }
+    },
+    "vendors": {
+      "entity": "vendors",
+      "master_source": "college_admin",
+      "sync_targets": [
+        {
+          "portal": "accountant",
+          "sync_type": "real_time",
+          "fields": [
+            "vendor_id",
+            "vendor_name",
+            "vendor_type",
+            "contact_person",
+            "email",
+            "phone",
+            "bank_details",
+            "tax_id",
+            "rating"
+          ],
+          "webhook_url": "/api/v1/accountant/vendor-management",
+          "sync_frequency": "on_change"
+        },
+        {
+          "portal": "principal",
+          "sync_type": "summary",
+          "fields": ["vendor_id", "vendor_name", "vendor_type", "total_contracts", "performance_rating"],
+          "webhook_url": "/api/v1/principal/vendor-summary",
+          "sync_frequency": "weekly"
+        }
+      ],
+      "related_entities": {
+        "vendor_payments": {
+          "sync_type": "real_time",
+          "fields": [
+            "payment_id",
+            "vendor_id",
+            "amount",
+            "payment_date",
+            "payment_method",
+            "invoice_number",
+            "status"
+          ],
+          "sync_targets": ["accountant"]
+        }
+      }
+    },
+    "grievances": {
+      "entity": "grievances",
+      "master_source": "college_admin",
+      "sync_targets": [
+        {
+          "portal": "principal",
+          "sync_type": "real_time",
+          "fields": [
+            "grievance_id",
+            "submitted_by",
+            "category",
+            "priority",
+            "status",
+            "assigned_to",
+            "created_at",
+            "resolved_at",
+            "sla_status"
+          ],
+          "webhook_url": "/api/v1/principal/grievances-tracking",
+          "sync_frequency": "on_change",
+          "notification_triggers": ["high_priority", "sla_breach", "resolved"]
+        }
+      ],
+      "escalation_sync": {
+        "enabled": true,
+        "escalation_levels": [
+          {
+            "level": 1,
+            "notify": ["department_head"],
+            "after_hours": 24
+          },
+          {
+            "level": 2,
+            "notify": ["principal"],
+            "after_hours": 48
+          },
+          {
+            "level": 3,
+            "notify": ["college_owner"],
+            "after_hours": 72
+          }
+        ]
+      }
+    },
+    "library": {
+      "entity": "books",
+      "master_source": "college_admin",
+      "sync_targets": [
+        {
+          "portal": "student",
+          "sync_type": "real_time",
+          "fields": [
+            "book_id",
+            "isbn",
+            "title",
+            "author",
+            "category",
+            "available_copies",
+            "total_copies",
+            "location"
+          ],
+          "webhook_url": "/api/v1/student/library-catalog",
+          "sync_frequency": "on_change"
+        },
+        {
+          "portal": "faculty",
+          "sync_type": "real_time",
+          "fields": [
+            "book_id",
+            "isbn",
+            "title",
+            "author",
+            "category",
+            "available_copies",
+            "reservation_status"
+          ],
+          "webhook_url": "/api/v1/faculty/library-catalog",
+          "sync_frequency": "on_change"
+        }
+      ],
+      "related_entities": {
+        "book_issues": {
+          "sync_type": "real_time",
+          "fields": [
+            "issue_id",
+            "book_id",
+            "issued_to",
+            "issue_date",
+            "due_date",
+            "return_date",
+            "fine_amount"
+          ],
+          "sync_targets": ["student", "faculty", "accountant"]
+        }
+      }
+    }
+  },
+  "sync_configuration": {
+    "global_settings": {
+      "default_retry_policy": {
+        "max_retries": 3,
+        "backoff_strategy": "exponential",
+        "initial_delay_ms": 1000,
+        "max_delay_ms": 30000
+      },
+      "timeout_ms": 30000,
+      "batch_size": 1000,
+      "rate_limiting": {
+        "requests_per_minute": 1000,
+        "burst_size": 100
+      }
+    },
+    "security": {
+      "authentication": "oauth2",
+      "encryption": {
+        "in_transit": "tls_1_3",
+        "at_rest": "aes_256"
+      },
+      "webhook_signature": "hmac_sha256",
+      "ip_whitelist": ["10.0.0.0/8", "172.16.0.0/12"],
+      "api_key_rotation": "quarterly"
+    },
+    "monitoring": {
+      "health_check_interval_seconds": 60,
+      "metrics": {
+        "sync_success_rate": {
+          "threshold": 99.5,
+          "alert": true
+        },
+        "sync_latency_ms": {
+          "p50": 100,
+          "p95": 500,
+          "p99": 1000,
+          "alert_threshold": 2000
+        },
+        "failed_syncs": {
+          "threshold": 10,
+          "window_minutes": 5,
+          "alert": true
+        }
+      },
+      "logging": {
+        "level": "info",
+        "include_payload": false,
+        "retention_days": 90
+      }
+    },
+    "disaster_recovery": {
+      "backup_frequency": "daily",
+      "backup_retention_days": 365,
+      "point_in_time_recovery": true,
+      "cross_region_replication": true,
+      "recovery_time_objective_hours": 4,
+      "recovery_point_objective_minutes": 15
+    }
+  },
+  "sync_validation": {
+    "pre_sync_checks": [
+      {
+        "check": "data_consistency",
+        "description": "Verify all required fields are present and valid"
+      },
+      {
+        "check": "referential_integrity",
+        "description": "Ensure foreign key references exist in target system"
+      },
+      {
+        "check": "business_rules",
+        "description": "Validate business logic constraints"
+      }
+    ],
+    "post_sync_checks": [
+      {
+        "check": "record_count",
+        "description": "Verify sync count matches source records"
+      },
+      {
+        "check": "data_integrity",
+        "description": "Validate synced data matches source"
+      },
+      {
+        "check": "webhook_delivery",
+        "description": "Confirm webhook was received by target"
+      }
+    ]
+  },
+  "sync_status_tracking": {
+    "status_types": ["pending", "in_progress", "completed", "failed", "retrying"],
+    "track_fields": [
+      "sync_id",
+      "entity_type",
+      "entity_id",
+      "source_portal",
+      "target_portal",
+      "status",
+      "started_at",
+      "completed_at",
+      "retry_count",
+      "error_message",
+      "records_processed",
+      "records_failed"
+    ],
+    "status_retention_days": 90
+  },
+  "troubleshooting": {
+    "common_issues": [
+      {
+        "issue": "Webhook timeout",
+        "cause": "Target system slow response",
+        "resolution": "Increase timeout or implement async processing"
+      },
+      {
+        "issue": "Duplicate records",
+        "cause": "Missing idempotency key",
+        "resolution": "Ensure idempotency keys are sent with all requests"
+      },
+      {
+        "issue": "Data mismatch",
+        "cause": "Concurrent updates",
+        "resolution": "Implement optimistic locking with version numbers"
+      },
+      {
+        "issue": "Failed authentication",
+        "cause": "Expired OAuth token",
+        "resolution": "Implement token refresh mechanism"
+      }
+    ],
+    "debug_endpoints": [
+      {
+        "endpoint": "/api/v1/sync/status/{sync_id}",
+        "description": "Get detailed status of specific sync operation"
+      },
+      {
+        "endpoint": "/api/v1/sync/retry/{sync_id}",
+        "description": "Manually retry failed sync"
+      },
+      {
+        "endpoint": "/api/v1/sync/logs",
+        "description": "Retrieve sync logs for troubleshooting"
+      }
+    ]
+  },
+  "compliance": {
+    "data_privacy": {
+      "gdpr_compliance": true,
+      "data_minimization": true,
+      "right_to_erasure": true,
+      "data_portability": true
+    },
+    "audit_requirements": {
+      "log_all_syncs": true,
+      "log_access_attempts": true,
+      "retention_period_years": 7
+    }
+  },
+  "change_log": [
+    {
+      "version": "1.0.0",
+      "date": "2024-10-25",
+      "changes": [
+        "Initial sync checklist creation",
+        "Defined sync contracts for all modules",
+        "Established monitoring and retry policies"
+      ]
+    }
+  ]
+}

@@ -1,0 +1,712 @@
+﻿openapi: 3.1.0
+info:
+	title: Principal Portal API
+	version: 2.0.0
+	description: >-
+		Complete API specification for the Principal portal. The Principal manages a single
+		college within a university. All endpoints are strictly scoped by university_id and
+		college_id. Features include faculty management, student oversight, departments,
+		programs, admissions, examinations, reports, infrastructure, finance, and communications.
+	contact:
+		name: Bitflow API Support
+		email: api@bitflow.edu
+
+servers:
+	- url: http://localhost:8000/api/principal
+		description: Local development
+	- url: https://{university-slug}.bitflow.edu/api/principal
+		description: Production
+
+security:
+	- bearerAuth: []
+
+tags:
+	- name: Dashboard
+		description: Operational dashboard for the principal
+	- name: Faculty
+		description: Faculty directory, recruitment, assignments, leave, evaluations
+	- name: Students
+		description: Students directory, performance, interventions
+	- name: Departments
+		description: Department overview, HOD assignments, budget distribution
+	- name: Programs
+		description: Academic programs, curriculum approvals, outcomes
+	- name: Admissions
+		description: Applications, verification, merit list, counseling, seat allocation
+	- name: Exams
+		description: Timetable approvals, committees, conduct, grievances, results
+	- name: Reports
+		description: Analytics and scheduled reporting
+	- name: Infrastructure
+		description: Rooms, maintenance, equipment, bookings, projects, safety
+	- name: Finance
+		description: Budget tracking, expense approvals, salary verification
+	- name: Communication
+		description: Announcements, PTMs, grievances, memos, alerts
+
+components:
+	securitySchemes:
+		bearerAuth:
+			type: http
+			scheme: bearer
+			bearerFormat: JWT
+
+	schemas:
+		Error:
+			type: object
+			properties:
+				message:
+					type: string
+				errors:
+					type: object
+					additionalProperties: true
+
+		CollegeScoped:
+			type: object
+			properties:
+				university_id:
+					type: integer
+				college_id:
+					type: integer
+
+		Faculty:
+			allOf:
+				- $ref: '#/components/schemas/CollegeScoped'
+				- type: object
+					properties:
+						id:
+							type: integer
+						department_id:
+							type: integer
+						name:
+							type: string
+						email:
+							type: string
+							format: email
+						designation:
+							type: string
+						workload_hours_per_week:
+							type: number
+						status:
+							type: string
+							enum: [active, on_leave, resigned]
+
+		FacultyLeave:
+			allOf:
+				- $ref: '#/components/schemas/CollegeScoped'
+				- type: object
+					properties:
+						id: { type: integer }
+						faculty_id: { type: integer }
+						type: { type: string, enum: [annual, medical, emergency, sabbatical] }
+						from_date: { type: string, format: date }
+						to_date: { type: string, format: date }
+						days: { type: number }
+						status: { type: string, enum: [pending, approved, rejected] }
+						remarks: { type: string }
+
+		FacultyEvaluation:
+			allOf:
+				- $ref: '#/components/schemas/CollegeScoped'
+				- type: object
+					properties:
+						id: { type: integer }
+						faculty_id: { type: integer }
+						cycle: { type: string, example: '2025-Annual' }
+						teaching: { type: number, minimum: 0, maximum: 5 }
+						research: { type: number, minimum: 0, maximum: 5 }
+						service: { type: number, minimum: 0, maximum: 5 }
+						innovation: { type: number, minimum: 0, maximum: 5 }
+						leadership: { type: number, minimum: 0, maximum: 5 }
+						avg: { type: number, minimum: 0, maximum: 5 }
+
+		Student:
+			allOf:
+				- $ref: '#/components/schemas/CollegeScoped'
+				- type: object
+					properties:
+						id: { type: integer }
+						program_id: { type: integer }
+						roll_no: { type: string }
+						name: { type: string }
+						email: { type: string, format: email }
+						year: { type: integer, minimum: 1, maximum: 6 }
+						section: { type: string }
+						cgpa: { type: number, minimum: 0, maximum: 10 }
+						attendance_pct: { type: number, minimum: 0, maximum: 100 }
+
+		Department:
+			allOf:
+				- $ref: '#/components/schemas/CollegeScoped'
+				- type: object
+					properties:
+						id: { type: integer }
+						name: { type: string }
+						hod_id: { type: integer, nullable: true }
+						faculty_count: { type: integer }
+						student_count: { type: integer }
+						budget_allocated: { type: number }
+						score: { type: number, minimum: 0, maximum: 100 }
+
+		Program:
+			allOf:
+				- $ref: '#/components/schemas/CollegeScoped'
+				- type: object
+					properties:
+						id: { type: integer }
+						name: { type: string }
+						seats: { type: integer }
+						curriculum_version: { type: string }
+						status: { type: string, enum: [active, inactive] }
+
+		AdmissionApplication:
+			allOf:
+				- $ref: '#/components/schemas/CollegeScoped'
+				- type: object
+					properties:
+						id: { type: integer }
+						program_id: { type: integer }
+						applicant_name: { type: string }
+						score: { type: number }
+						docs_verified: { type: boolean }
+						status:
+							type: string
+							enum: [applied, verified, shortlisted, admitted, enrolled, rejected]
+
+		CounselingSession:
+			type: object
+			properties:
+				id: { type: integer }
+				program_id: { type: integer }
+				round: { type: integer }
+				date: { type: string, format: date }
+
+		SeatAllocation:
+			type: object
+			properties:
+				id: { type: integer }
+				application_id: { type: integer }
+				seat_no: { type: string }
+				status: { type: string, enum: [allocated, waitlisted, canceled] }
+
+		Room:
+			allOf:
+				- $ref: '#/components/schemas/CollegeScoped'
+				- type: object
+					properties:
+						id: { type: integer }
+						name: { type: string }
+						type: { type: string, enum: [classroom, lab, seminar, auditorium] }
+						capacity: { type: integer }
+
+		MaintenanceRequest:
+			allOf:
+				- $ref: '#/components/schemas/CollegeScoped'
+				- type: object
+					properties:
+						id: { type: integer }
+						title: { type: string }
+						category: { type: string }
+						priority: { type: string, enum: [low, medium, high] }
+						status: { type: string, enum: [open, assigned, completed, approved] }
+
+		ExpenseRequest:
+			allOf:
+				- $ref: '#/components/schemas/CollegeScoped'
+				- type: object
+					properties:
+						id: { type: integer }
+						department_id: { type: integer }
+						amount: { type: number }
+						category: { type: string }
+						status: { type: string, enum: [pending, approved, escalated, rejected] }
+						remarks: { type: string }
+
+		Announcement:
+			allOf:
+				- $ref: '#/components/schemas/CollegeScoped'
+				- type: object
+					properties:
+						id: { type: integer }
+						audience: { type: string, enum: [college, department, program, targeted] }
+						title: { type: string }
+						message: { type: string }
+						sent_at: { type: string, format: date-time, nullable: true }
+
+paths:
+	/dashboard/summary:
+		get:
+			tags: [Dashboard]
+			summary: Get dashboard metrics summary
+			parameters:
+				- in: header
+					name: X-College-Id
+					required: true
+					schema: { type: integer }
+			responses:
+				'200':
+					description: Summary metrics
+					content:
+						application/json:
+							schema:
+								type: object
+								properties:
+									students: { type: integer, example: 856 }
+									faculty: { type: integer, example: 67 }
+									departments: { type: integer, example: 12 }
+									budget_utilization_pct: { type: number, example: 85 }
+
+	/faculty:
+		get:
+			tags: [Faculty]
+			summary: List faculty in the college
+			parameters:
+				- in: query
+					name: department_id
+					schema: { type: integer }
+				- in: query
+					name: search
+					schema: { type: string }
+			responses:
+				'200':
+					description: List of faculty
+					content:
+						application/json:
+							schema:
+								type: array
+								items: { $ref: '#/components/schemas/Faculty' }
+		post:
+			tags: [Faculty]
+			summary: Post a new vacancy (recruitment)
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema:
+							type: object
+							properties:
+								department_id: { type: integer }
+								designation: { type: string }
+								positions: { type: integer, minimum: 1 }
+			responses:
+				'201':
+					description: Vacancy created
+
+	/faculty/{id}:
+		get:
+			tags: [Faculty]
+			summary: Get a faculty profile
+			parameters:
+				- in: path
+					name: id
+					required: true
+					schema: { type: integer }
+			responses:
+				'200':
+					description: Faculty profile
+					content:
+						application/json:
+							schema: { $ref: '#/components/schemas/Faculty' }
+
+	/faculty-leaves:
+		get:
+			tags: [Faculty]
+			summary: List leave requests
+			parameters:
+				- in: query
+					name: status
+					schema: { type: string, enum: [pending, approved, rejected] }
+			responses:
+				'200':
+					description: List
+					content:
+						application/json:
+							schema:
+								type: array
+								items: { $ref: '#/components/schemas/FacultyLeave' }
+		post:
+			tags: [Faculty]
+			summary: Create a leave request (by faculty) – included for completeness
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema: { $ref: '#/components/schemas/FacultyLeave' }
+			responses:
+				'201': { description: Created }
+
+	/faculty-leaves/{id}/approve:
+		post:
+			tags: [Faculty]
+			summary: Approve a leave request
+			parameters:
+				- in: path
+					name: id
+					required: true
+					schema: { type: integer }
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema:
+							type: object
+							properties:
+								remarks: { type: string }
+			responses:
+				'200': { description: Approved }
+
+	/faculty-leaves/{id}/reject:
+		post:
+			tags: [Faculty]
+			summary: Reject a leave request
+			parameters:
+				- in: path
+					name: id
+					required: true
+					schema: { type: integer }
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema:
+							type: object
+							properties:
+								remarks: { type: string }
+			responses:
+				'200': { description: Rejected }
+
+	/faculty-evaluations:
+		get:
+			tags: [Faculty]
+			summary: List evaluations for a cycle
+			parameters:
+				- in: query
+					name: cycle
+					schema: { type: string }
+			responses:
+				'200':
+					description: List
+					content:
+						application/json:
+							schema:
+								type: array
+								items: { $ref: '#/components/schemas/FacultyEvaluation' }
+
+	/students:
+		get:
+			tags: [Students]
+			summary: List students
+			parameters:
+				- in: query
+					name: program_id
+					schema: { type: integer }
+				- in: query
+					name: year
+					schema: { type: integer }
+				- in: query
+					name: q
+					schema: { type: string }
+			responses:
+				'200':
+					description: List of students
+					content:
+						application/json:
+							schema:
+								type: array
+								items: { $ref: '#/components/schemas/Student' }
+
+	/departments:
+		get:
+			tags: [Departments]
+			summary: List departments with KPIs
+			responses:
+				'200':
+					description: List
+					content:
+						application/json:
+							schema:
+								type: array
+								items: { $ref: '#/components/schemas/Department' }
+		post:
+			tags: [Departments]
+			summary: Assign or reassign a HOD
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema:
+							type: object
+							properties:
+								department_id: { type: integer }
+								hod_id: { type: integer, nullable: true }
+			responses:
+				'200': { description: Updated }
+
+	/programs:
+		get:
+			tags: [Programs]
+			summary: List programs
+			responses:
+				'200':
+					description: List
+					content:
+						application/json:
+							schema:
+								type: array
+								items: { $ref: '#/components/schemas/Program' }
+
+	/admissions/applications:
+		get:
+			tags: [Admissions]
+			summary: List admission applications
+			parameters:
+				- in: query
+					name: status
+					schema: { type: string, enum: [applied, verified, shortlisted, admitted, enrolled, rejected] }
+			responses:
+				'200':
+					description: List
+					content:
+						application/json:
+							schema:
+								type: array
+								items: { $ref: '#/components/schemas/AdmissionApplication' }
+
+	/admissions/merit-list: 
+		post:
+			tags: [Admissions]
+			summary: Generate merit list for a program
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema:
+							type: object
+							properties:
+								program_id: { type: integer }
+								criteria:
+									type: object
+									properties:
+										entrance_weight: { type: number, example: 0.6 }
+										academics_weight: { type: number, example: 0.3 }
+										interview_weight: { type: number, example: 0.1 }
+			responses:
+				'202': { description: Generation started }
+
+	/admissions/seat-allocation:
+		post:
+			tags: [Admissions]
+			summary: Allocate seats for a counseling round
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema:
+							type: object
+							properties:
+								program_id: { type: integer }
+								round: { type: integer }
+			responses:
+				'202': { description: Allocation started }
+
+	/exams/timetables:
+		get:
+			tags: [Exams]
+			summary: List exam timetables awaiting approval
+			responses:
+				'200': { description: List of timetables }
+
+	/exams/timetables/{id}/approve:
+		post:
+			tags: [Exams]
+			summary: Approve a timetable
+			parameters:
+				- in: path
+					name: id
+					required: true
+					schema: { type: integer }
+			responses:
+				'200': { description: Approved }
+
+	/exams/results/batches:
+		get:
+			tags: [Exams]
+			summary: Result batches pending approval
+			responses:
+				'200': { description: List }
+
+	/exams/results/batches/{id}/approve:
+		post:
+			tags: [Exams]
+			summary: Approve a result batch
+			parameters:
+				- in: path
+					name: id
+					required: true
+					schema: { type: integer }
+			responses:
+				'200': { description: Approved }
+
+	/infrastructure/rooms:
+		get:
+			tags: [Infrastructure]
+			summary: List rooms and labs
+			responses:
+				'200':
+					description: List
+					content:
+						application/json:
+							schema:
+								type: array
+								items: { $ref: '#/components/schemas/Room' }
+
+	/infrastructure/maintenance:
+		get:
+			tags: [Infrastructure]
+			summary: List maintenance requests
+			parameters:
+				- in: query
+					name: status
+					schema: { type: string, enum: [open, assigned, completed, approved] }
+			responses:
+				'200': { description: List }
+		post:
+			tags: [Infrastructure]
+			summary: Create a maintenance request
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema: { $ref: '#/components/schemas/MaintenanceRequest' }
+			responses:
+				'201': { description: Created }
+
+	/finance/expenses:
+		get:
+			tags: [Finance]
+			summary: List expense requests
+			parameters:
+				- in: query
+					name: status
+					schema: { type: string, enum: [pending, approved, escalated, rejected] }
+			responses:
+				'200': { description: List }
+		post:
+			tags: [Finance]
+			summary: Create an expense request (by department via principal portal)
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema: { $ref: '#/components/schemas/ExpenseRequest' }
+			responses:
+				'201': { description: Created }
+
+	/finance/expenses/{id}/approve:
+		post:
+			tags: [Finance]
+			summary: Approve an expense (< ₹5L)
+			parameters:
+				- in: path
+					name: id
+					required: true
+					schema: { type: integer }
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema:
+							type: object
+							properties:
+								remarks: { type: string }
+			responses:
+				'200': { description: Approved }
+
+	/finance/expenses/{id}/escalate:
+		post:
+			tags: [Finance]
+			summary: Escalate an expense (≥ ₹5L) to University Owner
+			parameters:
+				- in: path
+					name: id
+					required: true
+					schema: { type: integer }
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema:
+							type: object
+							properties:
+								reason: { type: string }
+			responses:
+				'200': { description: Escalated }
+
+	/communication/announcements:
+		get:
+			tags: [Communication]
+			summary: List announcements
+			responses:
+				'200':
+					description: List
+					content:
+						application/json:
+							schema:
+								type: array
+								items: { $ref: '#/components/schemas/Announcement' }
+		post:
+			tags: [Communication]
+			summary: Create an announcement
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema: { $ref: '#/components/schemas/Announcement' }
+			responses:
+				'201': { description: Created }
+
+	/communication/announcements/{id}/send:
+		post:
+			tags: [Communication]
+			summary: Send (publish) an announcement
+			parameters:
+				- in: path
+					name: id
+					required: true
+					schema: { type: integer }
+			responses:
+				'200': { description: Sent }
+
+	/reports/summary:
+		get:
+			tags: [Reports]
+			summary: Get key report summaries
+			parameters:
+				- in: query
+					name: from
+					schema: { type: string, format: date }
+				- in: query
+					name: to
+					schema: { type: string, format: date }
+			responses:
+				'200': { description: Summary data }
+
+	/reports/schedules:
+		post:
+			tags: [Reports]
+			summary: Schedule a report to email
+			requestBody:
+				required: true
+				content:
+					application/json:
+						schema:
+							type: object
+							properties:
+								name: { type: string }
+								cron: { type: string, example: '0 8 * * MON' }
+								recipients:
+									type: array
+									items: { type: string, format: email }
+			responses:
+				'201': { description: Scheduled }
+

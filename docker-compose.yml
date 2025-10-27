@@ -1,0 +1,186 @@
+version: '3.9'
+
+services:
+  # PostgreSQL Database
+  postgres:
+    image: postgres:16-alpine
+    container_name: bitflow-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: bitflow_lms
+      POSTGRES_USER: bitflow_user
+      POSTGRES_PASSWORD: bitflow_secure_password
+      PGDATA: /var/lib/postgresql/data/pgdata
+    ports:
+      - "5432:5432"
+    volumes:
+      - postgres_data:/var/lib/postgresql/data
+      - ./brain/master_db_schema.sql:/docker-entrypoint-initdb.d/01-schema.sql
+    healthcheck:
+      test: ["CMD-SHELL", "pg_isready -U bitflow_user -d bitflow_lms"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bitflow-network
+
+  # Redis Cache & Queue
+  redis:
+    image: redis:7-alpine
+    container_name: bitflow-redis
+    restart: unless-stopped
+    command: redis-server --requirepass bitflow_redis_password --maxmemory 256mb --maxmemory-policy allkeys-lru
+    ports:
+      - "6379:6379"
+    volumes:
+      - redis_data:/data
+    healthcheck:
+      test: ["CMD", "redis-cli", "--raw", "incr", "ping"]
+      interval: 10s
+      timeout: 5s
+      retries: 5
+    networks:
+      - bitflow-network
+
+  # Laravel Backend API
+  backend:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: bitflow-backend
+    restart: unless-stopped
+    working_dir: /var/www/html
+    environment:
+      APP_ENV: local
+      APP_DEBUG: "true"
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: bitflow_lms
+      DB_USERNAME: bitflow_user
+      DB_PASSWORD: bitflow_secure_password
+      REDIS_HOST: redis
+      REDIS_PASSWORD: bitflow_redis_password
+      REDIS_PORT: 6379
+      QUEUE_CONNECTION: redis
+      CACHE_DRIVER: redis
+      SESSION_DRIVER: redis
+    ports:
+      - "8000:8000"
+    volumes:
+      - ./backend:/var/www/html
+      - backend_storage:/var/www/html/storage
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bitflow-network
+    command: php artisan serve --host=0.0.0.0 --port=8000
+
+  # Laravel Queue Worker
+  queue:
+    build:
+      context: ./backend
+      dockerfile: Dockerfile
+      target: development
+    container_name: bitflow-queue
+    restart: unless-stopped
+    working_dir: /var/www/html
+    environment:
+      APP_ENV: local
+      DB_CONNECTION: pgsql
+      DB_HOST: postgres
+      DB_PORT: 5432
+      DB_DATABASE: bitflow_lms
+      DB_USERNAME: bitflow_user
+      DB_PASSWORD: bitflow_secure_password
+      REDIS_HOST: redis
+      REDIS_PASSWORD: bitflow_redis_password
+      QUEUE_CONNECTION: redis
+    volumes:
+      - ./backend:/var/www/html
+    depends_on:
+      postgres:
+        condition: service_healthy
+      redis:
+        condition: service_healthy
+    networks:
+      - bitflow-network
+    command: php artisan queue:work --tries=3 --timeout=90
+
+  # Next.js Frontend - Bitflow Admin (Port 3001)
+  frontend-bitflow-admin:
+    build:
+      context: ./frontend
+      dockerfile: apps/bitflow-admin/Dockerfile
+      target: development
+    container_name: bitflow-frontend-admin
+    restart: unless-stopped
+    environment:
+      NEXT_PUBLIC_API_URL: http://localhost:8000/api
+      NEXT_PUBLIC_APP_NAME: "Bitflow Admin"
+      NEXT_PUBLIC_PORTAL_NAME: "bitflow-admin"
+    ports:
+      - "3001:3000"
+    volumes:
+      - ./frontend:/app
+      - /app/node_modules
+      - /app/.next
+    depends_on:
+      - backend
+    networks:
+      - bitflow-network
+
+  # pgAdmin - Database Management UI (Optional)
+  pgadmin:
+    image: dpage/pgadmin4:latest
+    container_name: bitflow-pgadmin
+    restart: unless-stopped
+    environment:
+      PGADMIN_DEFAULT_EMAIL: admin@bitflow.edu
+      PGADMIN_DEFAULT_PASSWORD: admin123
+      PGADMIN_CONFIG_SERVER_MODE: 'False'
+    ports:
+      - "5050:80"
+    volumes:
+      - pgadmin_data:/var/lib/pgadmin
+    depends_on:
+      - postgres
+    networks:
+      - bitflow-network
+    profiles:
+      - tools
+
+  # Redis Commander - Redis Management UI (Optional)
+  redis-commander:
+    image: rediscommander/redis-commander:latest
+    container_name: bitflow-redis-commander
+    restart: unless-stopped
+    environment:
+      REDIS_HOSTS: local:redis:6379:0:bitflow_redis_password
+    ports:
+      - "8081:8081"
+    depends_on:
+      - redis
+    networks:
+      - bitflow-network
+    profiles:
+      - tools
+
+networks:
+  bitflow-network:
+    driver: bridge
+    name: bitflow-network
+
+volumes:
+  postgres_data:
+    driver: local
+  redis_data:
+    driver: local
+  backend_storage:
+    driver: local
+  pgadmin_data:
+    driver: local

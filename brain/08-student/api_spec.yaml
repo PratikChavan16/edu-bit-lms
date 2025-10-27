@@ -1,0 +1,1033 @@
+# Student Portal - API Specification
+
+**Version**: 2.0  
+**Format**: OpenAPI 3.1  
+**Last Updated**: October 25, 2025
+
+---
+
+```yaml
+openapi: 3.1.0
+
+info:
+  title: Student Portal API
+  version: 2.0.0
+  description: REST API endpoints for the Student Portal
+  contact:
+    name: Bitflow LMS Support
+    email: support@bitflow.edu
+
+servers:
+  - url: http://localhost:8000/api
+    description: Development server
+  - url: https://api.bitflow.edu/api
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Student:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        college_id:
+          type: string
+          format: uuid
+        department_id:
+          type: string
+          format: uuid
+        roll_number:
+          type: string
+        enrollment_year:
+          type: integer
+        current_semester:
+          type: integer
+        status:
+          type: string
+          enum: [active, on_leave, graduated, suspended]
+        dob:
+          type: string
+          format: date
+        gender:
+          type: string
+          enum: [male, female, other]
+        blood_group:
+          type: string
+        address:
+          type: string
+        guardian_name:
+          type: string
+        guardian_phone:
+          type: string
+        cgpa:
+          type: number
+          format: float
+        user:
+          $ref: '#/components/schemas/User'
+        college:
+          $ref: '#/components/schemas/College'
+        department:
+          $ref: '#/components/schemas/Department'
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        avatar_url:
+          type: string
+          format: uri
+
+    College:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+
+    Department:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+
+    Course:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        description:
+          type: string
+        credits:
+          type: integer
+        semester:
+          type: integer
+        department:
+          $ref: '#/components/schemas/Department'
+
+    Enrollment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        student_id:
+          type: string
+          format: uuid
+        course_id:
+          type: string
+          format: uuid
+        academic_year_id:
+          type: string
+          format: uuid
+        enrolled_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [enrolled, dropped, completed]
+        current_grade:
+          type: string
+          nullable: true
+        attendance_percentage:
+          type: number
+          format: float
+        course:
+          $ref: '#/components/schemas/Course'
+
+    Attendance:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        student_id:
+          type: string
+          format: uuid
+        course_id:
+          type: string
+          format: uuid
+        date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [present, absent, late, excused]
+        marked_by:
+          type: string
+          format: uuid
+        marked_at:
+          type: string
+          format: date-time
+        course:
+          $ref: '#/components/schemas/Course'
+
+    Grade:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        student_id:
+          type: string
+          format: uuid
+        course_id:
+          type: string
+          format: uuid
+        exam_type:
+          type: string
+          enum: [assignment, quiz, mid_term, end_term, project]
+        component_name:
+          type: string
+        marks_obtained:
+          type: number
+          format: float
+        max_marks:
+          type: number
+          format: float
+        weightage:
+          type: number
+          format: float
+        grade:
+          type: string
+        graded_by:
+          type: string
+          format: uuid
+        graded_at:
+          type: string
+          format: date-time
+        feedback:
+          type: string
+          nullable: true
+        course:
+          $ref: '#/components/schemas/Course'
+
+    Assignment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        course_id:
+          type: string
+          format: uuid
+        title:
+          type: string
+        description:
+          type: string
+        max_marks:
+          type: number
+        due_date:
+          type: string
+          format: date-time
+        attachment_url:
+          type: string
+          format: uri
+          nullable: true
+        course:
+          $ref: '#/components/schemas/Course'
+
+    Submission:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        assignment_id:
+          type: string
+          format: uuid
+        student_id:
+          type: string
+          format: uuid
+        file_url:
+          type: string
+          format: uri
+        submitted_at:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [submitted, graded, returned]
+        marks_obtained:
+          type: number
+          format: float
+          nullable: true
+        grade:
+          type: string
+          nullable: true
+        feedback:
+          type: string
+          nullable: true
+        graded_at:
+          type: string
+          format: date-time
+          nullable: true
+
+    FeeStructure:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        fee_type:
+          type: string
+        amount:
+          type: number
+          format: decimal
+        semester:
+          type: integer
+        due_date:
+          type: string
+          format: date
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        invoice_number:
+          type: string
+        student_id:
+          type: string
+          format: uuid
+        total_amount:
+          type: number
+          format: decimal
+        paid_amount:
+          type: number
+          format: decimal
+        balance:
+          type: number
+          format: decimal
+        due_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [pending, partial, paid, overdue]
+        issued_at:
+          type: string
+          format: date-time
+
+    FeePayment:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        student_id:
+          type: string
+          format: uuid
+        invoice_id:
+          type: string
+          format: uuid
+        amount:
+          type: number
+          format: decimal
+        payment_method:
+          type: string
+        transaction_id:
+          type: string
+        status:
+          type: string
+          enum: [pending, completed, failed, refunded]
+        paid_at:
+          type: string
+          format: date-time
+
+    Notification:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        user_id:
+          type: string
+          format: uuid
+        type:
+          type: string
+          enum: [academic, financial, administrative, system]
+        title:
+          type: string
+        message:
+          type: string
+        link:
+          type: string
+          nullable: true
+        read_at:
+          type: string
+          format: date-time
+          nullable: true
+        created_at:
+          type: string
+          format: date-time
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+paths:
+  /students/me:
+    get:
+      summary: Get authenticated student profile
+      tags:
+        - Students
+      responses:
+        '200':
+          description: Student profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Student'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /students/{studentId}/dashboard:
+    get:
+      summary: Get dashboard data
+      tags:
+        - Students
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Dashboard data retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      student:
+                        $ref: '#/components/schemas/Student'
+                      stats:
+                        type: object
+                        properties:
+                          current_semester:
+                            type: integer
+                          cgpa:
+                            type: number
+                          attendance_percentage:
+                            type: number
+                          pending_assignments:
+                            type: integer
+                          outstanding_fees:
+                            type: number
+                      upcoming_deadlines:
+                        type: array
+                        items:
+                          type: object
+                      recent_grades:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/Grade'
+
+  /students/{studentId}/courses:
+    get:
+      summary: Get student's enrolled courses
+      tags:
+        - Courses
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: semester
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [enrolled, completed]
+      responses:
+        '200':
+          description: Courses retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Enrollment'
+
+  /courses/{courseId}:
+    get:
+      summary: Get course details
+      tags:
+        - Courses
+      parameters:
+        - name: courseId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Course details retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Course'
+
+  /students/{studentId}/attendance:
+    get:
+      summary: Get student's attendance records
+      tags:
+        - Attendance
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: course_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: date_from
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: date_to
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Attendance records retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Attendance'
+                  meta:
+                    type: object
+                    properties:
+                      total_classes:
+                        type: integer
+                      present:
+                        type: integer
+                      absent:
+                        type: integer
+                      percentage:
+                        type: number
+
+  /students/{studentId}/grades:
+    get:
+      summary: Get student's grades
+      tags:
+        - Grades
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: semester
+          in: query
+          schema:
+            type: integer
+        - name: course_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Grades retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Grade'
+
+  /students/{studentId}/grades/cgpa:
+    get:
+      summary: Get student's CGPA calculation
+      tags:
+        - Grades
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: CGPA data retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      cgpa:
+                        type: number
+                      semester_gpas:
+                        type: array
+                        items:
+                          type: object
+                          properties:
+                            semester:
+                              type: integer
+                            gpa:
+                              type: number
+                            credits:
+                              type: integer
+
+  /students/{studentId}/assignments:
+    get:
+      summary: Get assignments for student
+      tags:
+        - Assignments
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, submitted, graded]
+        - name: course_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Assignments retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        assignment:
+                          $ref: '#/components/schemas/Assignment'
+                        submission:
+                          $ref: '#/components/schemas/Submission'
+
+  /assignments/{assignmentId}/submit:
+    post:
+      summary: Submit assignment
+      tags:
+        - Assignments
+      parameters:
+        - name: assignmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+                comments:
+                  type: string
+      responses:
+        '201':
+          description: Assignment submitted successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Submission'
+                  message:
+                    type: string
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /students/{studentId}/timetable:
+    get:
+      summary: Get student's timetable
+      tags:
+        - Timetable
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: week
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Timetable retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        day_of_week:
+                          type: string
+                        start_time:
+                          type: string
+                        end_time:
+                          type: string
+                        course:
+                          $ref: '#/components/schemas/Course'
+                        room_number:
+                          type: string
+                        faculty_name:
+                          type: string
+
+  /students/{studentId}/fees:
+    get:
+      summary: Get student's fee structure and status
+      tags:
+        - Fees
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Fee data retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      total_fee:
+                        type: number
+                      paid_amount:
+                        type: number
+                      pending_amount:
+                        type: number
+                      fee_structures:
+                        type: array
+                        items:
+                          $ref: '#/components/schemas/FeeStructure'
+
+  /students/{studentId}/invoices:
+    get:
+      summary: Get student's invoices
+      tags:
+        - Fees
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Invoices retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Invoice'
+
+  /students/{studentId}/payments:
+    get:
+      summary: Get student's payment history
+      tags:
+        - Fees
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Payment history retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/FeePayment'
+
+  /payments/initiate:
+    post:
+      summary: Initiate payment
+      tags:
+        - Fees
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                invoice_id:
+                  type: string
+                  format: uuid
+                amount:
+                  type: number
+                payment_method:
+                  type: string
+                  enum: [razorpay, stripe, bank_transfer]
+      responses:
+        '200':
+          description: Payment initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: object
+                    properties:
+                      payment_id:
+                        type: string
+                      gateway_url:
+                        type: string
+                      transaction_token:
+                        type: string
+
+  /notifications:
+    get:
+      summary: Get user's notifications
+      tags:
+        - Notifications
+      parameters:
+        - name: unread
+          in: query
+          schema:
+            type: boolean
+        - name: type
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Notifications retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Notification'
+
+  /notifications/{notificationId}/read:
+    put:
+      summary: Mark notification as read
+      tags:
+        - Notifications
+      parameters:
+        - name: notificationId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Notification marked as read
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message:
+                    type: string
+
+  /students/{studentId}:
+    put:
+      summary: Update student profile
+      tags:
+        - Students
+      parameters:
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                phone:
+                  type: string
+                blood_group:
+                  type: string
+                address:
+                  type: string
+                guardian_name:
+                  type: string
+                guardian_phone:
+                  type: string
+      responses:
+        '200':
+          description: Profile updated successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Student'
+                  message:
+                    type: string
+
+  /auth/change-password:
+    post:
+      summary: Change password
+      tags:
+        - Auth
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                current_password:
+                  type: string
+                new_password:
+                  type: string
+                new_password_confirmation:
+                  type: string
+      responses:
+        '200':
+          description: Password changed successfully
+        '422':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+```
+
+---
+
+**📡 This API specification defines all endpoints consumed by the Student Portal.**

@@ -1,0 +1,865 @@
+﻿{
+  "$schema": "https://json-schema.org/draft-07/schema#",
+  "title": "Super Academics Portal - Data Synchronization Checklist",
+  "version": "1.0.0",
+  "description": "Comprehensive synchronization specification for Super Academics portal data flows",
+  
+  "global_settings": {
+    "max_concurrent_syncs": 10,
+    "default_timeout_seconds": 30,
+    "default_retry_attempts": 5,
+    "circuit_breaker_threshold": 5,
+    "circuit_breaker_timeout_seconds": 300,
+    "dead_letter_queue_enabled": true,
+    "dead_letter_queue_retention_days": 7,
+    "sync_batch_size": 100,
+    "rate_limit_per_minute": 100,
+    "log_retention_days": 90
+  },
+  
+  "security": {
+    "authentication": {
+      "method": "OAuth2_Bearer_Token",
+      "token_refresh_threshold_minutes": 10,
+      "token_storage": "secure_vault"
+    },
+    "encryption": {
+      "in_transit": "TLS_1.3",
+      "at_rest": "AES_256_GCM"
+    },
+    "signature_verification": {
+      "algorithm": "HMAC_SHA256",
+      "header_name": "X-Sync-Signature",
+      "secret_rotation_days": 90
+    },
+    "ip_whitelisting": {
+      "enabled": true,
+      "allowed_ranges": [
+        "10.0.0.0/8",
+        "172.16.0.0/12",
+        "192.168.0.0/16"
+      ]
+    }
+  },
+  
+  "sync_modules": [
+    {
+      "module_id": "curriculum_sync",
+      "name": "Curriculum Synchronization",
+      "description": "Sync curriculum and course data to college portals",
+      "priority": "high",
+      "enabled": true,
+      
+      "entities": [
+        {
+          "entity_name": "curricula",
+          "source_table": "curricula",
+          "sync_type": "full_and_incremental",
+          "sync_frequency": "on_publish",
+          
+          "sync_targets": [
+            {
+              "target_id": "college_admin_portal",
+              "destination_endpoint": "${COLLEGE_ADMIN_API_URL}/api/curriculum/sync",
+              "http_method": "POST",
+              "authentication": "bearer_token",
+              "timeout_seconds": 30,
+              
+              "payload_schema": {
+                "type": "object",
+                "required": ["curriculum_id", "program_name", "degree_type", "courses"],
+                "properties": {
+                  "curriculum_id": { "type": "integer" },
+                  "program_name": { "type": "string" },
+                  "degree_type": { "type": "string", "enum": ["bachelor", "master", "diploma"] },
+                  "duration_years": { "type": "integer" },
+                  "total_credits": { "type": "integer" },
+                  "effective_from": { "type": "string", "format": "date" },
+                  "status": { "type": "string", "enum": ["draft", "active", "archived"] },
+                  "courses": {
+                    "type": "array",
+                    "items": {
+                      "type": "object",
+                      "properties": {
+                        "course_id": { "type": "integer" },
+                        "course_code": { "type": "string" },
+                        "course_name": { "type": "string" },
+                        "credits": { "type": "integer" },
+                        "semester": { "type": "integer" },
+                        "is_elective": { "type": "boolean" },
+                        "prerequisites": { "type": "array", "items": { "type": "string" } }
+                      }
+                    }
+                  }
+                }
+              },
+              
+              "validation_rules": [
+                { "field": "program_name", "rule": "min_length", "value": 3 },
+                { "field": "total_credits", "rule": "range", "min": 1, "max": 300 },
+                { "field": "courses", "rule": "min_items", "value": 1 },
+                { "field": "courses[].credits", "rule": "range", "min": 1, "max": 10 }
+              ],
+              
+              "retry_policy": {
+                "max_attempts": 5,
+                "backoff_strategy": "exponential",
+                "initial_delay_seconds": 60,
+                "max_delay_seconds": 3600,
+                "retry_on_status_codes": [408, 429, 500, 502, 503, 504]
+              },
+              
+              "success_criteria": {
+                "http_status": [200, 201],
+                "response_contains": { "success": true }
+              }
+            },
+            
+            {
+              "target_id": "principal_portal",
+              "destination_endpoint": "${PRINCIPAL_API_URL}/api/curriculum/receive",
+              "http_method": "POST",
+              "authentication": "bearer_token",
+              "timeout_seconds": 20,
+              "sync_mode": "push",
+              "notification_required": true
+            }
+          ],
+          
+          "pre_sync_validations": [
+            { "name": "check_curriculum_status", "rule": "status == 'active'" },
+            { "name": "validate_courses_count", "rule": "courses.length > 0" },
+            { "name": "check_effective_date", "rule": "effective_from <= current_date + 30 days" }
+          ],
+          
+          "post_sync_validations": [
+            { "name": "verify_college_count", "rule": "synced_colleges == target_colleges" },
+            { "name": "check_sync_timestamp", "rule": "last_synced_at updated" },
+            { "name": "validate_audit_log", "rule": "audit_entry_created == true" }
+          ],
+          
+          "rollback_strategy": {
+            "enabled": true,
+            "method": "restore_previous_version",
+            "trigger_conditions": ["validation_failure", "target_unavailable"]
+          }
+        },
+        
+        {
+          "entity_name": "courses",
+          "source_table": "courses",
+          "sync_type": "incremental",
+          "sync_frequency": "real_time",
+          "change_detection": "updated_at_timestamp",
+          
+          "sync_targets": [
+            {
+              "target_id": "faculty_portal",
+              "destination_endpoint": "${FACULTY_API_URL}/api/courses/sync",
+              "http_method": "POST",
+              "payload_includes": ["course_code", "course_name", "credits", "syllabus_url"],
+              "batch_enabled": true,
+              "batch_size": 50
+            }
+          ]
+        },
+        
+        {
+          "entity_name": "curriculum_versions",
+          "source_table": "curriculum_versions",
+          "sync_type": "full",
+          "sync_frequency": "weekly",
+          "sync_schedule": "0 2 * * 0",
+          
+          "sync_targets": [
+            {
+              "target_id": "analytics_warehouse",
+              "destination_endpoint": "${ANALYTICS_API_URL}/api/curriculum/versions",
+              "http_method": "POST",
+              "compression": "gzip",
+              "data_format": "json_lines"
+            }
+          ]
+        }
+      ]
+    },
+    
+    {
+      "module_id": "examination_sync",
+      "name": "Examination Synchronization",
+      "description": "Sync exam schedules, question banks, and results",
+      "priority": "critical",
+      "enabled": true,
+      
+      "entities": [
+        {
+          "entity_name": "exam_schedules",
+          "source_table": "exam_schedules",
+          "sync_type": "real_time",
+          "sync_frequency": "on_create",
+          
+          "sync_targets": [
+            {
+              "target_id": "college_admin_portal",
+              "destination_endpoint": "${COLLEGE_ADMIN_API_URL}/api/exams/schedule",
+              "http_method": "POST",
+              "authentication": "bearer_token",
+              "priority": "high",
+              
+              "payload_schema": {
+                "type": "object",
+                "required": ["exam_id", "exam_type", "exam_date", "course_id"],
+                "properties": {
+                  "exam_id": { "type": "integer" },
+                  "exam_type": { "type": "string", "enum": ["midterm", "final", "quiz", "practical"] },
+                  "exam_date": { "type": "string", "format": "date-time" },
+                  "duration_minutes": { "type": "integer" },
+                  "course_id": { "type": "integer" },
+                  "venue": { "type": "string" },
+                  "max_marks": { "type": "integer" },
+                  "instructions": { "type": "string" }
+                }
+              },
+              
+              "notification_channels": ["email", "sms", "in_app"],
+              "notification_templates": {
+                "email": "exam_schedule_notification",
+                "sms": "exam_alert"
+              }
+            },
+            
+            {
+              "target_id": "faculty_portal",
+              "destination_endpoint": "${FACULTY_API_URL}/api/exams/upcoming",
+              "http_method": "POST",
+              "sync_delay_seconds": 300
+            },
+            
+            {
+              "target_id": "student_portal",
+              "destination_endpoint": "${STUDENT_API_URL}/api/my-exams",
+              "http_method": "POST",
+              "filter_by_enrollment": true,
+              "personalization_enabled": true
+            }
+          ],
+          
+          "webhooks": [
+            {
+              "webhook_id": "exam_schedule_webhook",
+              "url": "${COLLEGE_WEBHOOK_URL}/webhooks/exam-schedule",
+              "events": ["exam_scheduled", "exam_rescheduled", "exam_cancelled"],
+              "authentication": "hmac_signature",
+              "retry_attempts": 3
+            }
+          ]
+        },
+        
+        {
+          "entity_name": "question_bank",
+          "source_table": "question_bank",
+          "sync_type": "incremental",
+          "sync_frequency": "hourly",
+          "sync_schedule": "0 * * * *",
+          
+          "sync_targets": [
+            {
+              "target_id": "faculty_portal",
+              "destination_endpoint": "${FACULTY_API_URL}/api/questions/sync",
+              "http_method": "POST",
+              "encryption_required": true,
+              "access_control": "role_based",
+              "allowed_roles": ["faculty", "exam_coordinator"]
+            },
+            
+            {
+              "target_id": "s3_backup",
+              "destination_endpoint": "${S3_BUCKET_URL}/question-bank-backup",
+              "http_method": "PUT",
+              "sync_type": "backup",
+              "versioning_enabled": true,
+              "lifecycle_policy": "delete_after_1_year"
+            }
+          ],
+          
+          "data_masking": {
+            "enabled": true,
+            "masked_fields": ["correct_answer", "answer_explanation"],
+            "masking_conditions": ["target == 'student_portal'"]
+          }
+        },
+        
+        {
+          "entity_name": "exam_results",
+          "source_table": "exam_results",
+          "sync_type": "batch",
+          "sync_frequency": "daily",
+          "sync_schedule": "0 1 * * *",
+          
+          "sync_targets": [
+            {
+              "target_id": "analytics_service",
+              "destination_endpoint": "${ANALYTICS_API_URL}/api/results/aggregate",
+              "http_method": "POST",
+              "aggregation_required": true,
+              "aggregation_level": "college",
+              
+              "aggregation_metrics": [
+                "average_score",
+                "pass_percentage",
+                "grade_distribution",
+                "performance_trends"
+              ]
+            },
+            
+            {
+              "target_id": "student_portal",
+              "destination_endpoint": "${STUDENT_API_URL}/api/my-results",
+              "http_method": "POST",
+              "filter_by_student_id": true,
+              "notification_required": true,
+              "notification_delay_minutes": 30
+            }
+          ],
+          
+          "webhooks": [
+            {
+              "webhook_id": "results_published_webhook",
+              "url": "${NOTIFICATION_SERVICE_URL}/webhooks/results",
+              "events": ["results_published"],
+              "batch_enabled": true,
+              "batch_size": 500
+            }
+          ]
+        }
+      ]
+    },
+    
+    {
+      "module_id": "analytics_sync",
+      "name": "Analytics Synchronization",
+      "description": "Sync performance metrics and compliance data",
+      "priority": "medium",
+      "enabled": true,
+      
+      "entities": [
+        {
+          "entity_name": "performance_metrics",
+          "source_table": "performance_metrics",
+          "sync_type": "batch",
+          "sync_frequency": "daily",
+          "sync_schedule": "0 3 * * *",
+          
+          "sync_targets": [
+            {
+              "target_id": "reporting_service",
+              "destination_endpoint": "${REPORTING_API_URL}/api/metrics/ingest",
+              "http_method": "POST",
+              "compression": "gzip",
+              "batch_size": 1000,
+              
+              "payload_includes": [
+                "college_id",
+                "metric_type",
+                "metric_value",
+                "measurement_date",
+                "aggregation_level"
+              ]
+            },
+            
+            {
+              "target_id": "metabase_dashboard",
+              "destination_endpoint": "${METABASE_API_URL}/api/datasets/performance",
+              "http_method": "POST",
+              "authentication": "api_key",
+              "data_format": "csv"
+            }
+          ]
+        },
+        
+        {
+          "entity_name": "compliance_issues",
+          "source_table": "compliance_issues",
+          "sync_type": "real_time",
+          "sync_frequency": "on_create",
+          "priority": "critical",
+          
+          "sync_targets": [
+            {
+              "target_id": "compliance_dashboard",
+              "destination_endpoint": "${COMPLIANCE_API_URL}/api/issues/report",
+              "http_method": "POST",
+              "alert_required": true,
+              "alert_channels": ["email", "slack"],
+              "alert_recipients": ["compliance_officer", "principal"]
+            }
+          ]
+        }
+      ]
+    },
+    
+    {
+      "module_id": "approval_sync",
+      "name": "Approval Workflows Synchronization",
+      "description": "Sync approval requests and audit logs",
+      "priority": "high",
+      "enabled": true,
+      
+      "entities": [
+        {
+          "entity_name": "approvals",
+          "source_table": "approvals",
+          "sync_type": "real_time",
+          "sync_frequency": "on_change",
+          
+          "sync_targets": [
+            {
+              "target_id": "notification_service",
+              "destination_endpoint": "${NOTIFICATION_API_URL}/api/approvals/notify",
+              "http_method": "POST",
+              "notification_channels": ["email", "in_app", "sms"],
+              
+              "notification_rules": [
+                {
+                  "trigger": "approval_pending",
+                  "recipients": ["approver_id"],
+                  "urgency": "medium"
+                },
+                {
+                  "trigger": "approval_approved",
+                  "recipients": ["requester_id"],
+                  "urgency": "low"
+                },
+                {
+                  "trigger": "approval_rejected",
+                  "recipients": ["requester_id"],
+                  "urgency": "high"
+                }
+              ]
+            }
+          ],
+          
+          "webhooks": [
+            {
+              "webhook_id": "approval_status_webhook",
+              "url": "${WEBHOOK_URL}/approvals/status",
+              "events": ["approval_created", "approval_approved", "approval_rejected"],
+              "retry_attempts": 5
+            }
+          ]
+        },
+        
+        {
+          "entity_name": "audit_logs",
+          "source_table": "audit_logs",
+          "sync_type": "batch",
+          "sync_frequency": "hourly",
+          "sync_schedule": "0 * * * *",
+          
+          "sync_targets": [
+            {
+              "target_id": "audit_warehouse",
+              "destination_endpoint": "${AUDIT_API_URL}/api/logs/ingest",
+              "http_method": "POST",
+              "batch_size": 5000,
+              "compression": "gzip",
+              "retention_enforcement": true,
+              "retention_days": 2555
+            },
+            
+            {
+              "target_id": "s3_archive",
+              "destination_endpoint": "${S3_BUCKET_URL}/audit-logs",
+              "http_method": "PUT",
+              "encryption": "AES_256",
+              "versioning": true
+            }
+          ]
+        }
+      ]
+    },
+    
+    {
+      "module_id": "calendar_sync",
+      "name": "Academic Calendar Synchronization",
+      "description": "Sync academic calendar events to all portals",
+      "priority": "medium",
+      "enabled": true,
+      
+      "entities": [
+        {
+          "entity_name": "academic_calendar",
+          "source_table": "academic_calendar",
+          "sync_type": "incremental",
+          "sync_frequency": "daily",
+          "sync_schedule": "0 6 * * *",
+          
+          "sync_targets": [
+            {
+              "target_id": "all_portals",
+              "destination_endpoints": [
+                "${COLLEGE_ADMIN_API_URL}/api/calendar/sync",
+                "${PRINCIPAL_API_URL}/api/calendar/sync",
+                "${FACULTY_API_URL}/api/calendar/sync",
+                "${STUDENT_API_URL}/api/calendar/sync"
+              ],
+              "http_method": "POST",
+              "fan_out_strategy": "parallel",
+              "max_parallel_requests": 4
+            },
+            
+            {
+              "target_id": "google_calendar",
+              "destination_endpoint": "${GOOGLE_CALENDAR_API_URL}/calendars/primary/events",
+              "http_method": "POST",
+              "authentication": "oauth2",
+              "transform_to_ical": true
+            }
+          ]
+        }
+      ]
+    },
+    
+    {
+      "module_id": "notification_sync",
+      "name": "Notification Synchronization",
+      "description": "Multi-channel notification delivery",
+      "priority": "high",
+      "enabled": true,
+      
+      "entities": [
+        {
+          "entity_name": "notifications",
+          "source_table": "notifications",
+          "sync_type": "real_time",
+          "sync_frequency": "immediate",
+          
+          "sync_targets": [
+            {
+              "target_id": "sendgrid_email",
+              "destination_endpoint": "${SENDGRID_API_URL}/v3/mail/send",
+              "http_method": "POST",
+              "authentication": "api_key",
+              "rate_limit_per_second": 100,
+              "template_engine": "handlebars",
+              
+              "retry_policy": {
+                "max_attempts": 3,
+                "backoff_strategy": "exponential",
+                "initial_delay_seconds": 5
+              }
+            },
+            
+            {
+              "target_id": "twilio_sms",
+              "destination_endpoint": "${TWILIO_API_URL}/2010-04-01/Accounts/{AccountSid}/Messages.json",
+              "http_method": "POST",
+              "authentication": "basic_auth",
+              "rate_limit_per_second": 10,
+              "priority_routing": true,
+              
+              "priority_rules": [
+                { "condition": "urgency == 'critical'", "route": "premium_sender" },
+                { "condition": "urgency == 'medium'", "route": "standard_sender" }
+              ]
+            },
+            
+            {
+              "target_id": "websocket_push",
+              "destination_endpoint": "wss://${WEBSOCKET_URL}/notifications",
+              "protocol": "websocket",
+              "channel_prefix": "user:",
+              "broadcast_enabled": true
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  
+  "monitoring": {
+    "health_checks": [
+      {
+        "name": "curriculum_sync_health",
+        "endpoint": "${COLLEGE_ADMIN_API_URL}/health",
+        "interval_seconds": 60,
+        "timeout_seconds": 10,
+        "failure_threshold": 3
+      },
+      {
+        "name": "exam_sync_health",
+        "endpoint": "${FACULTY_API_URL}/health",
+        "interval_seconds": 30,
+        "timeout_seconds": 5,
+        "failure_threshold": 5
+      }
+    ],
+    
+    "metrics": {
+      "sync_success_rate": {
+        "target": 99.5,
+        "unit": "percentage",
+        "alert_threshold": 95.0
+      },
+      "sync_latency_p95": {
+        "target": 5000,
+        "unit": "milliseconds",
+        "alert_threshold": 10000
+      },
+      "failed_syncs_per_hour": {
+        "target": 5,
+        "unit": "count",
+        "alert_threshold": 20
+      },
+      "retry_count_average": {
+        "target": 1.2,
+        "unit": "count",
+        "alert_threshold": 2.0
+      },
+      "queue_depth": {
+        "target": 100,
+        "unit": "count",
+        "alert_threshold": 1000
+      }
+    },
+    
+    "alerts": [
+      {
+        "alert_id": "sync_failure_alert",
+        "condition": "failed_syncs_per_hour > 20",
+        "severity": "critical",
+        "channels": ["pagerduty", "slack"],
+        "recipients": ["devops_oncall", "backend_team"]
+      },
+      {
+        "alert_id": "high_latency_alert",
+        "condition": "sync_latency_p95 > 10000",
+        "severity": "warning",
+        "channels": ["slack"],
+        "recipients": ["backend_team"]
+      },
+      {
+        "alert_id": "queue_backup_alert",
+        "condition": "queue_depth > 1000",
+        "severity": "high",
+        "channels": ["pagerduty", "slack"],
+        "recipients": ["devops_oncall"]
+      }
+    ],
+    
+    "dashboards": [
+      {
+        "name": "Sync Monitoring Dashboard",
+        "url": "${GRAFANA_URL}/d/sync-monitoring",
+        "panels": [
+          "sync_success_rate_by_module",
+          "sync_latency_distribution",
+          "error_rate_by_target",
+          "queue_depth_trend",
+          "retry_count_histogram"
+        ]
+      }
+    ]
+  },
+  
+  "disaster_recovery": {
+    "backup_strategy": {
+      "sync_queue_backup": {
+        "enabled": true,
+        "destination": "s3://sync-queue-backup/",
+        "frequency": "hourly",
+        "retention_days": 7
+      },
+      "audit_log_backup": {
+        "enabled": true,
+        "destination": "s3://audit-log-backup/",
+        "frequency": "daily",
+        "retention_days": 2555
+      }
+    },
+    
+    "point_in_time_recovery": {
+      "enabled": true,
+      "recovery_window_hours": 72,
+      "snapshot_interval_hours": 6
+    },
+    
+    "failover": {
+      "enabled": true,
+      "secondary_sync_service_url": "${SECONDARY_SYNC_API_URL}",
+      "automatic_failover": true,
+      "failover_trigger_conditions": [
+        "primary_service_down > 5 minutes",
+        "error_rate > 50%"
+      ],
+      "failback_strategy": "manual"
+    },
+    
+    "data_reconciliation": {
+      "enabled": true,
+      "reconciliation_jobs": [
+        {
+          "job_id": "curriculum_reconciliation",
+          "schedule": "0 4 * * 0",
+          "source": "super_academics_db",
+          "targets": ["college_admin_db"],
+          "reconciliation_type": "count_and_checksum",
+          "auto_fix": false,
+          "alert_on_mismatch": true
+        },
+        {
+          "job_id": "exam_results_reconciliation",
+          "schedule": "0 5 * * *",
+          "source": "super_academics_db",
+          "targets": ["analytics_warehouse"],
+          "reconciliation_type": "full_comparison",
+          "auto_fix": false
+        }
+      ]
+    }
+  },
+  
+  "compliance": {
+    "audit_trail": {
+      "enabled": true,
+      "log_all_syncs": true,
+      "include_payload": true,
+      "include_response": true,
+      "retention_days": 2555,
+      "storage_location": "audit_logs_table"
+    },
+    
+    "data_retention": {
+      "enforce_retention_policies": true,
+      "policies": [
+        {
+          "entity": "audit_logs",
+          "retention_days": 2555,
+          "enforcement_method": "automated_deletion"
+        },
+        {
+          "entity": "sync_history",
+          "retention_days": 365,
+          "enforcement_method": "archival_to_s3"
+        }
+      ]
+    },
+    
+    "gdpr_compliance": {
+      "consent_verification": true,
+      "right_to_erasure": true,
+      "data_portability": true,
+      "breach_notification_hours": 72
+    },
+    
+    "ferpa_compliance": {
+      "educational_records_protection": true,
+      "parental_access_controls": true,
+      "disclosure_logging": true
+    },
+    
+    "encryption": {
+      "in_transit": "TLS_1.3",
+      "at_rest": "AES_256_GCM",
+      "key_rotation_days": 90
+    }
+  },
+  
+  "troubleshooting": {
+    "common_errors": [
+      {
+        "error_code": "SYNC_001",
+        "description": "Target endpoint unreachable",
+        "resolution": "1. Check target service health. 2. Verify network connectivity. 3. Review firewall rules. 4. Check DNS resolution.",
+        "severity": "high"
+      },
+      {
+        "error_code": "SYNC_002",
+        "description": "Authentication failure",
+        "resolution": "1. Verify token validity. 2. Check token expiration. 3. Refresh OAuth2 token. 4. Verify API key.",
+        "severity": "critical"
+      },
+      {
+        "error_code": "SYNC_003",
+        "description": "Payload validation failed",
+        "resolution": "1. Review payload schema. 2. Check required fields. 3. Validate data types. 4. Review validation rules.",
+        "severity": "medium"
+      },
+      {
+        "error_code": "SYNC_004",
+        "description": "Rate limit exceeded",
+        "resolution": "1. Reduce sync frequency. 2. Implement batching. 3. Request rate limit increase. 4. Use backoff strategy.",
+        "severity": "medium"
+      },
+      {
+        "error_code": "SYNC_005",
+        "description": "Timeout occurred",
+        "resolution": "1. Increase timeout value. 2. Optimize payload size. 3. Check target service performance. 4. Enable compression.",
+        "severity": "high"
+      }
+    ],
+    
+    "debugging_steps": [
+      "1. Check sync_logs table for error details",
+      "2. Review recent audit_logs for the entity",
+      "3. Verify source data exists and is valid",
+      "4. Test target endpoint manually with curl/Postman",
+      "5. Check authentication tokens and API keys",
+      "6. Review retry attempts and failure patterns",
+      "7. Inspect dead letter queue for failed messages",
+      "8. Check circuit breaker status",
+      "9. Verify network connectivity and firewall rules",
+      "10. Review monitoring dashboards for anomalies"
+    ],
+    
+    "rollback_procedures": [
+      "1. Identify affected sync batch ID",
+      "2. Query sync_history for original state",
+      "3. Execute rollback SQL script",
+      "4. Verify data integrity after rollback",
+      "5. Notify affected users",
+      "6. Update audit logs with rollback action",
+      "7. Investigate root cause",
+      "8. Fix issue and re-trigger sync"
+    ],
+    
+    "manual_sync_commands": {
+      "trigger_curriculum_sync": "php artisan sync:curriculum --curriculum-id={id}",
+      "trigger_exam_sync": "php artisan sync:exams --schedule-id={id}",
+      "retry_failed_sync": "php artisan sync:retry --batch-id={batch_id}",
+      "reconcile_data": "php artisan sync:reconcile --entity={entity_name}",
+      "clear_sync_queue": "php artisan queue:flush sync-queue",
+      "reset_circuit_breaker": "php artisan sync:reset-circuit-breaker --target={target_id}"
+    }
+  },
+  
+  "performance_optimization": {
+    "batching": {
+      "enabled": true,
+      "default_batch_size": 100,
+      "max_batch_size": 1000,
+      "batch_timeout_seconds": 30
+    },
+    
+    "compression": {
+      "enabled": true,
+      "algorithm": "gzip",
+      "min_payload_size_kb": 10
+    },
+    
+    "caching": {
+      "enabled": true,
+      "cache_auth_tokens": true,
+      "token_cache_ttl_minutes": 50,
+      "cache_target_configs": true,
+      "config_cache_ttl_minutes": 60
+    },
+    
+    "connection_pooling": {
+      "enabled": true,
+      "pool_size": 20,
+      "max_idle_connections": 5,
+      "connection_timeout_seconds": 10
+    }
+  }
+}

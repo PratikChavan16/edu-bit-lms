@@ -1,0 +1,223 @@
+﻿{
+	"schemaVersion": "2.0.0",
+	"updatedAt": "2025-10-25T00:00:00Z",
+	"portal": "principal",
+	"scope": {
+		"tenantKeys": ["university_id", "college_id"],
+			"notes": [
+				"All IDs are integers unless specified.",
+				"All cross-portal payloads MUST include tenant keys."
+			]
+	},
+	"enums": {
+		"Role": [
+			"bitflow_admin",
+			"university_owner",
+			"super_admin",
+			"principal",
+			"hod",
+			"faculty",
+			"student",
+			"accountant",
+			"exam_controller",
+			"admission_officer",
+			"librarian",
+			"hostel_warden",
+			"transport_manager",
+			"hr_manager",
+			"parent"
+		],
+		"FacultyStatus": ["active", "on_leave", "resigned"],
+		"StudentStatus": [
+			"enrolled",
+			"sabbatical",
+			"suspended",
+			"graduated",
+			"alumni",
+			"withdrawn"
+		],
+		"LeaveType": ["annual", "medical", "emergency", "sabbatical"],
+		"LeaveStatus": ["pending", "approved", "rejected"],
+		"ExpenseStatus": ["pending", "approved", "escalated", "rejected"],
+		"ExpenseCategory": [
+			"equipment",
+			"lab_supplies",
+			"infrastructure",
+			"maintenance",
+			"events",
+			"consultancy",
+			"library",
+			"training",
+			"misc"
+		],
+		"AnnouncementAudience": ["college", "department", "program", "targeted"],
+		"ExamType": ["mid-term", "end-term", "quiz", "practical"],
+		"ResultStatus": ["draft", "pending_approval", "approved", "published"],
+		"RoomType": ["classroom", "lab", "seminar", "auditorium"],
+		"MaintenancePriority": ["low", "medium", "high"],
+		"MaintenanceStatus": ["open", "assigned", "completed", "approved"],
+		"ProgramStatus": ["active", "inactive"],
+		"AdmissionApplicationStatus": [
+			"applied",
+			"verified",
+			"shortlisted",
+			"admitted",
+			"enrolled",
+			"rejected"
+		],
+		"SeatAllocationStatus": ["allocated", "waitlisted", "canceled"]
+	},
+	"constraints": {
+		"financeThresholds": {
+			"expenseApprovalLimitINR": 500000,
+			"notes": "< limit → approve by principal; >= limit → escalate to University Owner"
+		},
+		"workload": { "weeklyHoursMax": 18, "hardCap": 22 },
+		"admissions": {
+			"weights": { "entrance": 0.6, "academics": 0.3, "interview": 0.1 },
+			"counselingRounds": 3
+		}
+	},
+	"events": {
+		"published": [
+			{
+				"name": "faculty.hired",
+				"version": 1,
+				"payload": {
+					"university_id": "number",
+					"college_id": "number",
+					"faculty_id": "number",
+					"department_id": "number",
+					"designation": "string"
+				}
+			},
+			{
+				"name": "faculty.leave.approved",
+				"version": 1,
+				"payload": {
+					"university_id": "number",
+					"college_id": "number",
+					"leave_id": "number",
+					"faculty_id": "number",
+					"type": "LeaveType",
+					"from": "date",
+					"to": "date",
+					"days": "number"
+				}
+			},
+			{
+				"name": "admissions.merit_list.generated",
+				"version": 1,
+				"payload": {
+					"university_id": "number",
+					"college_id": "number",
+					"program_id": "number",
+					"entries": "number"
+				}
+			},
+			{
+				"name": "admissions.seat_allocation.completed",
+				"version": 1,
+				"payload": {
+					"university_id": "number",
+					"college_id": "number",
+					"program_id": "number",
+					"round": "number",
+					"allocated": "number",
+					"waitlisted": "number"
+				}
+			},
+			{
+				"name": "finance.expense.approved",
+				"version": 1,
+				"payload": {
+					"university_id": "number",
+					"college_id": "number",
+					"expense_id": "number",
+					"department_id": "number",
+					"amount": "number",
+					"category": "ExpenseCategory"
+				}
+			},
+			{
+				"name": "finance.expense.escalated",
+				"version": 1,
+				"payload": {
+					"university_id": "number",
+					"college_id": "number",
+					"expense_id": "number",
+					"amount": "number",
+					"reason": "string"
+				}
+			},
+			{
+				"name": "exams.timetable.approved",
+				"version": 1,
+				"payload": {
+					"university_id": "number",
+					"college_id": "number",
+					"timetable_id": "number",
+					"conflicts": "number"
+				}
+			},
+			{
+				"name": "exams.results.approved",
+				"version": 1,
+				"payload": {
+					"university_id": "number",
+					"college_id": "number",
+					"batch_id": "number",
+					"courses": "number"
+				}
+			},
+			{
+				"name": "infra.maintenance.completed",
+				"version": 1,
+				"payload": {
+					"university_id": "number",
+					"college_id": "number",
+					"ticket_id": "number",
+					"category": "string",
+					"approved_by": "number"
+				}
+			},
+			{
+				"name": "comms.announcement.sent",
+				"version": 1,
+				"payload": {
+					"university_id": "number",
+					"college_id": "number",
+					"announcement_id": "number",
+					"audience": "AnnouncementAudience"
+				}
+			}
+		],
+		"subscribed": [
+			{ "name": "semester.published", "from": "super_admin", "version": 1 },
+			{ "name": "course.created", "from": "super_admin", "version": 1 },
+			{ "name": "user.created", "from": "identity", "version": 1 },
+			{ "name": "budget.released", "from": "university_owner", "version": 1 }
+		]
+	},
+	"http": {
+		"headers": {
+			"required": ["Authorization", "X-University-Id", "X-College-Id"],
+			"notes": "Headers must match JWT claims; otherwise 403"
+		},
+		"webhook": {
+			"signature": "HMAC-SHA256",
+			"headers": ["X-Event-Name", "X-Signature", "X-Timestamp"],
+			"skewToleranceMinutes": 5,
+			"retries": [1, 5, 15, 60],
+			"idempotencyKey": "event_id"
+		}
+	},
+	"deprecations": [
+		{
+			"name": "finance.expense.approve_direct",
+			"since": "2025-09-01",
+			"replacedBy": "finance.expense.approved",
+			"notes": "Use event with payload including tenant keys"
+		}
+	]
+}

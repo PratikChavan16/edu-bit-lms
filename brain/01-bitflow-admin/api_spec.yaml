@@ -1,0 +1,3043 @@
+﻿openapi: 3.1.0
+
+info:
+  title: Bitflow Admin Portal API
+  version: 2.0.0
+  description: |
+    REST API endpoints for the Bitflow Admin Portal - Platform-level administration.
+    This API manages the entire multi-tenant SaaS platform, including universities (tenants),
+    billing, system monitoring, and global settings.
+  contact:
+    name: Bitflow LMS Engineering
+    email: engineering@bitflow.edu
+  license:
+    name: Proprietary
+    url: https://bitflow.edu/license
+
+servers:
+  - url: http://localhost:8000/api/admin
+    description: Development server
+  - url: https://api.bitflow.edu/api/admin
+    description: Production server
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Platform
+    description: Platform-wide dashboard and metrics
+  - name: Universities
+    description: University (tenant) management
+  - name: Hierarchical Navigation
+    description: University and college hub navigation with contextual data
+  - name: Users
+    description: Global user management across all universities
+  - name: Analytics
+    description: Platform analytics and reporting
+  - name: Billing
+    description: Billing, subscriptions, and revenue
+  - name: Settings
+    description: Global platform settings
+  - name: Audit
+    description: Audit logs and compliance
+  - name: Support
+    description: Support tickets from universities
+  - name: System
+    description: System health, logs, and monitoring
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      description: JWT token with `bitflow_owner` role
+
+  schemas:
+    # ==================== PLATFORM ====================
+    PlatformDashboard:
+      type: object
+      properties:
+        stats:
+          type: object
+          properties:
+            total_universities:
+              type: integer
+            active_universities:
+              type: integer
+            total_users:
+              type: integer
+            api_requests_today:
+              type: integer
+            storage_used_gb:
+              type: number
+            storage_total_gb:
+              type: number
+        recent_activity:
+          type: array
+          items:
+            $ref: '#/components/schemas/UniversityActivity'
+        system_performance:
+          $ref: '#/components/schemas/SystemPerformance'
+        alerts:
+          type: array
+          items:
+            $ref: '#/components/schemas/Alert'
+        revenue:
+          $ref: '#/components/schemas/RevenueOverview'
+
+    UniversityActivity:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        university_id:
+          type: string
+          format: uuid
+        university_name:
+          type: string
+        activity_type:
+          type: string
+          enum: [enrollment, payment, upgrade, downgrade, issue]
+        description:
+          type: string
+        timestamp:
+          type: string
+          format: date-time
+
+    SystemPerformance:
+      type: object
+      properties:
+        api_latency_ms:
+          type: number
+        db_response_time_ms:
+          type: number
+        redis_hit_rate:
+          type: number
+        uptime_percentage:
+          type: number
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        severity:
+          type: string
+          enum: [info, warning, error, critical]
+        title:
+          type: string
+        message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    RevenueOverview:
+      type: object
+      properties:
+        mrr:
+          type: number
+          description: Monthly Recurring Revenue
+        arr:
+          type: number
+          description: Annual Recurring Revenue
+        new_sales:
+          type: number
+        renewals:
+          type: number
+        trend:
+          type: array
+          items:
+            type: object
+            properties:
+              month:
+                type: string
+              revenue:
+                type: number
+
+    # ==================== UNIVERSITIES ====================
+    University:
+      type: object
+      required:
+        - name
+        - primary_email
+        - primary_phone
+      properties:
+        id:
+          type: string
+          format: uuid
+          readOnly: true
+        name:
+          type: string
+          minLength: 3
+          maxLength: 200
+        domain:
+          type: string
+          description: Auto-generated subdomain (e.g., mit.bitflow.edu)
+          readOnly: true
+        slug:
+          type: string
+          description: URL-safe university identifier
+          readOnly: true
+        primary_email:
+          type: string
+          format: email
+        primary_phone:
+          type: string
+        logo_url:
+          type: string
+          format: uri
+        status:
+          type: string
+          enum: [active, inactive, suspended, limited]
+          default: active
+        storage_quota_gb:
+          type: integer
+          minimum: 50
+          maximum: 10000
+          default: 500
+        storage_used_gb:
+          type: number
+          readOnly: true
+        api_rate_limit:
+          type: integer
+          default: 10000
+          description: Requests per hour
+        total_users:
+          type: integer
+          readOnly: true
+        subscription_plan:
+          type: string
+          enum: [basic, pro, enterprise]
+        subscription_status:
+          type: string
+          enum: [active, past_due, canceled, trial]
+        created_at:
+          type: string
+          format: date-time
+          readOnly: true
+        updated_at:
+          type: string
+          format: date-time
+          readOnly: true
+        last_activity_at:
+          type: string
+          format: date-time
+          readOnly: true
+
+    UniversityDetails:
+      allOf:
+        - $ref: '#/components/schemas/University'
+        - type: object
+          properties:
+            owner:
+              type: object
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                phone:
+                  type: string
+            usage:
+              type: object
+              properties:
+                total_users:
+                  type: integer
+                active_today:
+                  type: integer
+                api_calls_24h:
+                  type: integer
+                colleges_count:
+                  type: integer
+                programs_count:
+                  type: integer
+                students_count:
+                  type: integer
+                faculty_count:
+                  type: integer
+            configuration:
+              type: object
+              properties:
+                custom_domain_enabled:
+                  type: boolean
+                sso_enabled:
+                  type: boolean
+                backup_frequency:
+                  type: string
+            security:
+              type: object
+              properties:
+                two_factor_required:
+                  type: boolean
+                ip_whitelist:
+                  type: array
+                  items:
+                    type: string
+                failed_login_attempts_24h:
+                  type: integer
+
+    CreateUniversityRequest:
+      type: object
+      required:
+        - name
+        - primary_email
+        - primary_phone
+        - storage_quota_gb
+        - subscription_plan
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 200
+          example: "MIT University"
+        primary_email:
+          type: string
+          format: email
+          example: "admin@mit.edu"
+        primary_phone:
+          type: string
+          example: "+1-617-253-1000"
+        storage_quota_gb:
+          type: integer
+          minimum: 50
+          maximum: 10000
+          default: 500
+        subscription_plan:
+          type: string
+          enum: [basic, pro, enterprise]
+
+    UpdateUniversityRequest:
+      type: object
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 200
+        primary_email:
+          type: string
+          format: email
+        primary_phone:
+          type: string
+        logo_url:
+          type: string
+          format: uri
+        storage_quota_gb:
+          type: integer
+          minimum: 50
+          maximum: 10000
+        api_rate_limit:
+          type: integer
+          minimum: 1000
+          maximum: 100000
+
+    # ==================== USERS ====================
+    GlobalUser:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+        university:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+        status:
+          type: string
+          enum: [active, inactive, locked, suspended]
+        last_login:
+          type: string
+          format: date-time
+        created_at:
+          type: string
+          format: date-time
+
+    # ==================== ANALYTICS ====================
+    AnalyticsData:
+      type: object
+      properties:
+        date_range:
+          type: object
+          properties:
+            start:
+              type: string
+              format: date
+            end:
+              type: string
+              format: date
+        growth:
+          type: object
+          properties:
+            universities_added:
+              type: array
+              items:
+                $ref: '#/components/schemas/DataPoint'
+            user_growth:
+              type: array
+              items:
+                $ref: '#/components/schemas/DataPoint'
+            revenue_growth:
+              type: array
+              items:
+                $ref: '#/components/schemas/DataPoint'
+        top_universities:
+          type: array
+          items:
+            type: object
+            properties:
+              name:
+                type: string
+              user_count:
+                type: integer
+              mrr:
+                type: number
+        usage_patterns:
+          type: object
+          properties:
+            api_usage_heatmap:
+              type: array
+              items:
+                type: object
+            feature_usage:
+              type: array
+              items:
+                type: object
+                properties:
+                  feature:
+                    type: string
+                  count:
+                    type: integer
+
+    DataPoint:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        value:
+          type: number
+
+    # ==================== BILLING ====================
+    BillingData:
+      type: object
+      properties:
+        revenue:
+          type: object
+          properties:
+            mrr:
+              type: number
+            arr:
+              type: number
+            churn_rate:
+              type: number
+            mrr_trend:
+              type: array
+              items:
+                $ref: '#/components/schemas/DataPoint'
+        subscription_status:
+          type: object
+          properties:
+            active:
+              type: integer
+            past_due:
+              type: integer
+            canceled:
+              type: integer
+            trial:
+              type: integer
+        subscriptions:
+          type: array
+          items:
+            $ref: '#/components/schemas/Subscription'
+        recent_invoices:
+          type: array
+          items:
+            $ref: '#/components/schemas/Invoice'
+
+    Subscription:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        university_id:
+          type: string
+          format: uuid
+        university_name:
+          type: string
+        plan:
+          type: string
+          enum: [basic, pro, enterprise]
+        status:
+          type: string
+          enum: [active, past_due, canceled, trial]
+        mrr:
+          type: number
+        next_billing_date:
+          type: string
+          format: date
+
+    Invoice:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        invoice_number:
+          type: string
+        university_id:
+          type: string
+          format: uuid
+        university_name:
+          type: string
+        amount:
+          type: number
+        status:
+          type: string
+          enum: [paid, pending, failed, refunded]
+        billing_date:
+          type: string
+          format: date
+        due_date:
+          type: string
+          format: date
+        pdf_url:
+          type: string
+          format: uri
+
+    # ==================== SETTINGS ====================
+    GlobalSettings:
+      type: object
+      properties:
+        general:
+          type: object
+          properties:
+            platform_name:
+              type: string
+            support_email:
+              type: string
+              format: email
+            support_phone:
+              type: string
+            timezone:
+              type: string
+            maintenance_mode:
+              type: boolean
+            default_storage_quota_gb:
+              type: integer
+            default_api_rate_limit:
+              type: integer
+            trial_period_days:
+              type: integer
+        email:
+          type: object
+          properties:
+            smtp_host:
+              type: string
+            smtp_port:
+              type: integer
+            smtp_username:
+              type: string
+            from_address:
+              type: string
+        security:
+          type: object
+          properties:
+            password_min_length:
+              type: integer
+            password_require_uppercase:
+              type: boolean
+            password_require_numbers:
+              type: boolean
+            password_require_special:
+              type: boolean
+            session_timeout_minutes:
+              type: integer
+            max_failed_login_attempts:
+              type: integer
+
+    # ==================== AUDIT ====================
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        user_id:
+          type: string
+          format: uuid
+        user_name:
+          type: string
+        action:
+          type: string
+          enum: [CREATE, READ, UPDATE, DELETE, LOGIN, LOGOUT]
+        resource_type:
+          type: string
+        resource_id:
+          type: string
+        details:
+          type: string
+        ip_address:
+          type: string
+        user_agent:
+          type: string
+
+    # ==================== SUPPORT ====================
+    SupportTicket:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        ticket_number:
+          type: string
+        university_id:
+          type: string
+          format: uuid
+        university_name:
+          type: string
+        subject:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+          enum: [low, medium, high, urgent]
+        status:
+          type: string
+          enum: [open, in_progress, resolved, closed]
+        created_by:
+          type: string
+        assigned_to:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+        updated_at:
+          type: string
+          format: date-time
+
+    # ==================== SYSTEM ====================
+    SystemHealth:
+      type: object
+      properties:
+        cpu_usage:
+          type: number
+        memory_usage:
+          type: number
+        disk_usage:
+          type: number
+        database_status:
+          type: string
+          enum: [healthy, degraded, down]
+        redis_status:
+          type: string
+          enum: [healthy, degraded, down]
+        storage_status:
+          type: string
+          enum: [healthy, degraded, down]
+
+    SystemLog:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        timestamp:
+          type: string
+          format: date-time
+        level:
+          type: string
+          enum: [error, warning, info, debug]
+        source:
+          type: string
+        message:
+          type: string
+        stack_trace:
+          type: string
+        context:
+          type: object
+
+    # ==================== COMMON ====================
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties:
+            type: array
+            items:
+              type: string
+
+    PaginatedResponse:
+      type: object
+      properties:
+        data:
+          type: array
+          items: {}
+        meta:
+          type: object
+          properties:
+            current_page:
+              type: integer
+            from:
+              type: integer
+            last_page:
+              type: integer
+            per_page:
+              type: integer
+            to:
+              type: integer
+            total:
+              type: integer
+        links:
+          type: object
+          properties:
+            first:
+              type: string
+            last:
+              type: string
+            prev:
+              type: string
+              nullable: true
+            next:
+              type: string
+              nullable: true
+
+    # ==================== HIERARCHICAL NAVIGATION SCHEMAS ====================
+    UniversityHubResponse:
+      type: object
+      properties:
+        university:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            domain:
+              type: string
+            logo_url:
+              type: string
+            status:
+              type: string
+              enum: [active, inactive, suspended]
+            primary_email:
+              type: string
+            primary_phone:
+              type: string
+        stats:
+          type: object
+          properties:
+            total_colleges:
+              type: integer
+            total_students:
+              type: integer
+            total_faculty:
+              type: integer
+            total_staff:
+              type: integer
+        quick_actions:
+          type: array
+          items:
+            type: object
+            properties:
+              title:
+                type: string
+              icon:
+                type: string
+              link:
+                type: string
+
+    CollegeHubResponse:
+      type: object
+      properties:
+        college:
+          type: object
+          properties:
+            id:
+              type: string
+              format: uuid
+            name:
+              type: string
+            code:
+              type: string
+            status:
+              type: string
+            established_year:
+              type: integer
+        stats:
+          type: object
+          properties:
+            total_departments:
+              type: integer
+            total_students:
+              type: integer
+            total_faculty:
+              type: integer
+            total_courses:
+              type: integer
+        sections:
+          type: array
+          items:
+            type: object
+            properties:
+              id:
+                type: string
+              title:
+                type: string
+              icon:
+                type: string
+              count:
+                type: integer
+              link:
+                type: string
+
+    ManagementMember:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [university_owner, super_admin]
+        photo_url:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+
+    College:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+        status:
+          type: string
+          enum: [active, inactive]
+        established_year:
+          type: integer
+        students_count:
+          type: integer
+        faculty_count:
+          type: integer
+        departments_count:
+          type: integer
+
+    UniversitySettings:
+      type: object
+      properties:
+        general:
+          type: object
+          properties:
+            name:
+              type: string
+            primary_email:
+              type: string
+            primary_phone:
+              type: string
+            logo_url:
+              type: string
+        security:
+          type: object
+          properties:
+            two_factor_required:
+              type: boolean
+            session_timeout_minutes:
+              type: integer
+            password_expiry_days:
+              type: integer
+        preferences:
+          type: object
+          properties:
+            timezone:
+              type: string
+            date_format:
+              type: string
+            language:
+              type: string
+
+    Department:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        code:
+          type: string
+        college_id:
+          type: string
+          format: uuid
+        hod_id:
+          type: string
+          format: uuid
+          nullable: true
+        hod_name:
+          type: string
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive]
+        students_count:
+          type: integer
+        faculty_count:
+          type: integer
+        courses_count:
+          type: integer
+        created_at:
+          type: string
+          format: date-time
+
+    CreateDepartmentRequest:
+      type: object
+      required:
+        - name
+        - code
+      properties:
+        name:
+          type: string
+          minLength: 3
+          maxLength: 200
+        code:
+          type: string
+          minLength: 2
+          maxLength: 10
+        hod_id:
+          type: string
+          format: uuid
+          nullable: true
+
+    UpdateDepartmentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        code:
+          type: string
+        hod_id:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive]
+
+    Student:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        enrollment_number:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        photo_url:
+          type: string
+        department_id:
+          type: string
+          format: uuid
+        department_name:
+          type: string
+        year:
+          type: integer
+        status:
+          type: string
+          enum: [active, suspended, graduated, dropped]
+        gpa:
+          type: number
+          format: float
+        attendance_percentage:
+          type: number
+          format: float
+        phone:
+          type: string
+
+    StudentProfile:
+      allOf:
+        - $ref: '#/components/schemas/Student'
+        - type: object
+          properties:
+            personal_info:
+              type: object
+              properties:
+                date_of_birth:
+                  type: string
+                  format: date
+                gender:
+                  type: string
+                blood_group:
+                  type: string
+                address:
+                  type: string
+            academic_info:
+              type: object
+              properties:
+                admission_date:
+                  type: string
+                  format: date
+                current_semester:
+                  type: integer
+                program:
+                  type: string
+                enrolled_courses:
+                  type: array
+                  items:
+                    type: object
+            fees_info:
+              type: object
+              properties:
+                total_fees:
+                  type: number
+                paid_amount:
+                  type: number
+                pending_amount:
+                  type: number
+                last_payment_date:
+                  type: string
+                  format: date
+
+    CreateStudentRequest:
+      type: object
+      required:
+        - name
+        - email
+        - department_id
+        - year
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        phone:
+          type: string
+        department_id:
+          type: string
+          format: uuid
+        year:
+          type: integer
+          minimum: 1
+          maximum: 5
+        date_of_birth:
+          type: string
+          format: date
+        gender:
+          type: string
+          enum: [male, female, other]
+
+    UpdateStudentRequest:
+      type: object
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        department_id:
+          type: string
+          format: uuid
+        year:
+          type: integer
+        status:
+          type: string
+          enum: [active, suspended, graduated, dropped]
+
+    Faculty:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        photo_url:
+          type: string
+        department_id:
+          type: string
+          format: uuid
+        department_name:
+          type: string
+        designation:
+          type: string
+          enum: [Professor, Associate Professor, Assistant Professor, Lecturer]
+        specialization:
+          type: string
+        experience_years:
+          type: integer
+        courses_assigned:
+          type: integer
+        status:
+          type: string
+          enum: [active, on_leave, inactive]
+
+    FacultyProfile:
+      allOf:
+        - $ref: '#/components/schemas/Faculty'
+        - type: object
+          properties:
+            qualifications:
+              type: array
+              items:
+                type: string
+            publications:
+              type: array
+              items:
+                type: object
+            courses:
+              type: array
+              items:
+                type: object
+                properties:
+                  course_name:
+                    type: string
+                  semester:
+                    type: integer
+
+    AdminStaff:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        photo_url:
+          type: string
+        department:
+          type: string
+        designation:
+          type: string
+        status:
+          type: string
+          enum: [active, on_leave, inactive]
+
+    NonTeachingStaff:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        employee_id:
+          type: string
+        name:
+          type: string
+        email:
+          type: string
+        category:
+          type: string
+          enum: [library, transport, hostel, maintenance, security]
+        designation:
+          type: string
+        status:
+          type: string
+          enum: [active, on_leave, inactive]
+
+    Course:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        code:
+          type: string
+        name:
+          type: string
+        department_id:
+          type: string
+          format: uuid
+        department_name:
+          type: string
+        credits:
+          type: integer
+        semester:
+          type: integer
+        faculty_id:
+          type: string
+          format: uuid
+          nullable: true
+        faculty_name:
+          type: string
+          nullable: true
+
+    Book:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        isbn:
+          type: string
+        title:
+          type: string
+        author:
+          type: string
+        category:
+          type: string
+        total_copies:
+          type: integer
+        available_copies:
+          type: integer
+        issued_copies:
+          type: integer
+
+    TransportRoute:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        route_number:
+          type: string
+        route_name:
+          type: string
+        stops:
+          type: array
+          items:
+            type: string
+        students_count:
+          type: integer
+        vehicle_id:
+          type: string
+          format: uuid
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive]
+
+    Vehicle:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        vehicle_number:
+          type: string
+        vehicle_type:
+          type: string
+        capacity:
+          type: integer
+        driver_name:
+          type: string
+        status:
+          type: string
+          enum: [active, maintenance, inactive]
+
+    HostelRoom:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        hostel_name:
+          type: string
+        room_number:
+          type: string
+        floor:
+          type: integer
+        capacity:
+          type: integer
+        occupied:
+          type: integer
+        available:
+          type: integer
+        occupancy_status:
+          type: string
+          enum: [available, occupied, full]
+
+    HostelAllocation:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        student_id:
+          type: string
+          format: uuid
+        student_name:
+          type: string
+        enrollment_number:
+          type: string
+        room_id:
+          type: string
+          format: uuid
+        room_number:
+          type: string
+        hostel_name:
+          type: string
+        allocation_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [active, vacated]
+
+    Pagination:
+      type: object
+      properties:
+        current_page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        last_page:
+          type: integer
+
+    User:
+      type: object
+      properties:
+        id:
+          type: string
+          format: uuid
+        name:
+          type: string
+        email:
+          type: string
+        photo_url:
+          type: string
+        role:
+          type: string
+        status:
+          type: string
+
+paths:
+  # ==================== PLATFORM ====================
+  /dashboard:
+    get:
+      tags:
+        - Platform
+      summary: Get platform dashboard data
+      description: Returns aggregated metrics, recent activity, system performance, alerts, and revenue overview
+      operationId: getPlatformDashboard
+      responses:
+        '200':
+          description: Dashboard data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlatformDashboard'
+        '401':
+          description: Unauthorized
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /system/health:
+    get:
+      tags:
+        - Platform
+      summary: Get real-time system health
+      description: Returns current system health metrics including CPU, memory, disk, and service status
+      operationId: getSystemHealth
+      responses:
+        '200':
+          description: System health retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SystemHealth'
+
+  /alerts:
+    get:
+      tags:
+        - Platform
+      summary: Get active platform alerts
+      description: Returns all active alerts sorted by severity
+      operationId: getAlerts
+      parameters:
+        - name: severity
+          in: query
+          schema:
+            type: string
+            enum: [info, warning, error, critical]
+      responses:
+        '200':
+          description: Alerts retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Alert'
+
+  # ==================== UNIVERSITIES ====================
+  /universities:
+    get:
+      tags:
+        - Universities
+      summary: List all universities
+      description: Returns paginated list of all universities with filtering and sorting
+      operationId: listUniversities
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 10
+            maximum: 100
+        - name: search
+          in: query
+          description: Search by name, email, or domain
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, suspended, limited]
+        - name: sort_by
+          in: query
+          schema:
+            type: string
+            enum: [name, created_at, last_activity_at, total_users, storage_used_gb]
+            default: created_at
+        - name: sort_order
+          in: query
+          schema:
+            type: string
+            enum: [asc, desc]
+            default: desc
+      responses:
+        '200':
+          description: Universities retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+        '401':
+          description: Unauthorized
+
+    post:
+      tags:
+        - Universities
+      summary: Create new university
+      description: Creates a new university (tenant) with auto-generated domain and slug
+      operationId: createUniversity
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateUniversityRequest'
+      responses:
+        '201':
+          description: University created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/University'
+        '400':
+          description: Validation error
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+        '401':
+          description: Unauthorized
+
+  /universities/{id}:
+    get:
+      tags:
+        - Universities
+      summary: Get university details
+      description: Returns full details of a specific university including usage, billing, and configuration
+      operationId: getUniversity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: University details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UniversityDetails'
+        '404':
+          description: University not found
+
+    patch:
+      tags:
+        - Universities
+      summary: Update university
+      description: Updates university details (partial update)
+      operationId: updateUniversity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateUniversityRequest'
+      responses:
+        '200':
+          description: University updated successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/University'
+        '400':
+          description: Validation error
+        '404':
+          description: University not found
+
+    delete:
+      tags:
+        - Universities
+      summary: Delete university
+      description: Permanently deletes a university and all its data (requires confirmation)
+      operationId: deleteUniversity
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: confirmation
+          in: query
+          required: true
+          description: Must be "DELETE" to confirm
+          schema:
+            type: string
+      responses:
+        '204':
+          description: University deleted successfully
+        '400':
+          description: Invalid confirmation or university has active users
+        '404':
+          description: University not found
+
+  /universities/{id}/status:
+    patch:
+      tags:
+        - Universities
+      summary: Change university status
+      description: Activates, suspends, or deactivates a university
+      operationId: changeUniversityStatus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - status
+              properties:
+                status:
+                  type: string
+                  enum: [active, inactive, suspended, limited]
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Status changed successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/University'
+
+  /universities/{id}/usage:
+    get:
+      tags:
+        - Universities
+      summary: Get university usage statistics
+      description: Returns detailed usage metrics for a university
+      operationId: getUniversityUsage
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Usage statistics retrieved successfully
+
+  /universities/{id}/activities:
+    get:
+      tags:
+        - Universities
+      summary: Get university activity history
+      description: Returns recent admin activities for a university
+      operationId: getUniversityActivities
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: limit
+          in: query
+          schema:
+            type: integer
+            default: 50
+      responses:
+        '200':
+          description: Activities retrieved successfully
+
+  # ==================== USERS ====================
+  /users:
+    get:
+      tags:
+        - Users
+      summary: List all users across all universities
+      description: Returns paginated list of all users with filtering
+      operationId: listGlobalUsers
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 10
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: university_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: role
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Users retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+
+  /users/{id}/reset-password:
+    post:
+      tags:
+        - Users
+      summary: Reset user password
+      description: Sends password reset email to user
+      operationId: resetUserPassword
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Password reset email sent
+
+  /users/{id}/status:
+    patch:
+      tags:
+        - Users
+      summary: Change user status
+      description: Locks, unlocks, or suspends a user account
+      operationId: changeUserStatus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [active, locked, suspended]
+      responses:
+        '200':
+          description: User status changed successfully
+
+  # ==================== ANALYTICS ====================
+  /analytics:
+    get:
+      tags:
+        - Analytics
+      summary: Get platform analytics
+      description: Returns comprehensive analytics including growth, usage patterns, and health metrics
+      operationId: getAnalytics
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Analytics retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AnalyticsData'
+
+  /analytics/export:
+    get:
+      tags:
+        - Analytics
+      summary: Export analytics report
+      description: Generates and downloads analytics report in PDF or CSV format
+      operationId: exportAnalytics
+      parameters:
+        - name: format
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [pdf, csv]
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Report generated successfully
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+            text/csv:
+              schema:
+                type: string
+
+  # ==================== BILLING ====================
+  /billing:
+    get:
+      tags:
+        - Billing
+      summary: Get billing data
+      description: Returns revenue overview, subscription status, and recent invoices
+      operationId: getBillingData
+      responses:
+        '200':
+          description: Billing data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/BillingData'
+
+  /invoices/{id}/pdf:
+    get:
+      tags:
+        - Billing
+      summary: Download invoice PDF
+      description: Downloads invoice as PDF file
+      operationId: downloadInvoice
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Invoice downloaded successfully
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /invoices/{id}/retry:
+    post:
+      tags:
+        - Billing
+      summary: Retry failed payment
+      description: Attempts to process a failed payment again
+      operationId: retryPayment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Payment retry initiated
+
+  # ==================== SETTINGS ====================
+  /settings:
+    get:
+      tags:
+        - Settings
+      summary: Get global settings
+      description: Returns all platform-wide settings
+      operationId: getGlobalSettings
+      responses:
+        '200':
+          description: Settings retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GlobalSettings'
+
+  /settings/general:
+    patch:
+      tags:
+        - Settings
+      summary: Update general settings
+      operationId: updateGeneralSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Settings updated successfully
+
+  /settings/email:
+    patch:
+      tags:
+        - Settings
+      summary: Update email settings
+      operationId: updateEmailSettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Email settings updated successfully
+
+  /settings/security:
+    patch:
+      tags:
+        - Settings
+      summary: Update security settings
+      operationId: updateSecuritySettings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Security settings updated successfully
+
+  # ==================== AUDIT ====================
+  /audit-logs:
+    get:
+      tags:
+        - Audit
+      summary: List audit logs
+      description: Returns paginated platform-wide audit logs
+      operationId: listAuditLogs
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+        - name: user_id
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Audit logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PaginatedResponse'
+
+  /audit-logs/export:
+    get:
+      tags:
+        - Audit
+      summary: Export audit logs
+      description: Exports audit logs as CSV
+      operationId: exportAuditLogs
+      responses:
+        '200':
+          description: Audit logs exported successfully
+
+  # ==================== SUPPORT ====================
+  /support/tickets:
+    get:
+      tags:
+        - Support
+      summary: List support tickets
+      description: Returns all support tickets from universities
+      operationId: listSupportTickets
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: priority
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Support tickets retrieved successfully
+
+  /support/tickets/{id}:
+    get:
+      tags:
+        - Support
+      summary: Get ticket details
+      operationId: getSupportTicket
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Ticket details retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SupportTicket'
+
+  /support/tickets/{id}/reply:
+    post:
+      tags:
+        - Support
+      summary: Reply to support ticket
+      operationId: replySupportTicket
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                message:
+                  type: string
+      responses:
+        '200':
+          description: Reply sent successfully
+
+  /support/tickets/{id}/status:
+    patch:
+      tags:
+        - Support
+      summary: Update ticket status
+      operationId: updateTicketStatus
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [open, in_progress, resolved, closed]
+      responses:
+        '200':
+          description: Ticket status updated
+
+  # ==================== SYSTEM ====================
+  /system/logs:
+    get:
+      tags:
+        - System
+      summary: List system logs
+      description: Returns system logs filtered by level and source
+      operationId: listSystemLogs
+      parameters:
+        - name: level
+          in: query
+          schema:
+            type: string
+            enum: [error, warning, info, debug]
+        - name: source
+          in: query
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date-time
+      responses:
+        '200':
+          description: System logs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/SystemLog'
+
+  # ==================== HIERARCHICAL NAVIGATION ====================
+  # University Hub Endpoints
+  /universities/{universityId}:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get university hub data
+      description: Returns comprehensive data for university hub page including stats, management team, colleges summary
+      operationId: getUniversityHub
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          description: University UUID
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: University hub data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UniversityHubResponse'
+        '404':
+          description: University not found
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /universities/{universityId}/management:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get university management team
+      description: Returns list of management team members (owner, super admins)
+      operationId: getUniversityManagement
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Management team retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/ManagementMember'
+
+  /universities/{universityId}/colleges:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get university colleges
+      description: Returns list of all colleges under this university
+      operationId: getUniversityColleges
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Colleges retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/College'
+
+  /universities/{universityId}/settings:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get university settings
+      description: Returns university configuration settings
+      operationId: getUniversitySettings
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Settings retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/UniversitySettings'
+
+    put:
+      tags:
+        - Hierarchical Navigation
+      summary: Update university settings
+      description: Updates university configuration settings
+      operationId: updateUniversitySettings
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UniversitySettings'
+      responses:
+        '200':
+          description: Settings updated successfully
+
+  # College Hub Endpoints
+  /universities/{universityId}/colleges/{collegeId}:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get college hub data
+      description: Returns comprehensive data for college hub page including stats, departments, students count
+      operationId: getCollegeHub
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: College hub data retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollegeHubResponse'
+        '404':
+          description: College not found
+
+  /universities/{universityId}/colleges/{collegeId}/leadership:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get college leadership team
+      description: Returns principal and college admins
+      operationId: getCollegeLeadership
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Leadership team retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  principal:
+                    $ref: '#/components/schemas/User'
+                  admins:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+
+  # Department Endpoints
+  /universities/{universityId}/colleges/{collegeId}/departments:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get college departments
+      description: Returns list of all departments in the college with stats
+      operationId: getCollegeDepartments
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive]
+      responses:
+        '200':
+          description: Departments retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Department'
+
+    post:
+      tags:
+        - Hierarchical Navigation
+      summary: Create new department
+      description: Creates a new department in the college
+      operationId: createDepartment
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateDepartmentRequest'
+      responses:
+        '201':
+          description: Department created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+
+  /universities/{universityId}/colleges/{collegeId}/departments/{departmentId}:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get department details
+      operationId: getDepartment
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: departmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Department retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Department'
+
+    put:
+      tags:
+        - Hierarchical Navigation
+      summary: Update department
+      operationId: updateDepartment
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: departmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateDepartmentRequest'
+      responses:
+        '200':
+          description: Department updated successfully
+
+    delete:
+      tags:
+        - Hierarchical Navigation
+      summary: Delete department
+      operationId: deleteDepartment
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: departmentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '204':
+          description: Department deleted successfully
+
+  # Student Endpoints
+  /universities/{universityId}/colleges/{collegeId}/students:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get college students
+      description: Returns paginated list of students with filters and search
+      operationId: getCollegeStudents
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          description: Search by name, enrollment number, email
+          schema:
+            type: string
+        - name: department
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: year
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 5
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, suspended, graduated, dropped]
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 20
+      responses:
+        '200':
+          description: Students retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Student'
+                  pagination:
+                    $ref: '#/components/schemas/Pagination'
+
+    post:
+      tags:
+        - Hierarchical Navigation
+      summary: Enroll new student
+      description: Creates a new student enrollment
+      operationId: enrollStudent
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CreateStudentRequest'
+      responses:
+        '201':
+          description: Student enrolled successfully
+
+  /universities/{universityId}/colleges/{collegeId}/students/{studentId}:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get student profile
+      description: Returns complete student profile with academic, attendance, fees data
+      operationId: getStudent
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Student profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfile'
+
+    put:
+      tags:
+        - Hierarchical Navigation
+      summary: Update student
+      operationId: updateStudent
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: studentId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/UpdateStudentRequest'
+      responses:
+        '200':
+          description: Student updated successfully
+
+  # Academic Staff Endpoints
+  /universities/{universityId}/colleges/{collegeId}/academic-staff:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get academic staff
+      description: Returns list of faculty/teachers with filters
+      operationId: getAcademicStaff
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: department
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: designation
+          in: query
+          schema:
+            type: string
+            enum: [Professor, Associate Professor, Assistant Professor, Lecturer]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Academic staff retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Faculty'
+
+  /universities/{universityId}/colleges/{collegeId}/academic-staff/{staffId}:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get faculty profile
+      operationId: getFaculty
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: staffId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Faculty profile retrieved successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacultyProfile'
+
+  # Administrative Staff Endpoints
+  /universities/{universityId}/colleges/{collegeId}/administrative-staff:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get administrative staff
+      operationId: getAdministrativeStaff
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: department
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Administrative staff retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AdminStaff'
+
+  # Non-Teaching Staff Endpoints
+  /universities/{universityId}/colleges/{collegeId}/non-teaching-staff:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get non-teaching staff
+      operationId: getNonTeachingStaff
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [library, transport, hostel, maintenance, security]
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Non-teaching staff retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/NonTeachingStaff'
+
+  # Curriculum Endpoints
+  /universities/{universityId}/colleges/{collegeId}/curriculum/courses:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get courses
+      description: Returns list of courses offered by the college
+      operationId: getCourses
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: department
+          in: query
+          schema:
+            type: string
+            format: uuid
+        - name: semester
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Courses retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Course'
+
+  # Library Endpoints
+  /universities/{universityId}/colleges/{collegeId}/library/books:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get library books
+      operationId: getLibraryBooks
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: availability
+          in: query
+          schema:
+            type: string
+            enum: [available, issued]
+      responses:
+        '200':
+          description: Books retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Book'
+
+  # Transport Endpoints
+  /universities/{universityId}/colleges/{collegeId}/transport/routes:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get transport routes
+      operationId: getTransportRoutes
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+      responses:
+        '200':
+          description: Routes retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/TransportRoute'
+
+  /universities/{universityId}/colleges/{collegeId}/transport/vehicles:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get transport vehicles
+      operationId: getTransportVehicles
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, maintenance, inactive]
+      responses:
+        '200':
+          description: Vehicles retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Vehicle'
+
+  # Hostel Endpoints
+  /universities/{universityId}/colleges/{collegeId}/hostel/rooms:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get hostel rooms
+      operationId: getHostelRooms
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: hostel
+          in: query
+          schema:
+            type: string
+        - name: floor
+          in: query
+          schema:
+            type: integer
+        - name: occupancy_status
+          in: query
+          schema:
+            type: string
+            enum: [available, occupied, full]
+      responses:
+        '200':
+          description: Rooms retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/HostelRoom'
+
+  /universities/{universityId}/colleges/{collegeId}/hostel/allocations:
+    get:
+      tags:
+        - Hierarchical Navigation
+      summary: Get room allocations
+      operationId: getHostelAllocations
+      parameters:
+        - name: universityId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: collegeId
+          in: path
+          required: true
+          schema:
+            type: string
+            format: uuid
+        - name: student_name
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Allocations retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/HostelAllocation'

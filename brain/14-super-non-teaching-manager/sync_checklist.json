@@ -1,0 +1,920 @@
+﻿{
+  "portal_name": "Super Non-Teaching Manager Portal",
+  "version": "1.0.0",
+  "last_updated": "2024-02-15",
+  "sync_modules": [
+    {
+      "module": "employee_management",
+      "description": "Centralized non-teaching staff employee data synchronization",
+      "sync_targets": [
+        {
+          "entity": "employees",
+          "target_system": "payroll_system",
+          "endpoint": "/api/payroll/employees",
+          "method": "POST",
+          "frequency": "daily",
+          "schedule": "02:00 AM",
+          "payload_schema": {
+            "employee_code": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "email": "string",
+            "college_id": "integer",
+            "designation": "string",
+            "department": "string",
+            "date_of_joining": "date",
+            "status": "enum[active,probation,suspended,resigned,terminated]",
+            "salary": "decimal(encrypted)",
+            "bank_account": "string(encrypted)"
+          },
+          "filters": {
+            "status": ["active", "probation"]
+          },
+          "batch_size": 100,
+          "timeout": 120
+        },
+        {
+          "entity": "employee_updates",
+          "target_system": "college_admin_portals",
+          "endpoint": "/api/employees/sync",
+          "method": "PUT",
+          "frequency": "real-time",
+          "trigger": "on_status_change",
+          "payload_schema": {
+            "employee_id": "integer",
+            "college_id": "integer",
+            "status": "string",
+            "effective_date": "date",
+            "reason": "string"
+          }
+        },
+        {
+          "entity": "new_hires",
+          "target_system": "biometric_devices",
+          "endpoint": "/api/biometric/register",
+          "method": "POST",
+          "frequency": "on-demand",
+          "trigger": "on_employee_creation",
+          "payload_schema": {
+            "employee_id": "integer",
+            "employee_code": "string",
+            "first_name": "string",
+            "last_name": "string",
+            "college_id": "integer",
+            "biometric_template": "base64_string"
+          }
+        }
+      ],
+      "validation_rules": [
+        {
+          "field": "employee_code",
+          "rule": "unique",
+          "error_message": "Employee code must be unique"
+        },
+        {
+          "field": "email",
+          "rule": "valid_email",
+          "error_message": "Invalid email format"
+        },
+        {
+          "field": "salary",
+          "rule": "encrypted",
+          "error_message": "Salary must be encrypted before sync"
+        }
+      ]
+    },
+    {
+      "module": "attendance_management",
+      "description": "Biometric attendance data synchronization with real-time processing",
+      "sync_targets": [
+        {
+          "entity": "attendance_punches",
+          "target_system": "attendance_database",
+          "endpoint": "/api/attendance/punch",
+          "method": "POST",
+          "frequency": "real-time",
+          "sync_strategy": "websocket",
+          "fallback_strategy": "http_polling_5s",
+          "payload_schema": {
+            "employee_id": "integer",
+            "punch_time": "datetime",
+            "device_id": "string",
+            "biometric_template_hash": "string",
+            "punch_type": "enum[in,out]",
+            "location": "string"
+          },
+          "max_latency_ms": 5000,
+          "retry_policy": {
+            "max_attempts": 5,
+            "backoff_strategy": "exponential",
+            "initial_delay_ms": 1000
+          }
+        },
+        {
+          "entity": "attendance_records",
+          "target_system": "payroll_system",
+          "endpoint": "/api/payroll/attendance",
+          "method": "POST",
+          "frequency": "daily",
+          "schedule": "05:00 AM",
+          "payload_schema": {
+            "employee_id": "integer",
+            "date": "date",
+            "punch_in": "time",
+            "punch_out": "time",
+            "work_hours": "decimal",
+            "late_minutes": "integer",
+            "overtime_hours": "decimal",
+            "status": "enum[present,absent,late,half_day]"
+          },
+          "data_range": "previous_day",
+          "batch_size": 500
+        },
+        {
+          "entity": "muster_roll",
+          "target_system": "college_admin_portals",
+          "endpoint": "/api/attendance/muster-roll",
+          "method": "POST",
+          "frequency": "hourly",
+          "schedule": "every_hour_at_00",
+          "payload_schema": {
+            "college_id": "integer",
+            "date": "date",
+            "employees": [
+              {
+                "employee_id": "integer",
+                "employee_code": "string",
+                "name": "string",
+                "punch_in": "time",
+                "punch_out": "time",
+                "status": "string"
+              }
+            ],
+            "summary": {
+              "total": "integer",
+              "present": "integer",
+              "absent": "integer",
+              "late": "integer",
+              "on_leave": "integer"
+            }
+          }
+        },
+        {
+          "entity": "biometric_device_status",
+          "target_system": "monitoring_dashboard",
+          "endpoint": "/api/monitoring/devices",
+          "method": "POST",
+          "frequency": "real-time",
+          "heartbeat_interval_seconds": 300,
+          "payload_schema": {
+            "device_id": "string",
+            "college_id": "integer",
+            "status": "enum[online,offline,error]",
+            "last_punch_time": "datetime",
+            "pending_sync_count": "integer",
+            "error_message": "string"
+          }
+        }
+      ],
+      "validation_rules": [
+        {
+          "field": "punch_time",
+          "rule": "not_future",
+          "error_message": "Punch time cannot be in future"
+        },
+        {
+          "field": "work_hours",
+          "rule": "max_value:16",
+          "error_message": "Work hours cannot exceed 16 hours per day"
+        },
+        {
+          "field": "biometric_template_hash",
+          "rule": "valid_hash",
+          "error_message": "Invalid biometric template hash"
+        }
+      ]
+    },
+    {
+      "module": "leave_management",
+      "description": "Leave application and balance synchronization",
+      "sync_targets": [
+        {
+          "entity": "leave_applications",
+          "target_system": "payroll_system",
+          "endpoint": "/api/payroll/leave",
+          "method": "POST",
+          "frequency": "on-demand",
+          "trigger": "on_leave_approval",
+          "payload_schema": {
+            "employee_id": "integer",
+            "leave_type": "enum[casual,sick,earned,loss_of_pay]",
+            "from_date": "date",
+            "to_date": "date",
+            "number_of_days": "decimal",
+            "status": "enum[approved,rejected]",
+            "approved_by": "integer",
+            "approved_at": "datetime"
+          },
+          "filters": {
+            "status": ["approved"]
+          }
+        },
+        {
+          "entity": "leave_balances",
+          "target_system": "payroll_system",
+          "endpoint": "/api/payroll/leave-balances",
+          "method": "PUT",
+          "frequency": "monthly",
+          "schedule": "1st day at 01:00 AM",
+          "payload_schema": {
+            "employee_id": "integer",
+            "financial_year": "string",
+            "casual_leave": "decimal",
+            "sick_leave": "decimal",
+            "earned_leave": "decimal",
+            "loss_of_pay": "decimal",
+            "last_updated": "datetime"
+          },
+          "batch_size": 200
+        },
+        {
+          "entity": "leave_calendar",
+          "target_system": "employee_portal",
+          "endpoint": "/api/employees/leave-calendar",
+          "method": "POST",
+          "frequency": "on-demand",
+          "trigger": "on_leave_status_change",
+          "payload_schema": {
+            "employee_id": "integer",
+            "leave_dates": ["date"],
+            "leave_type": "string",
+            "status": "string"
+          }
+        }
+      ],
+      "validation_rules": [
+        {
+          "field": "leave_balance",
+          "rule": "non_negative",
+          "error_message": "Leave balance cannot be negative"
+        },
+        {
+          "field": "from_date",
+          "rule": "not_past_90_days",
+          "error_message": "Cannot apply leave for dates older than 90 days"
+        }
+      ]
+    },
+    {
+      "module": "recruitment",
+      "description": "Job posting and candidate application synchronization",
+      "sync_targets": [
+        {
+          "entity": "job_postings",
+          "target_system": "external_job_portals",
+          "endpoint": "/api/jobs/post",
+          "method": "POST",
+          "frequency": "on-demand",
+          "trigger": "on_requisition_approval",
+          "payload_schema": {
+            "requisition_id": "integer",
+            "position_title": "string",
+            "college_name": "string",
+            "department": "string",
+            "number_of_positions": "integer",
+            "job_description": "text",
+            "required_qualifications": "text",
+            "salary_range": "string",
+            "application_deadline": "date",
+            "contact_email": "string"
+          },
+          "format": "xml",
+          "timeout": 60
+        },
+        {
+          "entity": "applications",
+          "target_system": "ats_system",
+          "endpoint": "/api/ats/applications",
+          "method": "POST",
+          "frequency": "hourly",
+          "payload_schema": {
+            "application_id": "integer",
+            "requisition_id": "integer",
+            "candidate_name": "string",
+            "candidate_email": "string",
+            "candidate_phone": "string",
+            "resume_url": "string",
+            "application_status": "string",
+            "applied_at": "datetime"
+          }
+        },
+        {
+          "entity": "interview_schedules",
+          "target_system": "calendar_service",
+          "endpoint": "/api/calendar/events",
+          "method": "POST",
+          "frequency": "on-demand",
+          "trigger": "on_interview_scheduled",
+          "payload_schema": {
+            "interview_id": "integer",
+            "candidate_name": "string",
+            "candidate_email": "string",
+            "interview_date": "datetime",
+            "interview_type": "string",
+            "panel_members": ["string"],
+            "meeting_link": "string"
+          }
+        }
+      ],
+      "validation_rules": [
+        {
+          "field": "application_deadline",
+          "rule": "future_date",
+          "error_message": "Application deadline must be a future date"
+        },
+        {
+          "field": "salary_range",
+          "rule": "valid_range",
+          "error_message": "Salary range format invalid"
+        }
+      ]
+    },
+    {
+      "module": "performance_management",
+      "description": "Appraisal and performance data synchronization",
+      "sync_targets": [
+        {
+          "entity": "appraisals",
+          "target_system": "employee_portal",
+          "endpoint": "/api/employees/appraisals",
+          "method": "POST",
+          "frequency": "quarterly",
+          "schedule": "1st day of quarter at 06:00 AM",
+          "payload_schema": {
+            "employee_id": "integer",
+            "appraisal_year": "integer",
+            "self_rating": "decimal",
+            "manager_rating": "decimal",
+            "overall_rating": "decimal",
+            "goals": "json",
+            "achievements": "json",
+            "areas_of_improvement": "json",
+            "promotion_recommended": "boolean"
+          },
+          "filters": {
+            "status": ["completed"]
+          }
+        },
+        {
+          "entity": "performance_ratings",
+          "target_system": "payroll_system",
+          "endpoint": "/api/payroll/performance",
+          "method": "PUT",
+          "frequency": "annual",
+          "trigger": "on_appraisal_cycle_completion",
+          "payload_schema": {
+            "employee_id": "integer",
+            "year": "integer",
+            "overall_rating": "decimal",
+            "increment_percentage": "decimal",
+            "bonus_amount": "decimal"
+          }
+        }
+      ],
+      "validation_rules": [
+        {
+          "field": "rating",
+          "rule": "range:1-5",
+          "error_message": "Rating must be between 1 and 5"
+        }
+      ]
+    },
+    {
+      "module": "training_management",
+      "description": "Training programs and enrollment synchronization",
+      "sync_targets": [
+        {
+          "entity": "training_programs",
+          "target_system": "employee_portal",
+          "endpoint": "/api/employees/training",
+          "method": "POST",
+          "frequency": "weekly",
+          "schedule": "Sunday at 10:00 AM",
+          "payload_schema": {
+            "program_id": "integer",
+            "title": "string",
+            "description": "text",
+            "trainer_name": "string",
+            "start_date": "date",
+            "end_date": "date",
+            "capacity": "integer",
+            "enrolled_count": "integer",
+            "training_type": "string"
+          }
+        },
+        {
+          "entity": "training_enrollments",
+          "target_system": "lms_system",
+          "endpoint": "/api/lms/enrollments",
+          "method": "POST",
+          "frequency": "on-demand",
+          "trigger": "on_enrollment",
+          "payload_schema": {
+            "employee_id": "integer",
+            "program_id": "integer",
+            "enrollment_date": "date",
+            "completion_status": "string"
+          }
+        },
+        {
+          "entity": "training_certificates",
+          "target_system": "employee_portal",
+          "endpoint": "/api/employees/certificates",
+          "method": "POST",
+          "frequency": "on-demand",
+          "trigger": "on_training_completion",
+          "payload_schema": {
+            "employee_id": "integer",
+            "program_id": "integer",
+            "certificate_url": "string",
+            "completion_date": "date"
+          }
+        }
+      ],
+      "validation_rules": [
+        {
+          "field": "capacity",
+          "rule": "greater_than:0",
+          "error_message": "Training capacity must be greater than 0"
+        }
+      ]
+    },
+    {
+      "module": "transfers",
+      "description": "Inter-college employee transfer synchronization",
+      "sync_targets": [
+        {
+          "entity": "transfer_approvals",
+          "target_system": "college_admin_portals",
+          "endpoint": "/api/admin/transfers",
+          "method": "POST",
+          "frequency": "on-demand",
+          "trigger": "on_transfer_approval",
+          "payload_schema": {
+            "transfer_id": "integer",
+            "employee_id": "integer",
+            "from_college_id": "integer",
+            "to_college_id": "integer",
+            "effective_date": "date",
+            "reason": "string",
+            "status": "string"
+          }
+        },
+        {
+          "entity": "employee_college_update",
+          "target_system": "payroll_system",
+          "endpoint": "/api/payroll/employee-transfer",
+          "method": "PUT",
+          "frequency": "on-demand",
+          "trigger": "on_transfer_execution",
+          "payload_schema": {
+            "employee_id": "integer",
+            "new_college_id": "integer",
+            "effective_date": "date"
+          }
+        }
+      ],
+      "validation_rules": [
+        {
+          "field": "effective_date",
+          "rule": "future_or_today",
+          "error_message": "Transfer effective date cannot be in past"
+        }
+      ]
+    },
+    {
+      "module": "separations",
+      "description": "Employee separation and exit synchronization",
+      "sync_targets": [
+        {
+          "entity": "separation_records",
+          "target_system": "payroll_system",
+          "endpoint": "/api/payroll/separations",
+          "method": "POST",
+          "frequency": "on-demand",
+          "trigger": "on_separation_approval",
+          "payload_schema": {
+            "separation_id": "integer",
+            "employee_id": "integer",
+            "separation_type": "enum[resignation,termination,retirement]",
+            "last_working_day": "date",
+            "reason": "string",
+            "clearance_status": "json",
+            "full_and_final_amount": "decimal"
+          }
+        },
+        {
+          "entity": "exit_clearance",
+          "target_system": "college_admin_portals",
+          "endpoint": "/api/admin/exit-clearance",
+          "method": "POST",
+          "frequency": "on-demand",
+          "trigger": "on_clearance_completion",
+          "payload_schema": {
+            "employee_id": "integer",
+            "clearance_items": [
+              {
+                "department": "string",
+                "cleared": "boolean",
+                "cleared_by": "integer",
+                "cleared_at": "datetime"
+              }
+            ]
+          }
+        }
+      ],
+      "validation_rules": [
+        {
+          "field": "last_working_day",
+          "rule": "not_past_30_days",
+          "error_message": "Last working day cannot be more than 30 days in past"
+        }
+      ]
+    }
+  ],
+  "webhook_configurations": [
+    {
+      "webhook_name": "biometric_punch_webhook",
+      "description": "Real-time biometric punch data from devices",
+      "endpoint": "/webhooks/biometric/punch",
+      "method": "POST",
+      "authentication": {
+        "type": "hmac_signature",
+        "secret_key_env": "BIOMETRIC_WEBHOOK_SECRET",
+        "signature_header": "X-Biometric-Signature"
+      },
+      "payload_schema": {
+        "device_id": "string",
+        "employee_id": "integer",
+        "punch_time": "datetime",
+        "biometric_template": "base64_string",
+        "punch_type": "enum[in,out]"
+      },
+      "retry_policy": {
+        "enabled": true,
+        "max_attempts": 3,
+        "backoff_ms": [1000, 5000, 15000]
+      }
+    },
+    {
+      "webhook_name": "background_verification_webhook",
+      "description": "Background verification status updates for new hires",
+      "endpoint": "/webhooks/recruitment/bgv-status",
+      "method": "POST",
+      "authentication": {
+        "type": "bearer_token",
+        "token_env": "BGV_WEBHOOK_TOKEN"
+      },
+      "payload_schema": {
+        "application_id": "integer",
+        "candidate_id": "string",
+        "verification_status": "enum[pending,verified,failed]",
+        "verification_details": "json",
+        "verified_at": "datetime"
+      }
+    }
+  ],
+  "global_settings": {
+    "max_concurrent_syncs": 10,
+    "default_timeout_seconds": 60,
+    "rate_limiting": {
+      "biometric_punches": "1000 per minute",
+      "api_calls": "100 per minute",
+      "payroll_sync": "50 per minute"
+    },
+    "circuit_breaker": {
+      "enabled": true,
+      "failure_threshold": 5,
+      "timeout_seconds": 60,
+      "half_open_after_seconds": 300
+    },
+    "retry_policies": {
+      "default": {
+        "max_attempts": 3,
+        "backoff_strategy": "exponential",
+        "initial_delay_ms": 1000,
+        "max_delay_ms": 60000
+      },
+      "biometric_sync": {
+        "max_attempts": 5,
+        "backoff_strategy": "exponential",
+        "initial_delay_ms": 1000,
+        "max_delay_ms": 15000
+      }
+    },
+    "dead_letter_queue": {
+      "enabled": true,
+      "retention_days": 7,
+      "max_retries_before_dlq": 5
+    }
+  },
+  "security": {
+    "authentication": {
+      "type": "oauth2",
+      "token_endpoint": "/oauth/token",
+      "refresh_enabled": true
+    },
+    "encryption": {
+      "salary_data": {
+        "algorithm": "AES-256-GCM",
+        "key_rotation_days": 90
+      },
+      "biometric_data": {
+        "algorithm": "SHA-256",
+        "irreversible": true
+      }
+    },
+    "data_masking": {
+      "fields": ["salary", "bank_account", "phone"],
+      "mask_pattern": "***-***-XXXX"
+    },
+    "audit_logging": {
+      "enabled": true,
+      "log_all_syncs": true,
+      "retention_days": 365,
+      "sensitive_data_logged": false
+    },
+    "ip_whitelisting": {
+      "enabled": true,
+      "biometric_devices": ["10.0.0.0/8", "192.168.0.0/16"],
+      "payroll_system": ["203.192.0.0/24"]
+    }
+  },
+  "monitoring": {
+    "metrics": [
+      {
+        "name": "sync_success_rate",
+        "type": "percentage",
+        "target": 99.0,
+        "alert_threshold": 95.0
+      },
+      {
+        "name": "biometric_sync_latency_p95",
+        "type": "milliseconds",
+        "target": 5000,
+        "alert_threshold": 10000
+      },
+      {
+        "name": "attendance_processing_time",
+        "type": "seconds",
+        "target": 600,
+        "alert_threshold": 1800
+      },
+      {
+        "name": "error_rate_by_type",
+        "type": "count",
+        "tracked_types": ["network_error", "validation_error", "timeout_error", "authentication_error"]
+      },
+      {
+        "name": "retry_count_distribution",
+        "type": "histogram",
+        "buckets": [0, 1, 2, 3, 5, 10]
+      },
+      {
+        "name": "queue_depth",
+        "type": "gauge",
+        "alert_threshold": 1000
+      }
+    ],
+    "alerts": [
+      {
+        "name": "biometric_device_offline",
+        "condition": "device_status == 'offline' for 5 minutes",
+        "severity": "high",
+        "notification_channels": ["email", "sms", "slack"]
+      },
+      {
+        "name": "sync_failure_spike",
+        "condition": "error_rate > 10% for 15 minutes",
+        "severity": "critical",
+        "notification_channels": ["email", "pagerduty"]
+      },
+      {
+        "name": "queue_backlog",
+        "condition": "queue_depth > 1000",
+        "severity": "medium",
+        "notification_channels": ["email"]
+      }
+    ],
+    "dashboards": [
+      {
+        "name": "Sync Health Dashboard",
+        "metrics": ["sync_success_rate", "biometric_sync_latency_p95", "error_rate_by_type", "queue_depth"]
+      },
+      {
+        "name": "Biometric Devices Dashboard",
+        "metrics": ["device_online_count", "failed_punch_rate", "pending_sync_count"]
+      }
+    ]
+  },
+  "disaster_recovery": {
+    "backup_strategy": {
+      "biometric_queue_backup": {
+        "frequency": "every 15 minutes",
+        "retention_days": 7,
+        "storage": "s3"
+      },
+      "attendance_data_backup": {
+        "frequency": "daily",
+        "retention_days": 90,
+        "storage": "s3"
+      }
+    },
+    "failover": {
+      "biometric_sync": {
+        "primary": "websocket",
+        "fallback": "http_polling",
+        "fallback_trigger": "5 consecutive failures",
+        "fallback_duration_minutes": 30
+      },
+      "payroll_sync": {
+        "primary": "api",
+        "fallback": "file_transfer",
+        "fallback_trigger": "circuit_breaker_open"
+      }
+    },
+    "data_reconciliation": {
+      "attendance_reconciliation": {
+        "frequency": "daily",
+        "schedule": "03:00 AM",
+        "comparison": "biometric_device_data vs database_records",
+        "alert_on_discrepancy": true
+      },
+      "leave_balance_reconciliation": {
+        "frequency": "monthly",
+        "schedule": "1st day at 04:00 AM",
+        "comparison": "hr_system vs payroll_system"
+      }
+    }
+  },
+  "sync_validations": {
+    "pre_sync": [
+      {
+        "validation": "check_employee_exists",
+        "description": "Verify employee exists before syncing attendance",
+        "applies_to": ["attendance_punches", "leave_applications"]
+      },
+      {
+        "validation": "check_leave_balance",
+        "description": "Verify sufficient leave balance before approval",
+        "applies_to": ["leave_applications"]
+      },
+      {
+        "validation": "check_biometric_template",
+        "description": "Validate biometric template format",
+        "applies_to": ["attendance_punches"]
+      },
+      {
+        "validation": "check_device_registration",
+        "description": "Verify device is registered and active",
+        "applies_to": ["attendance_punches"]
+      },
+      {
+        "validation": "check_college_access",
+        "description": "Verify user has access to employee's college",
+        "applies_to": ["transfers", "separations"]
+      }
+    ],
+    "post_sync": [
+      {
+        "validation": "verify_data_integrity",
+        "description": "Verify synced data matches source",
+        "applies_to": ["all"]
+      },
+      {
+        "validation": "check_punch_count",
+        "description": "Verify punch count matches device count",
+        "applies_to": ["attendance_punches"]
+      },
+      {
+        "validation": "verify_leave_balance_deduction",
+        "description": "Verify leave balance was deducted correctly",
+        "applies_to": ["leave_applications"]
+      },
+      {
+        "validation": "verify_payroll_receipt",
+        "description": "Verify payroll system received data",
+        "applies_to": ["attendance_records", "leave_balances"]
+      },
+      {
+        "validation": "verify_biometric_storage",
+        "description": "Verify biometric template was stored securely",
+        "applies_to": ["new_hires"]
+      },
+      {
+        "validation": "check_audit_trail",
+        "description": "Verify audit log entry was created",
+        "applies_to": ["all"]
+      }
+    ]
+  },
+  "troubleshooting": {
+    "common_issues": [
+      {
+        "issue": "BIOMETRIC_DEVICE_OFFLINE",
+        "symptoms": ["No punch data received", "Device status shows offline"],
+        "resolution_steps": [
+          "Check device network connectivity",
+          "Verify device power status",
+          "Restart biometric device",
+          "Check device registration in system",
+          "Enable manual entry fallback",
+          "Contact device vendor if issue persists"
+        ],
+        "manual_command": "php artisan biometric:reconnect --device-id={device_id}"
+      },
+      {
+        "issue": "LEAVE_BALANCE_NEGATIVE",
+        "symptoms": ["Employee leave balance shows negative value"],
+        "resolution_steps": [
+          "Check leave application history",
+          "Verify leave balance calculations",
+          "Check for duplicate leave approvals",
+          "Recalculate leave balance from scratch",
+          "Manual adjustment if needed"
+        ],
+        "manual_command": "php artisan leave:recalculate-balances --employee-id={employee_id} --year={year}"
+      },
+      {
+        "issue": "ATTENDANCE_CALCULATION_MISMATCH",
+        "symptoms": ["Work hours don't match punch times", "Late marks incorrect"],
+        "resolution_steps": [
+          "Check punch in and punch out times",
+          "Verify shift timings configuration",
+          "Check database trigger execution",
+          "Recalculate attendance for date",
+          "Review attendance policy rules"
+        ],
+        "manual_command": "php artisan attendance:recalculate --date={date} --employee-id={employee_id}"
+      },
+      {
+        "issue": "PAYROLL_SYNC_FAILED",
+        "symptoms": ["Attendance data not received by payroll", "Sync status shows failed"],
+        "resolution_steps": [
+          "Check payroll system API availability",
+          "Verify authentication token is valid",
+          "Check network connectivity",
+          "Review error logs for specific error",
+          "Retry sync manually",
+          "Use file transfer fallback if API unavailable"
+        ],
+        "manual_command": "php artisan sync:attendance --date={date} --force"
+      },
+      {
+        "issue": "BIOMETRIC_TEMPLATE_MISMATCH",
+        "symptoms": ["Employee cannot punch in", "Biometric authentication fails"],
+        "resolution_steps": [
+          "Re-register employee biometric",
+          "Check biometric device sensitivity settings",
+          "Verify employee record has biometric template",
+          "Use manual attendance entry temporarily",
+          "Contact biometric vendor"
+        ],
+        "manual_command": "php artisan biometric:register --employee-id={employee_id}"
+      }
+    ],
+    "manual_sync_commands": [
+      {
+        "command": "php artisan sync:employees",
+        "description": "Manually sync employee data to all target systems",
+        "options": ["--college-id={id}", "--date={date}", "--force"]
+      },
+      {
+        "command": "php artisan sync:attendance",
+        "description": "Manually sync attendance data to payroll",
+        "options": ["--date={date}", "--college-id={id}", "--force"]
+      },
+      {
+        "command": "php artisan biometric:process-queue",
+        "description": "Process pending biometric punch queue",
+        "options": ["--device-id={id}", "--batch-size={size}"]
+      },
+      {
+        "command": "php artisan leave:recalculate-balances",
+        "description": "Recalculate leave balances for employees",
+        "options": ["--employee-id={id}", "--year={year}", "--force"]
+      },
+      {
+        "command": "php artisan reconcile:attendance",
+        "description": "Reconcile attendance data between device and database",
+        "options": ["--date={date}", "--device-id={id}"]
+      },
+      {
+        "command": "php artisan sync:health-check",
+        "description": "Check sync health status for all modules",
+        "options": ["--detailed"]
+      }
+    ]
+  }
+}
+

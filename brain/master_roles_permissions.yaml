@@ -1,0 +1,831 @@
+# Bitflow LMS - Master Roles & Permissions (RBAC)
+
+version: 2.0
+last_updated: 2025-10-25
+security_level: critical
+
+# ============================================================================
+# ROLE HIERARCHY
+# ============================================================================
+
+roles:
+  - id: 1
+    name: Bitflow Owner
+    slug: bitflow_owner
+    level: 1
+    scope: global
+    description: System owner with full access across all universities
+    parent: null
+    inherits_from: []
+    
+  - id: 2
+    name: University Owner
+    slug: university_owner
+    level: 2
+    scope: university
+    description: Owns single university, manages all aspects
+    parent: bitflow_owner
+    inherits_from: []
+    
+  - id: 3
+    name: Super Admin
+    slug: super_admin
+    level: 3
+    scope: university
+    description: Administrative head, manages colleges and users
+    parent: university_owner
+    inherits_from: []
+    
+  - id: 4
+    name: Principal
+    slug: principal
+    level: 4
+    scope: college
+    description: College head, manages college operations
+    parent: super_admin
+    inherits_from: []
+    
+  - id: 5
+    name: College Admin
+    slug: college_admin
+    level: 4
+    scope: college
+    description: College-level administrative staff
+    parent: principal
+    inherits_from: []
+    
+  - id: 6
+    name: Super Academics
+    slug: super_academics
+    level: 3
+    scope: university
+    description: University-level academic coordinator
+    parent: super_admin
+    inherits_from: []
+    
+  - id: 7
+    name: Faculty/Teacher
+    slug: faculty
+    level: 5
+    scope: department
+    description: Teaching staff, manages courses and students
+    parent: super_academics
+    inherits_from: []
+    
+  - id: 8
+    name: Student
+    slug: student
+    level: 6
+    scope: individual
+    description: Enrolled student, views grades and submits assignments
+    parent: faculty
+    inherits_from: []
+    
+  - id: 9
+    name: Parent
+    slug: parent
+    level: 7
+    scope: individual
+    description: Student guardian, read-only access to student data
+    parent: student
+    inherits_from: []
+    
+  - id: 10
+    name: Admission Admin
+    slug: admission_admin
+    level: 4
+    scope: college
+    description: Manages student admissions and enrollments
+    parent: college_admin
+    inherits_from: []
+    
+  - id: 11
+    name: Super Accountant
+    slug: super_accountant
+    level: 3
+    scope: university
+    description: University-level financial management
+    parent: super_admin
+    inherits_from: []
+    
+  - id: 12
+    name: College Accounts Admin
+    slug: college_accounts_admin
+    level: 4
+    scope: college
+    description: College-level accounts management
+    parent: super_accountant
+    inherits_from: []
+    
+  - id: 13
+    name: College Fee Admin
+    slug: college_fee_admin
+    level: 5
+    scope: college
+    description: Fee collection and receipt management
+    parent: college_accounts_admin
+    inherits_from: []
+    
+  - id: 14
+    name: Super Non-Teaching Manager
+    slug: super_nt_manager
+    level: 3
+    scope: university
+    description: Manages non-teaching staff across university
+    parent: super_admin
+    inherits_from: []
+
+# ============================================================================
+# PERMISSIONS MATRIX
+# ============================================================================
+
+permissions:
+  # ------------------------------------------------------------------------
+  # UNIVERSITY MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: universities
+    actions:
+      - slug: universities.create
+        name: Create University
+        description: Create new university instance
+        roles: [bitflow_owner]
+        
+      - slug: universities.read
+        name: View University
+        description: View university details
+        roles: [bitflow_owner, university_owner, super_admin]
+        
+      - slug: universities.update
+        name: Update University
+        description: Update university settings
+        roles: [bitflow_owner, university_owner]
+        
+      - slug: universities.delete
+        name: Delete University
+        description: Delete university (archive)
+        roles: [bitflow_owner]
+        
+      - slug: universities.configure
+        name: Configure University
+        description: Manage feature toggles and settings
+        roles: [bitflow_owner, university_owner, super_admin]
+
+  # ------------------------------------------------------------------------
+  # COLLEGE MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: colleges
+    actions:
+      - slug: colleges.create
+        name: Create College
+        description: Add new college to university
+        roles: [university_owner, super_admin]
+        
+      - slug: colleges.read
+        name: View Colleges
+        description: View college information
+        roles: [university_owner, super_admin, super_academics, principal, college_admin, super_accountant, super_nt_manager]
+        
+      - slug: colleges.update
+        name: Update College
+        description: Update college details
+        roles: [university_owner, super_admin, principal]
+        
+      - slug: colleges.delete
+        name: Delete College
+        description: Delete/archive college
+        roles: [university_owner, super_admin]
+
+  # ------------------------------------------------------------------------
+  # USER MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: users
+    actions:
+      - slug: users.create
+        name: Create Users
+        description: Add new users to system
+        roles: [bitflow_owner, university_owner, super_admin, principal, college_admin]
+        
+      - slug: users.read
+        name: View Users
+        description: View user profiles
+        roles: [bitflow_owner, university_owner, super_admin, super_academics, principal, college_admin, admission_admin, super_accountant, super_nt_manager]
+        
+      - slug: users.update
+        name: Update Users
+        description: Edit user information
+        roles: [bitflow_owner, university_owner, super_admin, principal, college_admin]
+        
+      - slug: users.delete
+        name: Delete Users
+        description: Remove users from system
+        roles: [bitflow_owner, university_owner, super_admin]
+        
+      - slug: users.assign_roles
+        name: Assign Roles
+        description: Assign roles to users
+        roles: [bitflow_owner, university_owner, super_admin, principal]
+
+  # ------------------------------------------------------------------------
+  # STUDENT MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: students
+    actions:
+      - slug: students.create
+        name: Enroll Students
+        description: Add new students
+        roles: [super_admin, principal, college_admin, admission_admin]
+        
+      - slug: students.read
+        name: View Students
+        description: View student records
+        roles: [super_admin, super_academics, principal, college_admin, admission_admin, faculty, super_accountant, college_accounts_admin, college_fee_admin]
+        
+      - slug: students.update
+        name: Update Students
+        description: Edit student information
+        roles: [super_admin, principal, college_admin, admission_admin]
+        
+      - slug: students.delete
+        name: Delete Students
+        description: Remove student records
+        roles: [super_admin, principal]
+        
+      - slug: students.view_own
+        name: View Own Profile
+        description: Students can view their own profile
+        roles: [student]
+        
+      - slug: students.view_linked
+        name: View Linked Student
+        description: Parents can view their child's profile
+        roles: [parent]
+
+  # ------------------------------------------------------------------------
+  # FACULTY MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: faculty
+    actions:
+      - slug: faculty.create
+        name: Add Faculty
+        description: Hire new faculty members
+        roles: [university_owner, super_admin, principal, super_nt_manager]
+        
+      - slug: faculty.read
+        name: View Faculty
+        description: View faculty records
+        roles: [university_owner, super_admin, super_academics, principal, college_admin, super_nt_manager]
+        
+      - slug: faculty.update
+        name: Update Faculty
+        description: Edit faculty information
+        roles: [university_owner, super_admin, principal, super_nt_manager]
+        
+      - slug: faculty.delete
+        name: Remove Faculty
+        description: Terminate faculty
+        roles: [university_owner, super_admin, principal]
+
+  # ------------------------------------------------------------------------
+  # COURSE MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: courses
+    actions:
+      - slug: courses.create
+        name: Create Courses
+        description: Add new courses
+        roles: [super_admin, super_academics, principal]
+        
+      - slug: courses.read
+        name: View Courses
+        description: View course catalog
+        roles: [super_admin, super_academics, principal, college_admin, faculty, student]
+        
+      - slug: courses.update
+        name: Update Courses
+        description: Edit course details
+        roles: [super_admin, super_academics, principal]
+        
+      - slug: courses.delete
+        name: Delete Courses
+        description: Remove courses
+        roles: [super_admin, super_academics]
+
+  # ------------------------------------------------------------------------
+  # ATTENDANCE MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: attendance
+    actions:
+      - slug: attendance.mark
+        name: Mark Attendance
+        description: Record student attendance
+        roles: [faculty]
+        
+      - slug: attendance.read
+        name: View Attendance
+        description: View attendance records
+        roles: [super_admin, super_academics, principal, college_admin, faculty, student, parent]
+        
+      - slug: attendance.update
+        name: Update Attendance
+        description: Modify attendance records
+        roles: [super_academics, principal, faculty]
+        
+      - slug: attendance.delete
+        name: Delete Attendance
+        description: Remove attendance records
+        roles: [super_admin, super_academics]
+        
+      - slug: attendance.view_own
+        name: View Own Attendance
+        description: Students view their attendance
+        roles: [student]
+        
+      - slug: attendance.view_linked
+        name: View Linked Attendance
+        description: Parents view child's attendance
+        roles: [parent]
+
+  # ------------------------------------------------------------------------
+  # GRADE MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: grades
+    actions:
+      - slug: grades.create
+        name: Post Grades
+        description: Add student grades
+        roles: [faculty]
+        
+      - slug: grades.read
+        name: View Grades
+        description: View grade records
+        roles: [super_admin, super_academics, principal, college_admin, faculty, student, parent]
+        
+      - slug: grades.update
+        name: Update Grades
+        description: Modify grades
+        roles: [super_academics, faculty]
+        
+      - slug: grades.delete
+        name: Delete Grades
+        description: Remove grade records
+        roles: [super_admin, super_academics]
+        
+      - slug: grades.view_own
+        name: View Own Grades
+        description: Students view their grades
+        roles: [student]
+        
+      - slug: grades.view_linked
+        name: View Linked Grades
+        description: Parents view child's grades
+        roles: [parent]
+
+  # ------------------------------------------------------------------------
+  # ASSIGNMENT MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: assignments
+    actions:
+      - slug: assignments.create
+        name: Create Assignments
+        description: Create new assignments
+        roles: [faculty]
+        
+      - slug: assignments.read
+        name: View Assignments
+        description: View assignment list
+        roles: [super_academics, principal, faculty, student]
+        
+      - slug: assignments.update
+        name: Update Assignments
+        description: Edit assignment details
+        roles: [faculty]
+        
+      - slug: assignments.delete
+        name: Delete Assignments
+        description: Remove assignments
+        roles: [super_academics, faculty]
+        
+      - slug: assignments.submit
+        name: Submit Assignments
+        description: Submit assignment work
+        roles: [student]
+        
+      - slug: assignments.grade
+        name: Grade Assignments
+        description: Grade student submissions
+        roles: [faculty]
+
+  # ------------------------------------------------------------------------
+  # FEE MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: fees
+    actions:
+      - slug: fees.create_structure
+        name: Create Fee Structure
+        description: Define fee structures
+        roles: [university_owner, super_admin, super_accountant]
+        
+      - slug: fees.read
+        name: View Fee Records
+        description: View fee information
+        roles: [super_admin, principal, college_admin, super_accountant, college_accounts_admin, college_fee_admin, student, parent]
+        
+      - slug: fees.record_payment
+        name: Record Fee Payment
+        description: Record fee transactions
+        roles: [college_accounts_admin, college_fee_admin]
+        
+      - slug: fees.generate_receipt
+        name: Generate Receipt
+        description: Create fee receipts
+        roles: [college_accounts_admin, college_fee_admin]
+        
+      - slug: fees.view_own
+        name: View Own Fees
+        description: Students view their fee status
+        roles: [student]
+        
+      - slug: fees.view_linked
+        name: View Linked Fees
+        description: Parents view child's fees
+        roles: [parent]
+
+  # ------------------------------------------------------------------------
+  # FINANCIAL MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: financials
+    actions:
+      - slug: financials.read
+        name: View Financials
+        description: View financial reports
+        roles: [university_owner, super_admin, principal, super_accountant, college_accounts_admin]
+        
+      - slug: financials.manage_expenses
+        name: Manage Expenses
+        description: Record and approve expenses
+        roles: [university_owner, super_admin, principal, super_accountant, college_accounts_admin]
+        
+      - slug: financials.view_reports
+        name: View Financial Reports
+        description: Access financial analytics
+        roles: [university_owner, super_admin, principal, super_accountant]
+        
+      - slug: financials.manage_ledger
+        name: Manage Ledger
+        description: Maintain accounting ledger
+        roles: [super_accountant, college_accounts_admin]
+
+  # ------------------------------------------------------------------------
+  # REPORT MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: reports
+    actions:
+      - slug: reports.generate
+        name: Generate Reports
+        description: Create custom reports
+        roles: [bitflow_owner, university_owner, super_admin, super_academics, principal, college_admin, super_accountant]
+        
+      - slug: reports.view
+        name: View Reports
+        description: Access generated reports
+        roles: [bitflow_owner, university_owner, super_admin, super_academics, principal, college_admin, super_accountant, college_accounts_admin]
+        
+      - slug: reports.export
+        name: Export Reports
+        description: Download reports (PDF/Excel)
+        roles: [bitflow_owner, university_owner, super_admin, super_academics, principal, college_admin, super_accountant]
+
+  # ------------------------------------------------------------------------
+  # NOTIFICATION MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: notifications
+    actions:
+      - slug: notifications.send
+        name: Send Notifications
+        description: Send notifications to users
+        roles: [bitflow_owner, university_owner, super_admin, super_academics, principal, college_admin, faculty]
+        
+      - slug: notifications.read_own
+        name: View Own Notifications
+        description: View personal notifications
+        roles: [bitflow_owner, university_owner, super_admin, super_academics, principal, college_admin, admission_admin, faculty, student, parent, super_accountant, college_accounts_admin, college_fee_admin, super_nt_manager]
+
+  # ------------------------------------------------------------------------
+  # ANNOUNCEMENT MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: announcements
+    actions:
+      - slug: announcements.create
+        name: Create Announcements
+        description: Post announcements
+        roles: [university_owner, super_admin, principal, college_admin]
+        
+      - slug: announcements.read
+        name: View Announcements
+        description: View announcements
+        roles: [all]
+        
+      - slug: announcements.update
+        name: Update Announcements
+        description: Edit announcements
+        roles: [university_owner, super_admin, principal, college_admin]
+        
+      - slug: announcements.delete
+        name: Delete Announcements
+        description: Remove announcements
+        roles: [university_owner, super_admin, principal]
+
+  # ------------------------------------------------------------------------
+  # LEAVE MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: leaves
+    actions:
+      - slug: leaves.apply
+        name: Apply Leave
+        description: Submit leave request
+        roles: [faculty, super_admin, principal, college_admin, super_accountant, college_accounts_admin, super_nt_manager]
+        
+      - slug: leaves.approve
+        name: Approve Leave
+        description: Approve/reject leave requests
+        roles: [principal, super_admin, super_nt_manager]
+        
+      - slug: leaves.read
+        name: View Leave Records
+        description: View leave history
+        roles: [super_admin, principal, super_nt_manager, faculty]
+
+  # ------------------------------------------------------------------------
+  # SETTINGS MANAGEMENT
+  # ------------------------------------------------------------------------
+  - resource: settings
+    actions:
+      - slug: settings.manage_global
+        name: Manage Global Settings
+        description: Configure system-wide settings
+        roles: [bitflow_owner]
+        
+      - slug: settings.manage_university
+        name: Manage University Settings
+        description: Configure university settings
+        roles: [university_owner, super_admin]
+        
+      - slug: settings.manage_college
+        name: Manage College Settings
+        description: Configure college settings
+        roles: [principal, college_admin]
+
+  # ------------------------------------------------------------------------
+  # AUDIT LOG ACCESS
+  # ------------------------------------------------------------------------
+  - resource: audit_logs
+    actions:
+      - slug: audit_logs.read
+        name: View Audit Logs
+        description: Access system audit logs
+        roles: [bitflow_owner, university_owner, super_admin]
+
+# ============================================================================
+# ROLE-PERMISSION ASSIGNMENT
+# ============================================================================
+
+role_permissions:
+  bitflow_owner:
+    - universities.*
+    - colleges.*
+    - users.*
+    - students.*
+    - faculty.*
+    - courses.*
+    - attendance.*
+    - grades.*
+    - assignments.*
+    - fees.*
+    - financials.*
+    - reports.*
+    - notifications.*
+    - announcements.*
+    - settings.manage_global
+    - audit_logs.read
+    
+  university_owner:
+    - universities.read
+    - universities.update
+    - universities.configure
+    - colleges.*
+    - users.*
+    - students.*
+    - faculty.create
+    - faculty.read
+    - faculty.update
+    - faculty.delete
+    - courses.*
+    - fees.*
+    - financials.*
+    - reports.*
+    - notifications.send
+    - announcements.*
+    - settings.manage_university
+    - audit_logs.read
+    
+  super_admin:
+    - universities.read
+    - universities.configure
+    - colleges.*
+    - users.*
+    - students.*
+    - faculty.read
+    - courses.read
+    - attendance.read
+    - attendance.delete
+    - grades.read
+    - grades.delete
+    - assignments.read
+    - fees.read
+    - fees.create_structure
+    - financials.read
+    - financials.view_reports
+    - reports.*
+    - notifications.send
+    - announcements.*
+    - leaves.approve
+    - leaves.read
+    - settings.manage_university
+    - audit_logs.read
+    
+  principal:
+    - colleges.read
+    - colleges.update
+    - users.create
+    - users.read
+    - users.update
+    - students.*
+    - faculty.create
+    - faculty.read
+    - faculty.update
+    - faculty.delete
+    - courses.create
+    - courses.read
+    - courses.update
+    - attendance.read
+    - attendance.update
+    - grades.read
+    - assignments.read
+    - fees.read
+    - financials.read
+    - financials.manage_expenses
+    - financials.view_reports
+    - reports.*
+    - notifications.send
+    - announcements.*
+    - leaves.apply
+    - leaves.approve
+    - leaves.read
+    - settings.manage_college
+    
+  college_admin:
+    - colleges.read
+    - users.create
+    - users.read
+    - users.update
+    - students.create
+    - students.read
+    - students.update
+    - faculty.read
+    - courses.read
+    - attendance.read
+    - grades.read
+    - assignments.read
+    - fees.read
+    - reports.view
+    - notifications.send
+    - announcements.create
+    - announcements.read
+    - announcements.update
+    - leaves.apply
+    - settings.manage_college
+    
+  super_academics:
+    - colleges.read
+    - courses.*
+    - students.read
+    - faculty.read
+    - attendance.*
+    - grades.*
+    - assignments.read
+    - assignments.delete
+    - reports.*
+    - notifications.send
+    
+  faculty:
+    - students.read
+    - courses.read
+    - attendance.mark
+    - attendance.read
+    - attendance.update
+    - grades.create
+    - grades.read
+    - grades.update
+    - assignments.*
+    - notifications.send
+    - notifications.read_own
+    - leaves.apply
+    - leaves.read
+    
+  student:
+    - students.view_own
+    - courses.read
+    - attendance.view_own
+    - grades.view_own
+    - assignments.read
+    - assignments.submit
+    - fees.view_own
+    - notifications.read_own
+    - announcements.read
+    
+  parent:
+    - students.view_linked
+    - attendance.view_linked
+    - grades.view_linked
+    - fees.view_linked
+    - notifications.read_own
+    - announcements.read
+    
+  admission_admin:
+    - students.create
+    - students.read
+    - students.update
+    - users.read
+    - notifications.read_own
+    
+  super_accountant:
+    - colleges.read
+    - students.read
+    - fees.*
+    - financials.*
+    - reports.*
+    - notifications.read_own
+    
+  college_accounts_admin:
+    - students.read
+    - fees.read
+    - fees.record_payment
+    - fees.generate_receipt
+    - financials.read
+    - financials.manage_expenses
+    - financials.manage_ledger
+    - reports.view
+    - reports.export
+    - notifications.read_own
+    - leaves.apply
+    
+  college_fee_admin:
+    - students.read
+    - fees.read
+    - fees.record_payment
+    - fees.generate_receipt
+    - notifications.read_own
+    
+  super_nt_manager:
+    - colleges.read
+    - faculty.create
+    - faculty.read
+    - faculty.update
+    - faculty.delete
+    - leaves.approve
+    - leaves.read
+    - notifications.read_own
+
+# ============================================================================
+# PERMISSION CHECKS (Backend Implementation Examples)
+# ============================================================================
+
+# Laravel Policy Example:
+# php artisan make:policy StudentPolicy --model=Student
+#
+# class StudentPolicy {
+#     public function viewAny(User $user): bool {
+#         return $user->hasPermission('students.read');
+#     }
+#     
+#     public function view(User $user, Student $student): bool {
+#         if ($user->hasPermission('students.read')) {
+#             return $user->university_id === $student->university_id;
+#         }
+#         if ($user->hasPermission('students.view_own')) {
+#             return $user->id === $student->user_id;
+#         }
+#         if ($user->hasPermission('students.view_linked')) {
+#             return $student->parents()->where('parent_user_id', $user->id)->exists();
+#         }
+#         return false;
+#     }
+#     
+#     public function create(User $user): bool {
+#         return $user->hasPermission('students.create');
+#     }
+# }
+
+# Frontend Permission Check:
+# const canCreateStudent = user.permissions.includes('students.create');
+# const canViewOwnGrades = user.permissions.includes('grades.view_own');

@@ -1,0 +1,402 @@
+﻿{
+  "portal": "Parent Portal",
+  "version": "2.0",
+  "last_updated": "2025-10-25",
+  "description": "Synchronization checklist for Parent Portal data consistency across Student Portal, Faculty Portal, Fee Management, and external services",
+  
+  "sync_dependencies": {
+    "student_portal": {
+      "description": "Read-only access to student academic data",
+      "sync_frequency": "Real-time (event-driven)",
+      "data_points": [
+        {
+          "entity": "Student Profile",
+          "fields": ["student_id", "name", "class", "roll_number", "photo_url", "date_of_birth"],
+          "sync_method": "API call on parent login",
+          "endpoint": "GET /api/students/{student_id}",
+          "cache_duration": "7 days",
+          "invalidation_trigger": "student.updated event"
+        },
+        {
+          "entity": "Attendance Records",
+          "fields": ["student_id", "date", "status", "marked_at", "marked_by", "reason"],
+          "sync_method": "Event-driven (CloudEvents)",
+          "event": "attendance.marked",
+          "storage": "parent_portal.attendance table",
+          "retention": "Current academic year + 1 year",
+          "notification": "Push notification to parent within 30 seconds"
+        }
+      ]
+    },
+    
+    "faculty_portal": {
+      "description": "Grade synchronization and teacher communication",
+      "sync_frequency": "Event-driven for grades, real-time for messages",
+      "data_points": [
+        {
+          "entity": "Grades/Assessments",
+          "fields": ["student_id", "subject_id", "assessment_type", "max_marks", "obtained_marks", "published_on"],
+          "sync_method": "Event subscription",
+          "event": "grade.published",
+          "storage": "parent_portal.grades table",
+          "access_control": "Only published grades (is_published = true)",
+          "notification": "Digest mode (6 PM) or realtime based on preference"
+        },
+        {
+          "entity": "Teacher Messages",
+          "fields": ["message_id", "from_id", "subject", "body", "child_id", "created_at"],
+          "sync_method": "Bidirectional API",
+          "send_endpoint": "POST /api/messages/send",
+          "receive_endpoint": "GET /api/messages/inbox",
+          "notification": "Real-time push notification"
+        },
+        {
+          "entity": "Teacher Availability",
+          "fields": ["faculty_id", "faculty_name", "availability_slots", "response_time"],
+          "sync_method": "API call when parent initiates message",
+          "endpoint": "GET /api/faculty/{faculty_id}/availability",
+          "cache_duration": "1 hour"
+        }
+      ]
+    },
+    
+    "fee_management_api": {
+      "description": "Fee records and payment processing",
+      "sync_frequency": "Real-time for payments, daily for fee updates",
+      "data_points": [
+        {
+          "entity": "Fee Records",
+          "fields": ["fee_id", "student_id", "fee_type", "amount", "due_date", "status"],
+          "sync_method": "Daily batch sync + on-demand API",
+          "batch_schedule": "Daily at 2 AM",
+          "on_demand_endpoint": "GET /api/fees/pending?student_id={id}",
+          "storage": "parent_portal.fees table",
+          "late_fee_calculation": "Automatic (daily cron job)"
+        },
+        {
+          "entity": "Payment Initiation",
+          "fields": ["payment_id", "fee_ids", "amount", "razorpay_order_id"],
+          "sync_method": "API call when parent initiates payment",
+          "endpoint": "POST /api/payments/initiate",
+          "idempotency": "Required (payment_id unique constraint)"
+        },
+        {
+          "entity": "Payment Confirmation",
+          "fields": ["payment_id", "razorpay_payment_id", "status", "completed_at"],
+          "sync_method": "Webhook from Fee Management API",
+          "webhook_endpoint": "POST /webhooks/payment-status",
+          "signature_verification": "HMAC SHA256",
+          "retry_mechanism": "3 attempts with exponential backoff",
+          "reconciliation": "Daily at 11 PM (compare with Razorpay API)"
+        }
+      ]
+    },
+    
+    "razorpay_payment_gateway": {
+      "description": "Payment processing integration",
+      "sync_frequency": "Real-time via webhooks",
+      "data_points": [
+        {
+          "entity": "Payment Order",
+          "fields": ["order_id", "amount", "currency", "receipt", "notes"],
+          "sync_method": "API call when payment initiated",
+          "endpoint": "POST https://api.razorpay.com/v1/orders",
+          "timeout": "10 seconds",
+          "fallback": "Show error, log for manual reconciliation"
+        },
+        {
+          "entity": "Payment Capture",
+          "fields": ["payment_id", "order_id", "status", "method", "amount"],
+          "sync_method": "Webhook from Razorpay",
+          "events": ["payment.captured", "payment.failed"],
+          "webhook_endpoint": "POST /webhooks/razorpay",
+          "signature_verification": "X-Razorpay-Signature header",
+          "action_on_success": ["Update payment status", "Mark fees as paid", "Generate receipt", "Send notification"],
+          "action_on_failure": ["Update payment status", "Notify parent", "Log for retry"]
+        }
+      ]
+    },
+    
+    "firebase_cloud_messaging": {
+      "description": "Push notifications for mobile app",
+      "sync_frequency": "Real-time",
+      "data_points": [
+        {
+          "entity": "FCM Token Registration",
+          "fields": ["parent_id", "fcm_token", "device_type", "registered_at"],
+          "sync_method": "API call on app login",
+          "endpoint": "POST /api/notifications/register-device",
+          "storage": "parents.fcm_tokens (JSONB array)",
+          "max_devices": "5 per parent"
+        },
+        {
+          "entity": "Topic Subscriptions",
+          "topics": ["child-{student_id}", "parent-{parent_id}", "general-announcements"],
+          "sync_method": "Automatic on child linking",
+          "subscribe_endpoint": "Firebase Admin SDK subscribeToTopic()",
+          "unsubscribe_trigger": "Child unlinking"
+        },
+        {
+          "entity": "Notification Delivery",
+          "fields": ["notification_id", "parent_id", "title", "body", "data", "sent_at"],
+          "sync_method": "Server-side Firebase Admin SDK",
+          "delivery_confirmation": "Tracked via FCM message ID",
+          "fallback": "SMS notification if FCM fails (critical messages only)"
+        }
+      ]
+    }
+  },
+  
+  "data_consistency_checks": [
+    {
+      "check_name": "Parent-Child Link Integrity",
+      "description": "Verify all active parent-child links reference valid students in Student Portal",
+      "frequency": "Daily at 3 AM",
+      "query": "SELECT * FROM parent_children WHERE status = 'active' AND student_id NOT IN (SELECT student_id FROM student_portal.students)",
+      "action_on_failure": "Mark link as 'inactive', notify admin, log in audit_logs",
+      "priority": "High"
+    },
+    {
+      "check_name": "Payment Reconciliation",
+      "description": "Compare local payment records with Razorpay API to catch missed webhooks",
+      "frequency": "Daily at 11 PM",
+      "api_call": "GET https://api.razorpay.com/v1/payments?from={yesterday}&to={today}",
+      "comparison": "Match razorpay_payment_id between local DB and API response",
+      "action_on_mismatch": "Update payment status, mark fees as paid, generate receipt, notify parent",
+      "priority": "Critical"
+    },
+    {
+      "check_name": "Attendance Data Freshness",
+      "description": "Ensure today's attendance is synced for all active students",
+      "frequency": "Hourly from 8 AM to 6 PM",
+      "query": "SELECT student_id FROM parent_children WHERE status = 'active' AND student_id NOT IN (SELECT student_id FROM attendance WHERE date = CURRENT_DATE)",
+      "action_on_missing": "Fetch from Student Portal API, log sync delay",
+      "priority": "Medium"
+    },
+    {
+      "check_name": "Grade Publication Sync",
+      "description": "Verify all published grades in Faculty Portal are synced to Parent Portal",
+      "frequency": "Every 6 hours",
+      "api_call": "GET /api/grades/published?since={last_check}",
+      "comparison": "Match grade IDs between Faculty Portal and local grades table",
+      "action_on_missing": "Fetch missing grades, send notifications to affected parents",
+      "priority": "Medium"
+    },
+    {
+      "check_name": "Orphaned FCM Tokens",
+      "description": "Remove FCM tokens for deleted parent accounts",
+      "frequency": "Weekly (Sundays at 2 AM)",
+      "query": "SELECT parent_id, fcm_tokens FROM parents WHERE deleted_at IS NOT NULL AND fcm_tokens != '[]'",
+      "action": "Unsubscribe tokens from all topics, clear fcm_tokens field",
+      "priority": "Low"
+    }
+  ],
+  
+  "event_subscriptions": [
+    {
+      "event_name": "attendance.marked",
+      "source": "Student Portal",
+      "format": "CloudEvents 1.0",
+      "payload": {
+        "student_id": "string",
+        "date": "date",
+        "status": "present|absent|late|half_day",
+        "marked_at": "timestamp",
+        "marked_by": "string"
+      },
+      "handler": "App\\Listeners\\SendAttendanceNotification",
+      "actions": [
+        "Insert into attendance table",
+        "Query linked parents with view_attendance permission",
+        "Check notification preferences",
+        "Send FCM notification (realtime) or add to digest queue"
+      ]
+    },
+    {
+      "event_name": "grade.published",
+      "source": "Faculty Portal",
+      "format": "CloudEvents 1.0",
+      "payload": {
+        "student_id": "string",
+        "subject": "string",
+        "assessment_type": "string",
+        "marks": "number",
+        "max_marks": "number",
+        "published_by": "string"
+      },
+      "handler": "App\\Listeners\\SendGradeNotification",
+      "actions": [
+        "Insert/update grades table",
+        "Query linked parents with view_grades permission",
+        "Check notification preferences (realtime vs digest)",
+        "Send FCM notification or add to 6 PM digest queue"
+      ]
+    },
+    {
+      "event_name": "fee.created",
+      "source": "Fee Management API",
+      "format": "CloudEvents 1.0",
+      "payload": {
+        "fee_id": "string",
+        "student_id": "string",
+        "fee_type": "string",
+        "amount": "number",
+        "due_date": "date"
+      },
+      "handler": "App\\Listeners\\SyncFeeRecord",
+      "actions": [
+        "Insert into fees table",
+        "Send notification if due_date within 7 days (configurable)"
+      ]
+    },
+    {
+      "event_name": "payment.captured",
+      "source": "Razorpay",
+      "format": "Razorpay Webhook",
+      "payload": {
+        "event": "payment.captured",
+        "payment_id": "string",
+        "order_id": "string",
+        "amount": "number",
+        "status": "captured"
+      },
+      "handler": "App\\Jobs\\ProcessPaymentWebhook",
+      "actions": [
+        "Verify webhook signature",
+        "Update payment status to 'completed'",
+        "Mark fees as 'paid'",
+        "Generate receipt PDF",
+        "Send receipt via email and push notification"
+      ]
+    }
+  ],
+  
+  "cron_jobs": [
+    {
+      "name": "Activate Pending Links",
+      "schedule": "0 * * * *",
+      "description": "Activate parent-child links after 24-hour cooling period",
+      "command": "php artisan parent:activate-pending-links",
+      "sql_function": "SELECT activate_pending_links()",
+      "monitoring": "Alert if activation fails for >10 links"
+    },
+    {
+      "name": "Calculate Late Fees",
+      "schedule": "0 2 * * *",
+      "description": "Calculate late fees for overdue payments",
+      "command": "php artisan fees:calculate-late-fees",
+      "sql_function": "SELECT calculate_late_fees()",
+      "monitoring": "Log count of updated fees"
+    },
+    {
+      "name": "Daily Payment Reconciliation",
+      "schedule": "0 23 * * *",
+      "description": "Reconcile payments with Razorpay API",
+      "command": "php artisan payments:reconcile --date=today",
+      "monitoring": "Alert if discrepancies found"
+    },
+    {
+      "name": "Send Digest Notifications",
+      "schedule": "0 18 * * *",
+      "description": "Send daily digest notifications (grades, non-urgent updates)",
+      "command": "php artisan notifications:send-digest",
+      "monitoring": "Track delivery rate (target: 95%)"
+    },
+    {
+      "name": "Sync Fee Records",
+      "schedule": "0 2 * * *",
+      "description": "Batch sync pending fees from Fee Management API",
+      "command": "php artisan fees:sync-from-api",
+      "monitoring": "Alert if sync fails"
+    },
+    {
+      "name": "Cleanup Old Audit Logs",
+      "schedule": "0 3 * * 0",
+      "description": "Archive audit logs older than 2 years to S3",
+      "command": "php artisan audit:archive --older-than=2years",
+      "monitoring": "Log archived count"
+    }
+  ],
+  
+  "rate_limits": {
+    "description": "Rate limiting per endpoint to prevent abuse",
+    "limits": [
+      {
+        "endpoint": "/api/auth/register",
+        "limit": "5 requests per hour per mobile number",
+        "action_on_exceed": "Return 429 Too Many Requests, require captcha"
+      },
+      {
+        "endpoint": "/api/auth/verify-otp",
+        "limit": "3 attempts per OTP session",
+        "action_on_exceed": "Invalidate OTP, require new registration"
+      },
+      {
+        "endpoint": "/api/children/{student_id}/attendance",
+        "limit": "60 requests per minute per parent",
+        "action_on_exceed": "Return 429 with Retry-After header"
+      },
+      {
+        "endpoint": "/api/children/{student_id}/grades",
+        "limit": "30 requests per minute per parent",
+        "action_on_exceed": "Return 429"
+      },
+      {
+        "endpoint": "/api/messages/send",
+        "limit": "10 requests per hour per parent",
+        "action_on_exceed": "Return 429, prevent spam"
+      },
+      {
+        "endpoint": "/api/payments/initiate",
+        "limit": "5 requests per 5 minutes per parent",
+        "action_on_exceed": "Return 429, prevent accidental double payments"
+      }
+    ]
+  },
+  
+  "backup_and_recovery": {
+    "database_backups": {
+      "frequency": "Daily at 1 AM",
+      "retention": "30 days full backups, 90 days incremental",
+      "storage": "AWS S3 with encryption",
+      "verification": "Weekly restore test on staging environment"
+    },
+    "file_backups": {
+      "items": ["Receipts (PDF)", "Uploaded documents", "Profile photos"],
+      "frequency": "Hourly incremental, daily full",
+      "storage": "AWS S3 multi-region",
+      "retention": "7 years (receipt legal requirement)"
+    },
+    "disaster_recovery": {
+      "rto": "4 hours",
+      "rpo": "1 hour",
+      "failover": "Multi-region database replication",
+      "testing": "Quarterly DR drills"
+    }
+  },
+  
+  "monitoring_and_alerts": {
+    "sentry_error_tracking": {
+      "enabled": true,
+      "environments": ["production", "staging"],
+      "alert_on": ["Payment failures", "Authentication errors", "Sync failures"]
+    },
+    "database_performance": {
+      "metrics": ["Query execution time", "Connection pool usage", "RLS policy overhead"],
+      "thresholds": {
+        "slow_query": ">2 seconds",
+        "connection_pool": ">80% utilization"
+      },
+      "alert_channels": ["Slack", "PagerDuty"]
+    },
+    "api_uptime": {
+      "service": "UptimeRobot",
+      "check_interval": "1 minute",
+      "endpoints": [
+        "https://api.institution.edu/parent/health",
+        "https://parent.institution.edu"
+      ],
+      "alert_on": ["3 consecutive failures", "Response time >5 seconds"]
+    }
+  }
+}

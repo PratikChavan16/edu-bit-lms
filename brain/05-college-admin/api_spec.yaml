@@ -1,0 +1,1570 @@
+﻿openapi: 3.0.3
+info:
+  title: College Admin Portal API
+  description: |
+    Complete API specification for College Admin Portal covering staff management, infrastructure, transport, hostel, documents, vendors, grievances, and library operations.
+    
+    **Base URL (Production)**: https://api.bitflow.edu.in/college-admin
+    **Base URL (Staging)**: https://staging-api.bitflow.edu.in/college-admin
+    
+    **Authentication**: JWT Bearer Token
+    **Rate Limiting**: 1000 requests/hour per user
+    
+  version: 1.0.0
+  contact:
+    name: BitFlow API Support
+    email: api-support@bitflow.edu.in
+
+servers:
+  - url: https://api.bitflow.edu.in/college-admin
+    description: Production server
+  - url: https://staging-api.bitflow.edu.in/college-admin
+    description: Staging server
+  - url: http://localhost:8005/api/v1
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Authentication
+    description: Login, logout, token refresh
+  - name: Staff Management
+    description: Staff attendance, leave, roster operations
+  - name: Infrastructure
+    description: Asset management, work orders, maintenance
+  - name: Transport
+    description: Bus tracking, routes, student allocation
+  - name: Hostel
+    description: Room allocation, mess menu, visitor management
+  - name: Documents
+    description: Certificate generation, templates, verification
+  - name: Vendors
+    description: Vendor registration, purchase orders, invoices
+  - name: Grievances
+    description: Complaint management, SLA tracking, surveys
+  - name: Library
+    description: Book cataloging, circulation, reservations
+
+paths:
+  # ============================================
+  # AUTHENTICATION
+  # ============================================
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: College Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@spce.edu.in
+                password:
+                  type: string
+                  format: password
+                  example: SecurePass123!
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                    example: true
+                  token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  user:
+                    $ref: '#/components/schemas/CollegeAdmin'
+  
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Logout and invalidate token
+      responses:
+        '200':
+          description: Logout successful
+
+  # ============================================
+  # STAFF MANAGEMENT
+  # ============================================
+  /staff/attendance/dashboard:
+    get:
+      tags: [Staff Management]
+      summary: Real-time staff attendance dashboard
+      parameters:
+        - name: date
+          in: query
+          schema:
+            type: string
+            format: date
+            example: 2025-10-25
+        - name: department
+          in: query
+          schema:
+            type: string
+            example: Maintenance
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [present, absent, late, on_leave]
+      responses:
+        '200':
+          description: Attendance dashboard data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  summary:
+                    type: object
+                    properties:
+                      total_staff:
+                        type: integer
+                        example: 150
+                      present:
+                        type: integer
+                        example: 142
+                      absent:
+                        type: integer
+                        example: 5
+                      late:
+                        type: integer
+                        example: 3
+                      on_leave:
+                        type: integer
+                        example: 0
+                  staff_list:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/StaffAttendance'
+
+  /staff/attendance/punch:
+    post:
+      tags: [Staff Management]
+      summary: Record staff attendance punch (biometric webhook)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [biometric_id, timestamp, device_id]
+              properties:
+                biometric_id:
+                  type: string
+                  example: BIO-00123
+                timestamp:
+                  type: string
+                  format: date-time
+                  example: 2025-10-25T08:45:30Z
+                device_id:
+                  type: string
+                  example: DEVICE-GATE-01
+      responses:
+        '200':
+          description: Punch recorded successfully
+
+  /staff/leave/balance:
+    get:
+      tags: [Staff Management]
+      summary: Get leave balance for staff member
+      parameters:
+        - name: staff_id
+          in: query
+          required: true
+          schema:
+            type: integer
+            example: 456
+      responses:
+        '200':
+          description: Leave balance details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/LeaveBalance'
+
+  /staff/leave/apply:
+    post:
+      tags: [Staff Management]
+      summary: Apply for leave
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [staff_id, leave_type, from_date, to_date, reason]
+              properties:
+                staff_id:
+                  type: integer
+                  example: 456
+                leave_type:
+                  type: string
+                  enum: [casual, sick, earned]
+                  example: casual
+                from_date:
+                  type: string
+                  format: date
+                  example: 2025-11-01
+                to_date:
+                  type: string
+                  format: date
+                  example: 2025-11-03
+                reason:
+                  type: string
+                  example: Family function
+                attachment_url:
+                  type: string
+                  nullable: true
+                  example: https://s3.amazonaws.com/bitflow/leaves/medical-cert-123.pdf
+      responses:
+        '201':
+          description: Leave application submitted
+
+  /staff/leave/{id}/approve:
+    put:
+      tags: [Staff Management]
+      summary: Approve or reject leave application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [approve, reject]
+                  example: approve
+                remarks:
+                  type: string
+                  example: Approved for family function
+      responses:
+        '200':
+          description: Leave application updated
+
+  /staff/roster/generate:
+    post:
+      tags: [Staff Management]
+      summary: Generate duty roster for staff
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [start_date, end_date, department]
+              properties:
+                start_date:
+                  type: string
+                  format: date
+                  example: 2025-11-01
+                end_date:
+                  type: string
+                  format: date
+                  example: 2025-11-07
+                department:
+                  type: string
+                  example: Maintenance
+                shift_pattern:
+                  type: string
+                  enum: [morning, afternoon, rotational]
+                  example: rotational
+      responses:
+        '201':
+          description: Roster generated successfully
+
+  # ============================================
+  # INFRASTRUCTURE & ASSETS
+  # ============================================
+  /assets:
+    get:
+      tags: [Infrastructure]
+      summary: List all assets
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+            example: Furniture
+        - name: location
+          in: query
+          schema:
+            type: string
+            example: Building A, Floor 3
+        - name: condition
+          in: query
+          schema:
+            type: string
+            enum: [excellent, good, fair, poor, damaged]
+      responses:
+        '200':
+          description: Asset list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total:
+                    type: integer
+                    example: 3700
+                  assets:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Asset'
+
+  /assets/register:
+    post:
+      tags: [Infrastructure]
+      summary: Register new asset
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AssetInput'
+      responses:
+        '201':
+          description: Asset registered successfully
+
+  /assets/{qr_code}/details:
+    get:
+      tags: [Infrastructure]
+      summary: Get asset details by QR code scan
+      parameters:
+        - name: qr_code
+          in: path
+          required: true
+          schema:
+            type: string
+            example: BITFLOW-SPCE-CHAIR-00234
+      responses:
+        '200':
+          description: Asset details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Asset'
+
+  /work-orders:
+    get:
+      tags: [Infrastructure]
+      summary: List work orders
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [assigned, in_progress, completed, overdue]
+        - name: priority
+          in: query
+          schema:
+            type: string
+            enum: [critical, high, normal]
+        - name: category
+          in: query
+          schema:
+            type: string
+            example: Electrical
+      responses:
+        '200':
+          description: Work order list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/WorkOrder'
+
+  /work-orders/create:
+    post:
+      tags: [Infrastructure]
+      summary: Create new work order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/WorkOrderInput'
+      responses:
+        '201':
+          description: Work order created
+
+  /work-orders/{id}/assign:
+    put:
+      tags: [Infrastructure]
+      summary: Assign work order to technician
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [technician_id]
+              properties:
+                technician_id:
+                  type: integer
+                  example: 789
+                notes:
+                  type: string
+                  example: Urgent - AC repair needed before exam hall usage
+      responses:
+        '200':
+          description: Work order assigned
+
+  /work-orders/{id}/status:
+    put:
+      tags: [Infrastructure]
+      summary: Update work order status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [in_progress, waiting_for_parts, completed]
+                completion_photos:
+                  type: array
+                  items:
+                    type: string
+                  example: ['https://s3.amazonaws.com/bitflow/work-orders/after-1.jpg']
+      responses:
+        '200':
+          description: Work order status updated
+
+  # ============================================
+  # TRANSPORT MANAGEMENT
+  # ============================================
+  /transport/buses/live-tracking:
+    get:
+      tags: [Transport]
+      summary: Real-time location of all buses
+      parameters:
+        - name: route_id
+          in: query
+          schema:
+            type: integer
+            example: 5
+      responses:
+        '200':
+          description: Live bus tracking data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/BusLocation'
+
+  /transport/routes:
+    get:
+      tags: [Transport]
+      summary: List all transport routes
+      responses:
+        '200':
+          description: Route list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TransportRoute'
+
+  /transport/students/allocate:
+    post:
+      tags: [Transport]
+      summary: Allocate student to bus route
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_id, route_id, pickup_point]
+              properties:
+                student_id:
+                  type: integer
+                  example: 12345
+                route_id:
+                  type: integer
+                  example: 5
+                pickup_point:
+                  type: string
+                  example: Andheri Station
+                bus_id:
+                  type: integer
+                  example: 3
+      responses:
+        '201':
+          description: Student allocated successfully
+
+  /transport/trips/log:
+    post:
+      tags: [Transport]
+      summary: Log trip start/end for bus
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bus_id, trip_type, odometer_reading]
+              properties:
+                bus_id:
+                  type: integer
+                  example: 3
+                trip_type:
+                  type: string
+                  enum: [start, end]
+                  example: start
+                odometer_reading:
+                  type: number
+                  example: 45678.5
+                driver_id:
+                  type: integer
+                  example: 234
+      responses:
+        '201':
+          description: Trip logged
+
+  /transport/fuel/log:
+    post:
+      tags: [Transport]
+      summary: Log fuel purchase
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FuelLog'
+      responses:
+        '201':
+          description: Fuel log created
+
+  # ============================================
+  # HOSTEL MANAGEMENT
+  # ============================================
+  /hostel/rooms/available:
+    get:
+      tags: [Hostel]
+      summary: Get available hostel rooms
+      parameters:
+        - name: gender
+          in: query
+          required: true
+          schema:
+            type: string
+            enum: [male, female]
+        - name: building_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Available rooms
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/HostelRoom'
+
+  /hostel/rooms/allocate:
+    post:
+      tags: [Hostel]
+      summary: Allocate room to student
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_id, room_id, bed_number]
+              properties:
+                student_id:
+                  type: integer
+                  example: 12345
+                room_id:
+                  type: integer
+                  example: 101
+                bed_number:
+                  type: integer
+                  example: 1
+                roommate_preference:
+                  type: integer
+                  nullable: true
+                  example: 12346
+      responses:
+        '201':
+          description: Room allocated
+
+  /hostel/mess/menu/publish:
+    post:
+      tags: [Hostel]
+      summary: Publish weekly mess menu
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: array
+              items:
+                type: object
+                properties:
+                  date:
+                    type: string
+                    format: date
+                  meal_slot:
+                    type: string
+                    enum: [breakfast, lunch, snacks, dinner]
+                  category:
+                    type: string
+                    enum: [veg, non_veg, jain]
+                  items:
+                    type: string
+                    example: Roti, Dal, Rice, Sabzi, Salad
+      responses:
+        '201':
+          description: Menu published
+
+  /hostel/visitors/register:
+    post:
+      tags: [Hostel]
+      summary: Register visitor entry
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VisitorRegistration'
+      responses:
+        '201':
+          description: Visitor registered
+
+  # ============================================
+  # DOCUMENTS & CERTIFICATES
+  # ============================================
+  /documents/certificates/request:
+    post:
+      tags: [Documents]
+      summary: Request certificate
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_id, certificate_type, purpose, language]
+              properties:
+                student_id:
+                  type: integer
+                  example: 12345
+                certificate_type:
+                  type: string
+                  enum: [bonafide, transfer_certificate, noc, character, course_completion]
+                  example: bonafide
+                purpose:
+                  type: string
+                  example: Bank loan application
+                language:
+                  type: string
+                  enum: [english, hindi]
+                  example: english
+                delivery_mode:
+                  type: string
+                  enum: [email, print]
+                  example: email
+      responses:
+        '201':
+          description: Certificate request submitted
+
+  /documents/certificates/{id}/approve:
+    put:
+      tags: [Documents]
+      summary: Approve certificate request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [approve, reject]
+                remarks:
+                  type: string
+      responses:
+        '200':
+          description: Certificate request processed
+
+  /documents/certificates/{id}/sign:
+    post:
+      tags: [Documents]
+      summary: Apply digital signature to certificate
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Certificate signed
+
+  /documents/verify/{certificate_number}:
+    get:
+      tags: [Documents]
+      summary: Verify certificate authenticity (public endpoint)
+      parameters:
+        - name: certificate_number
+          in: path
+          required: true
+          schema:
+            type: string
+            example: BITFLOW/SPCE/BON/2025/00123
+      security: []
+      responses:
+        '200':
+          description: Certificate verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                    example: true
+                  certificate_type:
+                    type: string
+                    example: Bonafide Certificate
+                  student_name:
+                    type: string
+                    example: Rahul Sharma
+                  issue_date:
+                    type: string
+                    format: date
+                    example: 2025-10-25
+
+  # ============================================
+  # VENDOR MANAGEMENT
+  # ============================================
+  /vendors:
+    get:
+      tags: [Vendors]
+      summary: List all vendors
+      parameters:
+        - name: category
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, inactive, blacklisted]
+      responses:
+        '200':
+          description: Vendor list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Vendor'
+
+  /vendors/register:
+    post:
+      tags: [Vendors]
+      summary: Register new vendor
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/VendorInput'
+      responses:
+        '201':
+          description: Vendor registered
+
+  /purchase-orders/create:
+    post:
+      tags: [Vendors]
+      summary: Create purchase order
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PurchaseOrderInput'
+      responses:
+        '201':
+          description: Purchase order created
+
+  /purchase-orders/{id}/approve:
+    put:
+      tags: [Vendors]
+      summary: Approve purchase order
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [approve, reject, send_back]
+                remarks:
+                  type: string
+      responses:
+        '200':
+          description: Purchase order processed
+
+  /invoices/upload:
+    post:
+      tags: [Vendors]
+      summary: Upload invoice (vendor portal)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [po_number, invoice_number, invoice_date, invoice_amount, invoice_pdf_url]
+              properties:
+                po_number:
+                  type: string
+                  example: PO/SPCE/2025/00456
+                invoice_number:
+                  type: string
+                  example: INV-2025-789
+                invoice_date:
+                  type: string
+                  format: date
+                invoice_amount:
+                  type: number
+                  example: 125000.00
+                invoice_pdf_url:
+                  type: string
+      responses:
+        '201':
+          description: Invoice uploaded
+
+  # ============================================
+  # GRIEVANCE MANAGEMENT
+  # ============================================
+  /grievances/submit:
+    post:
+      tags: [Grievances]
+      summary: Submit grievance/complaint
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GrievanceInput'
+      responses:
+        '201':
+          description: Grievance submitted
+
+  /grievances/{complaint_id}/status:
+    get:
+      tags: [Grievances]
+      summary: Get grievance status
+      parameters:
+        - name: complaint_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: CMP-2025-00789
+      responses:
+        '200':
+          description: Grievance status
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Grievance'
+
+  /grievances/overdue:
+    get:
+      tags: [Grievances]
+      summary: Get all overdue grievances
+      responses:
+        '200':
+          description: Overdue grievances list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Grievance'
+
+  /grievances/{id}/update-status:
+    put:
+      tags: [Grievances]
+      summary: Update grievance status
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [assigned, in_progress, resolved, closed]
+                resolution_notes:
+                  type: string
+      responses:
+        '200':
+          description: Status updated
+
+  # ============================================
+  # LIBRARY OPERATIONS
+  # ============================================
+  /library/books/catalog:
+    post:
+      tags: [Library]
+      summary: Catalog new book
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/BookInput'
+      responses:
+        '201':
+          description: Book cataloged
+
+  /library/books/search:
+    get:
+      tags: [Library]
+      summary: Search books
+      parameters:
+        - name: query
+          in: query
+          required: true
+          schema:
+            type: string
+            example: Data Structures
+        - name: search_by
+          in: query
+          schema:
+            type: string
+            enum: [title, author, isbn, category]
+      responses:
+        '200':
+          description: Search results
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Book'
+
+  /library/circulation/issue:
+    post:
+      tags: [Library]
+      summary: Issue book to student/faculty
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [book_id, borrower_id, borrower_type]
+              properties:
+                book_id:
+                  type: integer
+                  example: 456
+                borrower_id:
+                  type: integer
+                  example: 12345
+                borrower_type:
+                  type: string
+                  enum: [student, faculty]
+      responses:
+        '201':
+          description: Book issued
+
+  /library/circulation/return:
+    post:
+      tags: [Library]
+      summary: Return book
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [book_id]
+              properties:
+                book_id:
+                  type: integer
+                  example: 456
+                fine_amount:
+                  type: number
+                  example: 25.00
+                fine_paid:
+                  type: boolean
+                  example: true
+      responses:
+        '200':
+          description: Book returned
+
+  /library/books/{id}/reserve:
+    post:
+      tags: [Library]
+      summary: Reserve book
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_id]
+              properties:
+                student_id:
+                  type: integer
+                  example: 12345
+      responses:
+        '201':
+          description: Book reserved
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    CollegeAdmin:
+      type: object
+      properties:
+        id:
+          type: integer
+          example: 123
+        name:
+          type: string
+          example: Rajesh Kumar
+        email:
+          type: string
+          example: admin@spce.edu.in
+        college_id:
+          type: integer
+          example: 5
+        college_name:
+          type: string
+          example: Sardar Patel College of Engineering
+
+    StaffAttendance:
+      type: object
+      properties:
+        staff_id:
+          type: integer
+          example: 456
+        name:
+          type: string
+          example: Suresh Patel
+        department:
+          type: string
+          example: Maintenance
+        punch_in:
+          type: string
+          format: time
+          example: '08:45:00'
+        status:
+          type: string
+          enum: [present, absent, late, on_leave]
+          example: late
+        location:
+          type: string
+          example: Gate 1
+
+    LeaveBalance:
+      type: object
+      properties:
+        staff_id:
+          type: integer
+        casual_leave:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 12
+            used:
+              type: integer
+              example: 5
+            available:
+              type: integer
+              example: 7
+        sick_leave:
+          type: object
+          properties:
+            total:
+              type: integer
+              example: 12
+            used:
+              type: integer
+              example: 3
+            available:
+              type: integer
+              example: 9
+
+    Asset:
+      type: object
+      properties:
+        id:
+          type: integer
+        qr_code:
+          type: string
+          example: BITFLOW-SPCE-CHAIR-00234
+        category:
+          type: string
+          example: Furniture
+        name:
+          type: string
+          example: Student Chair
+        purchase_date:
+          type: string
+          format: date
+        warranty_expiry:
+          type: string
+          format: date
+        location:
+          type: string
+          example: Building A, Floor 3, Room 301
+        condition:
+          type: string
+          enum: [excellent, good, fair, poor, damaged]
+
+    AssetInput:
+      type: object
+      required: [category, name, purchase_date, location]
+      properties:
+        category:
+          type: string
+        name:
+          type: string
+        purchase_date:
+          type: string
+          format: date
+        warranty_months:
+          type: integer
+        location:
+          type: string
+        condition:
+          type: string
+        price:
+          type: number
+
+    WorkOrder:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+          example: AC repair in Room 301
+        priority:
+          type: string
+          enum: [critical, high, normal]
+        category:
+          type: string
+          example: Electrical
+        status:
+          type: string
+          enum: [assigned, in_progress, waiting_for_parts, completed]
+        created_at:
+          type: string
+          format: date-time
+        sla_due_at:
+          type: string
+          format: date-time
+        assigned_to:
+          type: string
+          example: Technician Name
+
+    WorkOrderInput:
+      type: object
+      required: [title, description, priority, category, location]
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        priority:
+          type: string
+          enum: [critical, high, normal]
+        category:
+          type: string
+        location:
+          type: string
+        photos:
+          type: array
+          items:
+            type: string
+
+    BusLocation:
+      type: object
+      properties:
+        bus_id:
+          type: integer
+        bus_number:
+          type: string
+          example: MH-01-AB-1234
+        route_number:
+          type: integer
+        latitude:
+          type: number
+          example: 19.1136
+        longitude:
+          type: number
+          example: 72.8697
+        speed:
+          type: number
+          example: 35.5
+        last_updated:
+          type: string
+          format: date-time
+        driver_name:
+          type: string
+
+    TransportRoute:
+      type: object
+      properties:
+        id:
+          type: integer
+        route_number:
+          type: integer
+        route_name:
+          type: string
+          example: Andheri - College
+        distance_km:
+          type: number
+        pickup_points:
+          type: array
+          items:
+            type: string
+
+    FuelLog:
+      type: object
+      required: [bus_id, date, fuel_quantity_liters, cost]
+      properties:
+        bus_id:
+          type: integer
+        date:
+          type: string
+          format: date
+        fuel_quantity_liters:
+          type: number
+          example: 50.5
+        cost:
+          type: number
+          example: 4545.00
+        fuel_station:
+          type: string
+        receipt_url:
+          type: string
+
+    HostelRoom:
+      type: object
+      properties:
+        id:
+          type: integer
+        room_number:
+          type: string
+          example: '101'
+        building_name:
+          type: string
+          example: Boys Hostel A
+        floor:
+          type: integer
+        capacity:
+          type: integer
+          example: 2
+        occupied_beds:
+          type: integer
+          example: 1
+        available_beds:
+          type: integer
+          example: 1
+
+    VisitorRegistration:
+      type: object
+      required: [visitor_name, relation, id_proof_type, id_proof_number, student_id]
+      properties:
+        visitor_name:
+          type: string
+        relation:
+          type: string
+        id_proof_type:
+          type: string
+          enum: [aadhar, pan, driving_license, passport]
+        id_proof_number:
+          type: string
+        photo_url:
+          type: string
+        student_id:
+          type: integer
+
+    Vendor:
+      type: object
+      properties:
+        id:
+          type: integer
+        vendor_id:
+          type: string
+          example: VEN-2025-00123
+        company_name:
+          type: string
+        gstin:
+          type: string
+        category:
+          type: string
+        contact_person:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        rating:
+          type: number
+          example: 4.2
+
+    VendorInput:
+      type: object
+      required: [company_name, gstin, pan, category, contact_person, phone, email]
+      properties:
+        company_name:
+          type: string
+        gstin:
+          type: string
+        pan:
+          type: string
+        category:
+          type: string
+        contact_person:
+          type: string
+        phone:
+          type: string
+        email:
+          type: string
+        bank_account:
+          type: string
+
+    PurchaseOrderInput:
+      type: object
+      required: [vendor_id, po_date, delivery_date, items]
+      properties:
+        vendor_id:
+          type: integer
+        po_date:
+          type: string
+          format: date
+        delivery_date:
+          type: string
+          format: date
+        department:
+          type: string
+        items:
+          type: array
+          items:
+            type: object
+            properties:
+              description:
+                type: string
+              quantity:
+                type: integer
+              unit_price:
+                type: number
+
+    Grievance:
+      type: object
+      properties:
+        id:
+          type: integer
+        complaint_id:
+          type: string
+          example: CMP-2025-00789
+        category:
+          type: string
+        priority:
+          type: string
+          enum: [critical, high, normal]
+        title:
+          type: string
+        status:
+          type: string
+          enum: [submitted, assigned, in_progress, resolved, closed]
+        submitted_at:
+          type: string
+          format: date-time
+        sla_due_at:
+          type: string
+          format: date-time
+        sla_status:
+          type: string
+          enum: [within_sla, near_breach, breached]
+
+    GrievanceInput:
+      type: object
+      required: [category, priority, title, description, location]
+      properties:
+        category:
+          type: string
+          enum: [infrastructure, transport, hostel, library, cafeteria, other]
+        priority:
+          type: string
+          enum: [critical, high, normal]
+        title:
+          type: string
+        description:
+          type: string
+        location:
+          type: string
+        photos:
+          type: array
+          items:
+            type: string
+        anonymous:
+          type: boolean
+          default: false
+
+    Book:
+      type: object
+      properties:
+        id:
+          type: integer
+        accession_number:
+          type: string
+          example: LIB/2025/00123
+        isbn:
+          type: string
+        title:
+          type: string
+        author:
+          type: string
+        publisher:
+          type: string
+        year:
+          type: integer
+        category:
+          type: string
+        status:
+          type: string
+          enum: [available, issued, reserved, under_repair]
+
+    BookInput:
+      type: object
+      required: [isbn, title, author, category]
+      properties:
+        isbn:
+          type: string
+        title:
+          type: string
+        author:
+          type: string
+        publisher:
+          type: string
+        year:
+          type: integer
+        category:
+          type: string
+        language:
+          type: string
+        price:
+          type: number
+
+  responses:
+    UnauthorizedError:
+      description: Authentication token missing or invalid
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Unauthorized access
+
+    NotFoundError:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              success:
+                type: boolean
+                example: false
+              message:
+                type: string
+                example: Resource not found

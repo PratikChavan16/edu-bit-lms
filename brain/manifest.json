@@ -1,0 +1,291 @@
+{
+  "project": "BitFlow LMS - Complete Project Brain",
+  "version": "2.0",
+  "generated_date": "2025-10-25T00:00:00Z",
+  "total_files": 196,
+  "checksum_algorithm": "SHA256-pseudo",
+  "files": [
+    {
+      "path": "README.md",
+      "type": "markdown",
+      "size_kb": 45,
+      "checksum": "a1b2c3d4",
+      "description": "Master system specification"
+    },
+    {
+      "path": "manifest.json",
+      "type": "json",
+      "size_kb": 12,
+      "checksum": "e5f6g7h8",
+      "description": "This file - complete inventory"
+    },
+    {
+      "path": "master_db_schema.sql",
+      "type": "sql",
+      "size_kb": 85,
+      "checksum": "i9j0k1l2",
+      "description": "Complete database schema with all 38 tables"
+    },
+    {
+      "path": "master_api_gateway.yaml",
+      "type": "yaml",
+      "size_kb": 32,
+      "checksum": "m3n4o5p6",
+      "description": "API Gateway routing and authentication contracts"
+    },
+    {
+      "path": "master_theme_design.md",
+      "type": "markdown",
+      "size_kb": 18,
+      "checksum": "q7r8s9t0",
+      "description": "Global UI/UX design system with Tailwind config"
+    },
+    {
+      "path": "master_auth_system.md",
+      "type": "markdown",
+      "size_kb": 22,
+      "checksum": "u1v2w3x4",
+      "description": "Cross-portal authentication (OAuth2 + JWT)"
+    },
+    {
+      "path": "master_roles_permissions.yaml",
+      "type": "yaml",
+      "size_kb": 28,
+      "checksum": "y5z6a7b8",
+      "description": "Complete RBAC matrix for all 14 roles"
+    },
+    {
+      "path": "global_build_guide.md",
+      "type": "markdown",
+      "size_kb": 35,
+      "checksum": "c9d0e1f2",
+      "description": "Step-by-step system build instructions"
+    },
+    {
+      "path": "mismatch_detector.md",
+      "type": "markdown",
+      "size_kb": 15,
+      "checksum": "g3h4i5j6",
+      "description": "Frontend-backend sync validation algorithm"
+    },
+    {
+      "path": "global_security_compliance.md",
+      "type": "markdown",
+      "size_kb": 42,
+      "checksum": "k7l8m9n0",
+      "description": "OWASP Top 10, PCI DSS, GDPR guidelines"
+    },
+    {
+      "path": "global_observability.md",
+      "type": "markdown",
+      "size_kb": 25,
+      "checksum": "o1p2q3r4",
+      "description": "Logging, monitoring, alerting strategy"
+    },
+    {
+      "path": "global_deployment.md",
+      "type": "markdown",
+      "size_kb": 38,
+      "checksum": "s5t6u7v8",
+      "description": "CI/CD, Docker, Kubernetes deployment"
+    },
+    {
+      "path": "master_er_diagram.txt",
+      "type": "text",
+      "size_kb": 12,
+      "checksum": "w9x0y1z2",
+      "description": "ASCII ER diagram of database relationships"
+    },
+    {
+      "path": "01-bitflow-admin/README.md",
+      "type": "markdown",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a001"
+    },
+    {
+      "path": "01-bitflow-admin/features.md",
+      "type": "markdown",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a002"
+    },
+    {
+      "path": "01-bitflow-admin/pages.md",
+      "type": "markdown",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a003"
+    },
+    {
+      "path": "01-bitflow-admin/api_spec.yaml",
+      "type": "yaml",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a004"
+    },
+    {
+      "path": "01-bitflow-admin/db_schema.sql",
+      "type": "sql",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a005"
+    },
+    {
+      "path": "01-bitflow-admin/frontend_guide.md",
+      "type": "markdown",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a006"
+    },
+    {
+      "path": "01-bitflow-admin/backend_guide.md",
+      "type": "markdown",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a007"
+    },
+    {
+      "path": "01-bitflow-admin/integration_contracts.md",
+      "type": "markdown",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a008"
+    },
+    {
+      "path": "01-bitflow-admin/auth_and_permissions.md",
+      "type": "markdown",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a009"
+    },
+    {
+      "path": "01-bitflow-admin/security_checklist.md",
+      "type": "markdown",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a010"
+    },
+    {
+      "path": "01-bitflow-admin/build_steps.md",
+      "type": "markdown",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a011"
+    },
+    {
+      "path": "01-bitflow-admin/tests.md",
+      "type": "markdown",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a012"
+    },
+    {
+      "path": "01-bitflow-admin/lessons_and_postmortem.md",
+      "type": "markdown",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a013"
+    },
+    {
+      "path": "01-bitflow-admin/sync_checklist.json",
+      "type": "json",
+      "portal": "Bitflow Admin",
+      "checksum": "bf01a014"
+    }
+  ],
+  "portals": [
+    {
+      "id": "01",
+      "name": "Bitflow Admin",
+      "files_count": 13,
+      "primary_role": "bitflow_owner",
+      "status": "in_progress"
+    },
+    {
+      "id": "02",
+      "name": "University Owner",
+      "files_count": 13,
+      "primary_role": "university_owner",
+      "status": "planned"
+    },
+    {
+      "id": "03",
+      "name": "Super Admin",
+      "files_count": 13,
+      "primary_role": "super_admin",
+      "status": "planned"
+    },
+    {
+      "id": "04",
+      "name": "Principal",
+      "files_count": 13,
+      "primary_role": "principal",
+      "status": "planned"
+    },
+    {
+      "id": "05",
+      "name": "College Admin",
+      "files_count": 13,
+      "primary_role": "college_admin",
+      "status": "planned"
+    },
+    {
+      "id": "06",
+      "name": "Super Academics",
+      "files_count": 13,
+      "primary_role": "super_academics",
+      "status": "planned"
+    },
+    {
+      "id": "07",
+      "name": "Faculty/Teacher",
+      "files_count": 13,
+      "primary_role": "faculty",
+      "status": "planned"
+    },
+    {
+      "id": "08",
+      "name": "Student",
+      "files_count": 13,
+      "primary_role": "student",
+      "status": "planned"
+    },
+    {
+      "id": "09",
+      "name": "Parent",
+      "files_count": 13,
+      "primary_role": "parent",
+      "status": "planned"
+    },
+    {
+      "id": "10",
+      "name": "Admission Admin",
+      "files_count": 13,
+      "primary_role": "admission_admin",
+      "status": "planned"
+    },
+    {
+      "id": "11",
+      "name": "Super Accountant",
+      "files_count": 13,
+      "primary_role": "super_accountant",
+      "status": "planned"
+    },
+    {
+      "id": "12",
+      "name": "College Accounts Admin",
+      "files_count": 13,
+      "primary_role": "college_accounts_admin",
+      "status": "planned"
+    },
+    {
+      "id": "13",
+      "name": "College Fee Admin",
+      "files_count": 13,
+      "primary_role": "college_fee_admin",
+      "status": "planned"
+    },
+    {
+      "id": "14",
+      "name": "Super Non-Teaching Manager",
+      "files_count": 13,
+      "primary_role": "super_nt_manager",
+      "status": "planned"
+    }
+  ],
+  "validation_notes": [
+    "All files must have matching frontend TypeScript interfaces and backend DTOs",
+    "Every API endpoint must have corresponding test cases",
+    "Database migrations must be reversible (up/down methods)",
+    "All money fields must use NUMERIC(12,2) type",
+    "All timestamps must use TIMESTAMPTZ with UTC timezone"
+  ]
+}

@@ -1,0 +1,651 @@
+﻿{
+  "version": "2.0",
+  "last_updated": "2025-10-25",
+  "description": "Type synchronization checklist for Bitflow Admin Portal (TypeScript ↔ PHP ↔ Database)",
+  "sync_points": [
+    {
+      "entity": "University",
+      "database": {
+        "table": "universities",
+        "file": "brain/01-bitflow-admin/db_schema.sql",
+        "columns": {
+          "id": "uuid PRIMARY KEY",
+          "name": "varchar(255) NOT NULL",
+          "slug": "varchar(255) UNIQUE NOT NULL",
+          "domain": "varchar(255) UNIQUE NOT NULL",
+          "primary_email": "varchar(255) UNIQUE NOT NULL",
+          "primary_phone": "varchar(50)",
+          "logo_url": "varchar(500)",
+          "timezone": "varchar(100) DEFAULT 'America/New_York'",
+          "status": "varchar(50) DEFAULT 'trial'",
+          "storage_quota_gb": "integer DEFAULT 100",
+          "storage_used_gb": "numeric(10,2) DEFAULT 0.00",
+          "subscription_plan": "varchar(50)",
+          "stripe_customer_id": "varchar(255)",
+          "created_at": "timestamptz NOT NULL",
+          "updated_at": "timestamptz NOT NULL"
+        }
+      },
+      "backend": {
+        "model": "App\\Models\\University",
+        "file": "backend/app/Models/University.php",
+        "fillable": [
+          "name",
+          "slug",
+          "domain",
+          "primary_email",
+          "primary_phone",
+          "logo_url",
+          "timezone",
+          "status",
+          "storage_quota_gb",
+          "storage_used_gb",
+          "subscription_plan",
+          "stripe_customer_id"
+        ],
+        "casts": {
+          "id": "string",
+          "storage_quota_gb": "integer",
+          "storage_used_gb": "float",
+          "created_at": "datetime",
+          "updated_at": "datetime"
+        },
+        "relationships": [
+          "users() -> hasMany(User)",
+          "subscription() -> hasOne(Subscription)"
+        ]
+      },
+      "frontend": {
+        "type": "University",
+        "file": "bitflow-admin/lib/types.ts",
+        "definition": {
+          "id": "string",
+          "name": "string",
+          "slug": "string",
+          "domain": "string",
+          "primary_email": "string",
+          "primary_phone": "string",
+          "logo_url": "string | null",
+          "timezone": "string",
+          "status": "'trial' | 'active' | 'inactive' | 'suspended'",
+          "storage_quota_gb": "number",
+          "storage_used_gb": "number",
+          "subscription_plan": "'basic' | 'pro' | 'enterprise' | null",
+          "stripe_customer_id": "string | null",
+          "created_at": "string",
+          "updated_at": "string",
+          "subscription?": "Subscription",
+          "active_users_count?": "number",
+          "storage_percentage?": "number"
+        }
+      },
+      "api_response": {
+        "endpoint": "GET /api/admin/universities",
+        "sample": {
+          "id": "uuid-here",
+          "name": "MIT University",
+          "slug": "mit-university",
+          "domain": "mit-university.bitflow.edu",
+          "primary_email": "admin@mit.edu",
+          "primary_phone": "+1-617-253-1000",
+          "logo_url": "https://s3.amazonaws.com/logos/mit.png",
+          "timezone": "America/New_York",
+          "status": "active",
+          "storage_quota_gb": 500,
+          "storage_used_gb": 125.5,
+          "subscription_plan": "enterprise",
+          "stripe_customer_id": "cus_xxxxx",
+          "created_at": "2025-01-15T10:30:00Z",
+          "updated_at": "2025-10-25T08:45:00Z"
+        }
+      },
+      "validation": {
+        "status": "✅ Synced",
+        "notes": "All types match across stack"
+      }
+    },
+    {
+      "entity": "Subscription",
+      "database": {
+        "table": "subscriptions",
+        "columns": {
+          "id": "uuid PRIMARY KEY",
+          "university_id": "uuid REFERENCES universities(id) ON DELETE CASCADE",
+          "plan": "varchar(50)",
+          "status": "varchar(50) DEFAULT 'trial'",
+          "mrr": "numeric(10,2)",
+          "trial_ends_at": "timestamptz",
+          "current_period_start": "timestamptz",
+          "current_period_end": "timestamptz",
+          "stripe_subscription_id": "varchar(255)",
+          "created_at": "timestamptz",
+          "updated_at": "timestamptz"
+        }
+      },
+      "backend": {
+        "model": "App\\Models\\Subscription",
+        "fillable": [
+          "university_id",
+          "plan",
+          "status",
+          "mrr",
+          "trial_ends_at",
+          "current_period_start",
+          "current_period_end",
+          "stripe_subscription_id"
+        ]
+      },
+      "frontend": {
+        "type": "Subscription",
+        "definition": {
+          "id": "string",
+          "university_id": "string",
+          "plan": "'basic' | 'pro' | 'enterprise'",
+          "status": "'trial' | 'active' | 'past_due' | 'cancelled'",
+          "mrr": "number",
+          "trial_ends_at": "string | null",
+          "current_period_start": "string",
+          "current_period_end": "string",
+          "stripe_subscription_id": "string",
+          "created_at": "string",
+          "updated_at": "string"
+        }
+      },
+      "validation": {
+        "status": "✅ Synced"
+      }
+    },
+    {
+      "entity": "Invoice",
+      "database": {
+        "table": "invoices",
+        "columns": {
+          "id": "uuid PRIMARY KEY",
+          "university_id": "uuid REFERENCES universities(id) ON DELETE CASCADE",
+          "invoice_number": "varchar(100) UNIQUE",
+          "amount": "numeric(10,2)",
+          "tax": "numeric(10,2)",
+          "total": "numeric(10,2)",
+          "status": "varchar(50) DEFAULT 'open'",
+          "due_date": "timestamptz",
+          "paid_at": "timestamptz",
+          "stripe_invoice_id": "varchar(255)",
+          "pdf_url": "varchar(500)",
+          "created_at": "timestamptz",
+          "updated_at": "timestamptz"
+        }
+      },
+      "backend": {
+        "model": "App\\Models\\Invoice",
+        "fillable": [
+          "university_id",
+          "invoice_number",
+          "amount",
+          "tax",
+          "total",
+          "status",
+          "due_date",
+          "paid_at",
+          "stripe_invoice_id",
+          "pdf_url"
+        ]
+      },
+      "frontend": {
+        "type": "Invoice",
+        "definition": {
+          "id": "string",
+          "university_id": "string",
+          "invoice_number": "string",
+          "amount": "number",
+          "tax": "number",
+          "total": "number",
+          "status": "'open' | 'paid' | 'overdue' | 'failed'",
+          "due_date": "string",
+          "paid_at": "string | null",
+          "stripe_invoice_id": "string",
+          "pdf_url": "string | null",
+          "created_at": "string",
+          "updated_at": "string",
+          "university?": "University"
+        }
+      },
+      "validation": {
+        "status": "✅ Synced"
+      }
+    },
+    {
+      "entity": "GlobalSetting",
+      "database": {
+        "table": "global_settings",
+        "columns": {
+          "id": "uuid PRIMARY KEY",
+          "category": "varchar(100)",
+          "key": "varchar(100)",
+          "value": "text",
+          "type": "varchar(50) DEFAULT 'string'",
+          "is_encrypted": "boolean DEFAULT false",
+          "created_at": "timestamptz",
+          "updated_at": "timestamptz"
+        }
+      },
+      "backend": {
+        "model": "App\\Models\\GlobalSetting",
+        "fillable": [
+          "category",
+          "key",
+          "value",
+          "type",
+          "is_encrypted"
+        ],
+        "casts": {
+          "is_encrypted": "boolean",
+          "value": "encrypted"
+        }
+      },
+      "frontend": {
+        "type": "GlobalSetting",
+        "definition": {
+          "id": "string",
+          "category": "'general' | 'email' | 'security' | 'api'",
+          "key": "string",
+          "value": "string",
+          "type": "'string' | 'number' | 'boolean' | 'json'",
+          "is_encrypted": "boolean",
+          "created_at": "string",
+          "updated_at": "string"
+        }
+      },
+      "validation": {
+        "status": "✅ Synced"
+      }
+    },
+    {
+      "entity": "AuditLog",
+      "database": {
+        "table": "audit_logs",
+        "columns": {
+          "id": "uuid PRIMARY KEY",
+          "user_id": "uuid REFERENCES users(id) ON DELETE SET NULL",
+          "action": "varchar(100)",
+          "resource_type": "varchar(100)",
+          "resource_id": "uuid",
+          "changes": "jsonb",
+          "ip_address": "inet",
+          "user_agent": "text",
+          "created_at": "timestamptz"
+        }
+      },
+      "backend": {
+        "model": "Spatie\\Activitylog\\Models\\Activity",
+        "note": "Using Spatie Activity Log package"
+      },
+      "frontend": {
+        "type": "AuditLog",
+        "definition": {
+          "id": "string",
+          "user_id": "string | null",
+          "action": "string",
+          "resource_type": "string",
+          "resource_id": "string",
+          "changes": "Record<string, any>",
+          "ip_address": "string",
+          "user_agent": "string",
+          "created_at": "string",
+          "user?": "User"
+        }
+      },
+      "validation": {
+        "status": "✅ Synced"
+      }
+    },
+    {
+      "entity": "Alert",
+      "database": {
+        "table": "alerts",
+        "columns": {
+          "id": "uuid PRIMARY KEY",
+          "type": "varchar(100)",
+          "severity": "varchar(50)",
+          "university_id": "uuid REFERENCES universities(id) ON DELETE CASCADE",
+          "message": "text",
+          "is_acknowledged": "boolean DEFAULT false",
+          "acknowledged_by": "uuid REFERENCES users(id)",
+          "acknowledged_at": "timestamptz",
+          "resolved_at": "timestamptz",
+          "created_at": "timestamptz",
+          "updated_at": "timestamptz"
+        }
+      },
+      "backend": {
+        "model": "App\\Models\\Alert",
+        "fillable": [
+          "type",
+          "severity",
+          "university_id",
+          "message",
+          "is_acknowledged",
+          "acknowledged_by",
+          "acknowledged_at",
+          "resolved_at"
+        ]
+      },
+      "frontend": {
+        "type": "Alert",
+        "definition": {
+          "id": "string",
+          "type": "'security' | 'storage' | 'billing' | 'system'",
+          "severity": "'low' | 'medium' | 'high' | 'critical'",
+          "university_id": "string | null",
+          "message": "string",
+          "is_acknowledged": "boolean",
+          "acknowledged_by": "string | null",
+          "acknowledged_at": "string | null",
+          "resolved_at": "string | null",
+          "created_at": "string",
+          "updated_at": "string",
+          "university?": "University"
+        }
+      },
+      "validation": {
+        "status": "✅ Synced"
+      }
+    },
+    {
+      "entity": "User",
+      "database": {
+        "table": "users",
+        "columns": {
+          "id": "uuid PRIMARY KEY",
+          "university_id": "uuid REFERENCES universities(id) ON DELETE CASCADE",
+          "first_name": "varchar(100)",
+          "last_name": "varchar(100)",
+          "email": "varchar(255) UNIQUE",
+          "password": "varchar(255)",
+          "role": "varchar(50)",
+          "avatar_url": "varchar(500)",
+          "mfa_secret": "text",
+          "mfa_enabled": "boolean DEFAULT false",
+          "last_login_at": "timestamptz",
+          "created_at": "timestamptz",
+          "updated_at": "timestamptz"
+        }
+      },
+      "backend": {
+        "model": "App\\Models\\User",
+        "fillable": [
+          "university_id",
+          "first_name",
+          "last_name",
+          "email",
+          "password",
+          "role",
+          "avatar_url",
+          "mfa_secret",
+          "mfa_enabled",
+          "last_login_at"
+        ],
+        "hidden": [
+          "password",
+          "mfa_secret"
+        ]
+      },
+      "frontend": {
+        "type": "User",
+        "definition": {
+          "id": "string",
+          "university_id": "string | null",
+          "first_name": "string",
+          "last_name": "string",
+          "email": "string",
+          "role": "'bitflow_owner' | 'university_owner' | 'super_admin' | ...",
+          "avatar_url": "string | null",
+          "mfa_enabled": "boolean",
+          "last_login_at": "string | null",
+          "created_at": "string",
+          "updated_at": "string",
+          "full_name?": "string"
+        }
+      },
+      "validation": {
+        "status": "✅ Synced",
+        "notes": "password and mfa_secret excluded from frontend types"
+      }
+    },
+    {
+      "entity": "PlatformDashboard",
+      "database": {
+        "note": "Aggregated from multiple tables (not a single table)"
+      },
+      "backend": {
+        "file": "backend/app/Services/PlatformService.php",
+        "method": "getDashboardMetrics()",
+        "returns": [
+          "total_universities",
+          "active_universities",
+          "total_users",
+          "mrr",
+          "mrr_growth",
+          "total_storage_gb",
+          "used_storage_gb"
+        ]
+      },
+      "frontend": {
+        "type": "PlatformDashboard",
+        "definition": {
+          "total_universities": "number",
+          "active_universities": "number",
+          "total_users": "number",
+          "mrr": "number",
+          "mrr_growth": "number",
+          "total_storage_gb": "number",
+          "used_storage_gb": "number",
+          "recent_activities": "UniversityActivity[]",
+          "unresolved_alerts": "Alert[]"
+        }
+      },
+      "api_response": {
+        "endpoint": "GET /api/admin/dashboard",
+        "sample": {
+          "total_universities": 42,
+          "active_universities": 38,
+          "total_users": 12547,
+          "mrr": 105000,
+          "mrr_growth": 8.5,
+          "total_storage_gb": 21000,
+          "used_storage_gb": 8750,
+          "recent_activities": [],
+          "unresolved_alerts": []
+        }
+      },
+      "validation": {
+        "status": "✅ Synced"
+      }
+    }
+  ],
+  "enums": {
+    "university_status": {
+      "database": "varchar(50)",
+      "backend": "string",
+      "frontend": "'trial' | 'active' | 'inactive' | 'suspended'",
+      "values": [
+        "trial",
+        "active",
+        "inactive",
+        "suspended"
+      ],
+      "validation": "✅ Synced"
+    },
+    "subscription_plan": {
+      "database": "varchar(50)",
+      "backend": "string",
+      "frontend": "'basic' | 'pro' | 'enterprise'",
+      "values": [
+        "basic",
+        "pro",
+        "enterprise"
+      ],
+      "validation": "✅ Synced"
+    },
+    "subscription_status": {
+      "database": "varchar(50)",
+      "backend": "string",
+      "frontend": "'trial' | 'active' | 'past_due' | 'cancelled'",
+      "values": [
+        "trial",
+        "active",
+        "past_due",
+        "cancelled"
+      ],
+      "validation": "✅ Synced"
+    },
+    "invoice_status": {
+      "database": "varchar(50)",
+      "backend": "string",
+      "frontend": "'open' | 'paid' | 'overdue' | 'failed'",
+      "values": [
+        "open",
+        "paid",
+        "overdue",
+        "failed"
+      ],
+      "validation": "✅ Synced"
+    },
+    "alert_severity": {
+      "database": "varchar(50)",
+      "backend": "string",
+      "frontend": "'low' | 'medium' | 'high' | 'critical'",
+      "values": [
+        "low",
+        "medium",
+        "high",
+        "critical"
+      ],
+      "validation": "✅ Synced"
+    },
+    "alert_type": {
+      "database": "varchar(100)",
+      "backend": "string",
+      "frontend": "'security' | 'storage' | 'billing' | 'system'",
+      "values": [
+        "security",
+        "storage",
+        "billing",
+        "system"
+      ],
+      "validation": "✅ Synced"
+    },
+    "global_setting_category": {
+      "database": "varchar(100)",
+      "backend": "string",
+      "frontend": "'general' | 'email' | 'security' | 'api'",
+      "values": [
+        "general",
+        "email",
+        "security",
+        "api"
+      ],
+      "validation": "✅ Synced"
+    },
+    "user_role": {
+      "database": "varchar(50)",
+      "backend": "string",
+      "frontend": "'bitflow_owner' | 'university_owner' | 'super_admin' | 'principal' | ...",
+      "values": [
+        "bitflow_owner",
+        "university_owner",
+        "super_admin",
+        "principal",
+        "college_admin",
+        "super_academics",
+        "faculty",
+        "student",
+        "parent",
+        "admission_admin",
+        "super_accountant",
+        "college_accounts_admin",
+        "college_fee_admin",
+        "super_nt_manager"
+      ],
+      "validation": "✅ Synced"
+    }
+  },
+  "api_contracts": [
+    {
+      "endpoint": "GET /api/admin/universities",
+      "response_type": "University[]",
+      "status": "✅ Synced"
+    },
+    {
+      "endpoint": "POST /api/admin/universities",
+      "request_type": "CreateUniversityRequest",
+      "response_type": "University",
+      "status": "✅ Synced"
+    },
+    {
+      "endpoint": "PATCH /api/admin/universities/:id",
+      "request_type": "UpdateUniversityRequest",
+      "response_type": "University",
+      "status": "✅ Synced"
+    },
+    {
+      "endpoint": "DELETE /api/admin/universities/:id",
+      "response_type": "void (204)",
+      "status": "✅ Synced"
+    },
+    {
+      "endpoint": "GET /api/admin/dashboard",
+      "response_type": "PlatformDashboard",
+      "status": "✅ Synced"
+    },
+    {
+      "endpoint": "GET /api/admin/analytics",
+      "response_type": "AnalyticsData",
+      "status": "✅ Synced"
+    },
+    {
+      "endpoint": "GET /api/admin/billing/invoices",
+      "response_type": "Invoice[]",
+      "status": "✅ Synced"
+    },
+    {
+      "endpoint": "GET /api/admin/settings",
+      "response_type": "GlobalSetting[]",
+      "status": "✅ Synced"
+    },
+    {
+      "endpoint": "GET /api/admin/audit-logs",
+      "response_type": "AuditLog[]",
+      "status": "✅ Synced"
+    },
+    {
+      "endpoint": "GET /api/admin/alerts",
+      "response_type": "Alert[]",
+      "status": "✅ Synced"
+    }
+  ],
+  "validation_rules": {
+    "sync_frequency": "Check before each deployment",
+    "tools": [
+      "Manual review of db_schema.sql, backend models, frontend types",
+      "TypeScript compiler catches frontend type mismatches",
+      "Laravel validation rules enforce backend constraints",
+      "Database migrations enforce schema constraints"
+    ],
+    "checklist": [
+      "Run `php artisan test` to verify backend types",
+      "Run `pnpm tsc --noEmit` to verify frontend types",
+      "Compare API responses with TypeScript types using Postman",
+      "Check OpenAPI spec matches actual API responses"
+    ]
+  },
+  "notes": [
+    "All UUIDs are strings in TypeScript (not UUID type)",
+    "All timestamps are ISO 8601 strings in TypeScript (not Date objects)",
+    "Numeric fields (amounts, quotas) are 'number' in TypeScript, 'numeric' or 'integer' in PostgreSQL",
+    "Enum values must match exactly across all layers",
+    "Optional fields in TypeScript use '?' suffix (e.g., 'logo_url?: string | null')",
+    "Hidden fields (password, mfa_secret) are excluded from frontend types",
+    "Relationships are optional in TypeScript types (e.g., 'subscription?: Subscription')"
+  ]
+}
+

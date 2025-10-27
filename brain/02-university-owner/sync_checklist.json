@@ -1,0 +1,331 @@
+﻿{
+  "sync_checklist": {
+    "version": "2.0",
+    "portal": "University Owner",
+    "last_updated": "2025-10-25",
+    "type_definitions": {
+      "typescript": {
+        "path": "apps/university-owner/lib/types/",
+        "files": [
+          "college.ts",
+          "program.ts",
+          "faculty.ts",
+          "student.ts",
+          "admission.ts",
+          "financial.ts",
+          "common.ts"
+        ]
+      },
+      "php": {
+        "path": "bitflow-core/app/Models/",
+        "models": [
+          "College",
+          "Program",
+          "Department",
+          "Faculty",
+          "Student",
+          "AdmissionApplication",
+          "MeritList",
+          "FeeStructure",
+          "FeePayment",
+          "Expense",
+          "Scholarship",
+          "Leave"
+        ]
+      }
+    },
+    "entities": [
+      {
+        "name": "College",
+        "typescript_interface": "College",
+        "php_model": "App\\Models\\College",
+        "database_table": "colleges",
+        "fields": {
+          "id": "UUID | string",
+          "university_id": "UUID | string",
+          "name": "string",
+          "code": "string",
+          "address": "string",
+          "city": "string",
+          "state": "string",
+          "pincode": "string",
+          "phone": "string | null",
+          "email": "string",
+          "website": "string | null",
+          "logo": "string | null",
+          "established_year": "number | integer",
+          "student_capacity": "number | integer",
+          "principal_id": "UUID | string | null",
+          "status": "'active' | 'inactive'",
+          "created_at": "string (ISO 8601) | TIMESTAMPTZ",
+          "updated_at": "string (ISO 8601) | TIMESTAMPTZ"
+        },
+        "relationships": {
+          "principal": "User (BelongsTo)",
+          "departments": "Department[] (HasMany)",
+          "programs": "Program[] (HasMany)",
+          "students": "Student[] (HasMany)",
+          "faculty": "Faculty[] (HasMany)"
+        }
+      },
+      {
+        "name": "Program",
+        "fields": {
+          "id": "UUID | string",
+          "university_id": "UUID | string",
+          "college_id": "UUID | string",
+          "department_id": "UUID | string | null",
+          "name": "string",
+          "code": "string",
+          "degree_type": "'Undergraduate' | 'Postgraduate' | 'Diploma' | 'Certificate' | 'PhD'",
+          "duration_years": "number | integer",
+          "duration_semesters": "number | integer",
+          "total_credits": "number | integer",
+          "description": "string | null",
+          "eligibility_criteria": "string | null",
+          "seats_available": "number | integer",
+          "status": "'active' | 'inactive' | 'discontinued'"
+        }
+      },
+      {
+        "name": "Faculty",
+        "fields": {
+          "id": "UUID | string",
+          "user_id": "UUID | string",
+          "university_id": "UUID | string",
+          "college_id": "UUID | string",
+          "department_id": "UUID | string",
+          "designation": "'Professor' | 'Associate Professor' | 'Assistant Professor' | 'Lecturer' | 'Lab Assistant'",
+          "qualification": "string",
+          "specialization": "string | null",
+          "experience_years": "number | integer",
+          "date_of_joining": "string (YYYY-MM-DD) | DATE",
+          "employment_type": "'permanent' | 'contract' | 'visiting'",
+          "salary": "number (decimal) | NUMERIC(10,2)",
+          "phone": "string | null",
+          "status": "'active' | 'inactive' | 'on_leave'"
+        },
+        "relationships": {
+          "user": "User (BelongsTo)",
+          "college": "College (BelongsTo)",
+          "department": "Department (BelongsTo)",
+          "courses": "Course[] (BelongsToMany)",
+          "leaves": "Leave[] (HasMany)"
+        }
+      },
+      {
+        "name": "Student",
+        "fields": {
+          "id": "UUID | string",
+          "user_id": "UUID | string",
+          "university_id": "UUID | string",
+          "college_id": "UUID | string",
+          "program_id": "UUID | string",
+          "roll_number": "string",
+          "admission_year": "number | integer",
+          "current_year": "number | integer",
+          "current_semester": "number | integer",
+          "cgpa": "number (decimal) | NUMERIC(3,2)",
+          "attendance_percentage": "number (decimal) | NUMERIC(5,2)",
+          "status": "'active' | 'inactive' | 'graduated' | 'dropout' | 'transferred'"
+        }
+      },
+      {
+        "name": "AdmissionApplication",
+        "fields": {
+          "id": "UUID | string",
+          "university_id": "UUID | string",
+          "college_id": "UUID | string",
+          "program_id": "UUID | string",
+          "application_number": "string",
+          "name": "string",
+          "email": "string",
+          "phone": "string",
+          "date_of_birth": "string (YYYY-MM-DD) | DATE",
+          "gender": "string",
+          "previous_education": "object | JSONB",
+          "entrance_test_score": "number | null | NUMERIC(5,2)",
+          "status": "'pending' | 'under_review' | 'approved' | 'rejected' | 'waitlisted'",
+          "reviewed_by": "UUID | string | null",
+          "reviewed_at": "string (ISO 8601) | TIMESTAMPTZ | null",
+          "remarks": "string | null"
+        }
+      },
+      {
+        "name": "FeeStructure",
+        "fields": {
+          "id": "UUID | string",
+          "university_id": "UUID | string",
+          "college_id": "UUID | string",
+          "program_id": "UUID | string",
+          "academic_year": "string",
+          "tuition_fee": "number (decimal) | NUMERIC(10,2)",
+          "library_fee": "number (decimal) | NUMERIC(10,2)",
+          "lab_fee": "number (decimal) | NUMERIC(10,2)",
+          "sports_fee": "number (decimal) | NUMERIC(10,2)",
+          "other_fee": "number (decimal) | NUMERIC(10,2)",
+          "total_fee": "number (decimal) | NUMERIC(10,2)",
+          "payment_terms": "object | null | JSONB",
+          "status": "'active' | 'inactive'"
+        }
+      },
+      {
+        "name": "FeePayment",
+        "fields": {
+          "id": "UUID | string",
+          "university_id": "UUID | string",
+          "student_id": "UUID | string",
+          "fee_structure_id": "UUID | string",
+          "amount": "number (decimal) | NUMERIC(10,2)",
+          "payment_method": "'cash' | 'card' | 'upi' | 'netbanking' | 'cheque'",
+          "transaction_id": "string | null",
+          "status": "'pending' | 'paid' | 'failed' | 'refunded'",
+          "paid_at": "string (ISO 8601) | TIMESTAMPTZ | null"
+        }
+      },
+      {
+        "name": "Expense",
+        "fields": {
+          "id": "UUID | string",
+          "university_id": "UUID | string",
+          "college_id": "UUID | string | null",
+          "title": "string",
+          "description": "string | null",
+          "category": "string",
+          "amount": "number (decimal) | NUMERIC(10,2)",
+          "requested_by": "UUID | string",
+          "approved_by": "UUID | string | null",
+          "status": "'pending' | 'approved' | 'rejected' | 'paid'",
+          "approved_at": "string (ISO 8601) | TIMESTAMPTZ | null",
+          "paid_at": "string (ISO 8601) | TIMESTAMPTZ | null"
+        }
+      }
+    ],
+    "api_response_formats": {
+      "single_resource": {
+        "structure": "{ data: Entity }",
+        "example": "{ data: { id: 'uuid', name: 'Engineering College', ... } }"
+      },
+      "collection": {
+        "structure": "{ data: Entity[], meta: PaginationMeta }",
+        "example": "{ data: [...], meta: { current_page: 1, total: 50, per_page: 15 } }"
+      },
+      "error": {
+        "structure": "{ error: string, errors?: Record<string, string[]> }",
+        "example": "{ error: 'Validation failed', errors: { email: ['Email is required'] } }"
+      }
+    },
+    "validation_rules": {
+      "College": {
+        "name": "required, string, max:255",
+        "code": "required, string, max:10, unique within university",
+        "email": "required, email, max:255",
+        "established_year": "required, integer, min:1800, max:current_year"
+      },
+      "Faculty": {
+        "email": "required, email, unique in users table",
+        "designation": "required, enum",
+        "salary": "required, numeric, min:0",
+        "date_of_joining": "required, date"
+      },
+      "Student": {
+        "roll_number": "required, string, unique within university",
+        "cgpa": "nullable, numeric, min:0, max:10",
+        "attendance_percentage": "nullable, numeric, min:0, max:100"
+      }
+    },
+    "synchronization_checklist": [
+      {
+        "task": "Update TypeScript interfaces when PHP models change",
+        "frequency": "On model modification",
+        "responsible": "Backend Developer",
+        "verification": "Run `pnpm type-check` in frontend"
+      },
+      {
+        "task": "Sync API response structure with frontend types",
+        "frequency": "On API endpoint changes",
+        "responsible": "Full-stack Developer",
+        "verification": "Run integration tests"
+      },
+      {
+        "task": "Update validation rules in both FormRequest and Zod schemas",
+        "frequency": "On business rule changes",
+        "responsible": "Backend + Frontend Developers",
+        "verification": "Compare validation logic in both layers"
+      },
+      {
+        "task": "Sync enum values across TypeScript, PHP, and SQL",
+        "frequency": "On enum additions/changes",
+        "responsible": "Database Administrator",
+        "verification": "Search codebase for enum usage"
+      },
+      {
+        "task": "Update OpenAPI spec (api_spec.yaml) when endpoints change",
+        "frequency": "On API changes",
+        "responsible": "Backend Developer",
+        "verification": "Validate spec with Swagger Editor"
+      }
+    ],
+    "migration_checklist": [
+      {
+        "step": 1,
+        "action": "Create database migration",
+        "command": "php artisan make:migration create_table_name"
+      },
+      {
+        "step": 2,
+        "action": "Run migration",
+        "command": "php artisan migrate"
+      },
+      {
+        "step": 3,
+        "action": "Update PHP model",
+        "files": ["app/Models/ModelName.php"]
+      },
+      {
+        "step": 4,
+        "action": "Update TypeScript types",
+        "files": ["apps/university-owner/lib/types/entity.ts"]
+      },
+      {
+        "step": 5,
+        "action": "Update API resources",
+        "files": ["app/Http/Resources/EntityResource.php"]
+      },
+      {
+        "step": 6,
+        "action": "Update form validation",
+        "files": [
+          "app/Http/Requests/Owner/CreateEntityRequest.php",
+          "apps/university-owner/lib/schemas/entitySchema.ts"
+        ]
+      },
+      {
+        "step": 7,
+        "action": "Update tests",
+        "files": [
+          "tests/Feature/EntityTest.php",
+          "apps/university-owner/__tests__/entity.test.tsx"
+        ]
+      }
+    ],
+    "common_pitfalls": [
+      {
+        "issue": "Forgetting university_id on new tables",
+        "solution": "Always include in migration, add to UniversityScopedModel"
+      },
+      {
+        "issue": "Enum values out of sync",
+        "solution": "Create shared constants file referenced by all layers"
+      },
+      {
+        "issue": "TypeScript types not updated after API changes",
+        "solution": "Use code generation tool like openapi-typescript"
+      },
+      {
+        "issue": "Date format inconsistencies (JS vs PHP)",
+        "solution": "Always use ISO 8601 format, convert on frontend with date-fns"
+      }
+    ]
+  }
+}

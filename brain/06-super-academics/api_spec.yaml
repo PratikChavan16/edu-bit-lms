@@ -1,0 +1,1897 @@
+﻿openapi: 3.0.3
+info:
+  title: Super Academics Portal API
+  description: |
+    Complete API specification for Super Academics Portal covering curriculum management, academic quality assurance, 
+    accreditation, cross-college coordination, research tracking, and student outcome analytics.
+    
+    **Base URL (Production)**: https://api.bitflow.edu.in/super-academics
+    **Base URL (Staging)**: https://staging-api.bitflow.edu.in/super-academics
+    
+    **Authentication**: JWT Bearer Token
+    **Rate Limiting**: 1000 requests/hour per user
+    
+  version: 1.0.0
+  contact:
+    name: BitFlow API Support
+    email: api-support@bitflow.edu.in
+
+servers:
+  - url: https://api.bitflow.edu.in/super-academics
+    description: Production server
+  - url: https://staging-api.bitflow.edu.in/super-academics
+    description: Staging server
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Authentication
+    description: Login, logout, token refresh
+  - name: Curriculum Management
+    description: Curriculum proposals, approvals, version control
+  - name: Quality Assurance
+    description: Academic audits, teaching evaluations, compliance
+  - name: Accreditation
+    description: NAAC, NBA, AICTE compliance and reports
+  - name: Cross-College Coordination
+    description: Resource sharing, faculty exchange, joint programs
+  - name: Research & Innovation
+    description: Research projects, publications, patents
+  - name: Student Outcomes
+    description: Placement tracking, higher studies, alumni analytics
+  - name: Faculty Development
+    description: Training programs, certifications, performance
+  - name: Reports & Analytics
+    description: Dashboards, metrics, export capabilities
+
+paths:
+  # ============================================================
+  # AUTHENTICATION
+  # ============================================================
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login to Super Academics portal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: super.academics@university.edu
+                password:
+                  type: string
+                  format: password
+                  example: SecurePass123!
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...
+                  user:
+                    $ref: '#/components/schemas/User'
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: Logout from portal
+      responses:
+        '200':
+          description: Logout successful
+
+  /auth/refresh:
+    post:
+      tags: [Authentication]
+      summary: Refresh JWT token
+      responses:
+        '200':
+          description: Token refreshed
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+
+  # ============================================================
+  # CURRICULUM MANAGEMENT
+  # ============================================================
+  /curriculum/proposals:
+    get:
+      tags: [Curriculum Management]
+      summary: Get all curriculum proposals
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected, revision_requested]
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: academic_year
+          in: query
+          schema:
+            type: string
+            example: "2024-25"
+      responses:
+        '200':
+          description: List of curriculum proposals
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/CurriculumProposal'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+    post:
+      tags: [Curriculum Management]
+      summary: Create new curriculum proposal
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurriculumProposalCreate'
+      responses:
+        '201':
+          description: Proposal created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurriculumProposal'
+
+  /curriculum/proposals/{id}:
+    get:
+      tags: [Curriculum Management]
+      summary: Get curriculum proposal details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Proposal details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CurriculumProposal'
+
+    put:
+      tags: [Curriculum Management]
+      summary: Update curriculum proposal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/CurriculumProposalCreate'
+      responses:
+        '200':
+          description: Proposal updated
+
+  /curriculum/proposals/{id}/approve:
+    post:
+      tags: [Curriculum Management]
+      summary: Approve curriculum proposal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comments:
+                  type: string
+                  example: "Approved with minor modifications"
+      responses:
+        '200':
+          description: Proposal approved
+
+  /curriculum/proposals/{id}/reject:
+    post:
+      tags: [Curriculum Management]
+      summary: Reject curriculum proposal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+                  example: "Insufficient industry alignment"
+      responses:
+        '200':
+          description: Proposal rejected
+
+  /curriculum/courses:
+    get:
+      tags: [Curriculum Management]
+      summary: Get all courses across colleges
+      parameters:
+        - name: program_id
+          in: query
+          schema:
+            type: integer
+        - name: semester
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of courses
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Course'
+
+  /curriculum/co-po-mapping/{course_id}:
+    get:
+      tags: [Curriculum Management]
+      summary: Get CO-PO mapping for a course
+      parameters:
+        - name: course_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: CO-PO mapping matrix
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/COPOMapping'
+
+    put:
+      tags: [Curriculum Management]
+      summary: Update CO-PO mapping
+      parameters:
+        - name: course_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/COPOMapping'
+      responses:
+        '200':
+          description: Mapping updated
+
+  # ============================================================
+  # QUALITY ASSURANCE
+  # ============================================================
+  /quality/audits:
+    get:
+      tags: [Quality Assurance]
+      summary: Get all academic audits
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: semester
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [scheduled, completed, report_pending]
+      responses:
+        '200':
+          description: List of audits
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AcademicAudit'
+
+    post:
+      tags: [Quality Assurance]
+      summary: Schedule new academic audit
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AcademicAuditCreate'
+      responses:
+        '201':
+          description: Audit scheduled
+
+  /quality/audits/{id}/report:
+    post:
+      tags: [Quality Assurance]
+      summary: Submit audit report
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/AuditReport'
+      responses:
+        '200':
+          description: Report submitted
+
+  /quality/teaching-evaluations:
+    get:
+      tags: [Quality Assurance]
+      summary: Get teaching evaluation scores
+      parameters:
+        - name: faculty_id
+          in: query
+          schema:
+            type: integer
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: semester
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Evaluation scores
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/TeachingEvaluation'
+
+  /quality/feedback-analysis:
+    get:
+      tags: [Quality Assurance]
+      summary: Get aggregated student feedback analysis
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: semester
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Feedback analysis
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FeedbackAnalysis'
+
+  /quality/compliance-report:
+    get:
+      tags: [Quality Assurance]
+      summary: Get academic calendar compliance report
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: academic_year
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Compliance report
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ComplianceReport'
+
+  # ============================================================
+  # ACCREDITATION
+  # ============================================================
+  /accreditation/naac/criteria:
+    get:
+      tags: [Accreditation]
+      summary: Get NAAC 7 criteria data
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: academic_year
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: NAAC criteria data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NAACCriteriaData'
+
+  /accreditation/naac/ssr-generate:
+    post:
+      tags: [Accreditation]
+      summary: Generate NAAC Self-Study Report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [college_id, academic_year]
+              properties:
+                college_id:
+                  type: integer
+                academic_year:
+                  type: string
+                include_supporting_docs:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          description: SSR generated
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /accreditation/nba/programs:
+    get:
+      tags: [Accreditation]
+      summary: Get NBA accreditation status of programs
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Program accreditation status
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/NBAAccreditation'
+
+  /accreditation/nba/sar-generate:
+    post:
+      tags: [Accreditation]
+      summary: Generate NBA Self-Assessment Report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [program_id]
+              properties:
+                program_id:
+                  type: integer
+                include_attainment:
+                  type: boolean
+                  default: true
+      responses:
+        '200':
+          description: SAR generated
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /accreditation/documents:
+    get:
+      tags: [Accreditation]
+      summary: Get accreditation documents
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [naac, nba, aicte]
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Documents list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AccreditationDocument'
+
+    post:
+      tags: [Accreditation]
+      summary: Upload accreditation document
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              required: [file, type, criterion]
+              properties:
+                file:
+                  type: string
+                  format: binary
+                type:
+                  type: string
+                  enum: [naac, nba, aicte]
+                criterion:
+                  type: string
+                college_id:
+                  type: integer
+      responses:
+        '201':
+          description: Document uploaded
+
+  /accreditation/aqar:
+    get:
+      tags: [Accreditation]
+      summary: Get Annual Quality Assurance Report (AQAR)
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: academic_year
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: AQAR data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AQAR'
+
+  # ============================================================
+  # CROSS-COLLEGE COORDINATION
+  # ============================================================
+  /coordination/guest-faculty-requests:
+    get:
+      tags: [Cross-College Coordination]
+      summary: Get guest faculty requests
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected]
+      responses:
+        '200':
+          description: Guest faculty requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/GuestFacultyRequest'
+
+    post:
+      tags: [Cross-College Coordination]
+      summary: Create guest faculty request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/GuestFacultyRequestCreate'
+      responses:
+        '201':
+          description: Request created
+
+  /coordination/guest-faculty-requests/{id}/approve:
+    post:
+      tags: [Cross-College Coordination]
+      summary: Approve guest faculty request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Request approved
+
+  /coordination/resource-sharing:
+    get:
+      tags: [Cross-College Coordination]
+      summary: Get resource sharing requests (labs, equipment)
+      parameters:
+        - name: resource_type
+          in: query
+          schema:
+            type: string
+            enum: [lab, equipment, library]
+      responses:
+        '200':
+          description: Resource sharing requests
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ResourceSharingRequest'
+
+  /coordination/faculty-exchange:
+    get:
+      tags: [Cross-College Coordination]
+      summary: Get faculty exchange program applications
+      responses:
+        '200':
+          description: Faculty exchange applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FacultyExchange'
+
+    post:
+      tags: [Cross-College Coordination]
+      summary: Create faculty exchange application
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FacultyExchangeCreate'
+      responses:
+        '201':
+          description: Application created
+
+  /coordination/joint-programs:
+    get:
+      tags: [Cross-College Coordination]
+      summary: Get joint programs (inter-college electives)
+      responses:
+        '200':
+          description: Joint programs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/JointProgram'
+
+  # ============================================================
+  # RESEARCH & INNOVATION
+  # ============================================================
+  /research/projects:
+    get:
+      tags: [Research & Innovation]
+      summary: Get research projects across colleges
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [ongoing, completed, suspended]
+        - name: funding_agency
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Research projects
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ResearchProject'
+
+    post:
+      tags: [Research & Innovation]
+      summary: Register new research project
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ResearchProjectCreate'
+      responses:
+        '201':
+          description: Project registered
+
+  /research/publications:
+    get:
+      tags: [Research & Innovation]
+      summary: Get publications (journals, conferences)
+      parameters:
+        - name: faculty_id
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [journal, conference, book_chapter]
+      responses:
+        '200':
+          description: Publications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Publication'
+
+    post:
+      tags: [Research & Innovation]
+      summary: Add new publication
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/PublicationCreate'
+      responses:
+        '201':
+          description: Publication added
+
+  /research/patents:
+    get:
+      tags: [Research & Innovation]
+      summary: Get patent applications and grants
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [filed, published, granted]
+      responses:
+        '200':
+          description: Patents
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Patent'
+
+  /research/grants:
+    get:
+      tags: [Research & Innovation]
+      summary: Get research grants
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Research grants
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ResearchGrant'
+
+  /research/innovation-activities:
+    get:
+      tags: [Research & Innovation]
+      summary: Get innovation cell activities
+      responses:
+        '200':
+          description: Innovation activities
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InnovationActivity'
+
+  # ============================================================
+  # STUDENT OUTCOMES
+  # ============================================================
+  /outcomes/placements:
+    get:
+      tags: [Student Outcomes]
+      summary: Get placement statistics
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: program_id
+          in: query
+          schema:
+            type: integer
+        - name: academic_year
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Placement statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/PlacementStats'
+
+  /outcomes/higher-studies:
+    get:
+      tags: [Student Outcomes]
+      summary: Get higher studies statistics
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: academic_year
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Higher studies statistics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/HigherStudiesStats'
+
+  /outcomes/alumni-tracking:
+    get:
+      tags: [Student Outcomes]
+      summary: Get alumni success tracking
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: graduation_year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Alumni data
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AlumniRecord'
+
+  /outcomes/employer-feedback:
+    get:
+      tags: [Student Outcomes]
+      summary: Get employer feedback on graduates
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Employer feedback
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/EmployerFeedback'
+
+  /outcomes/skill-development:
+    get:
+      tags: [Student Outcomes]
+      summary: Get skill development metrics
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Skill metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/SkillDevelopmentMetrics'
+
+  # ============================================================
+  # FACULTY DEVELOPMENT
+  # ============================================================
+  /faculty-development/programs:
+    get:
+      tags: [Faculty Development]
+      summary: Get faculty development programs
+      parameters:
+        - name: type
+          in: query
+          schema:
+            type: string
+            enum: [workshop, certification, training]
+      responses:
+        '200':
+          description: FDP programs
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FacultyDevelopmentProgram'
+
+    post:
+      tags: [Faculty Development]
+      summary: Schedule new FDP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/FacultyDevelopmentProgramCreate'
+      responses:
+        '201':
+          description: FDP scheduled
+
+  /faculty-development/certifications:
+    get:
+      tags: [Faculty Development]
+      summary: Get faculty certifications
+      parameters:
+        - name: faculty_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Certifications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FacultyCertification'
+
+  /faculty-development/performance:
+    get:
+      tags: [Faculty Development]
+      summary: Get faculty performance metrics
+      parameters:
+        - name: faculty_id
+          in: query
+          schema:
+            type: integer
+        - name: academic_year
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Performance metrics
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacultyPerformance'
+
+  # ============================================================
+  # REPORTS & ANALYTICS
+  # ============================================================
+  /reports/dashboard:
+    get:
+      tags: [Reports & Analytics]
+      summary: Get Super Academics dashboard
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Dashboard'
+
+  /reports/academic-calendar:
+    get:
+      tags: [Reports & Analytics]
+      summary: Get university academic calendar
+      parameters:
+        - name: academic_year
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Academic calendar
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AcademicCalendar'
+
+  /reports/export:
+    post:
+      tags: [Reports & Analytics]
+      summary: Export report (PDF/Excel)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [report_type, format]
+              properties:
+                report_type:
+                  type: string
+                  enum: [curriculum, quality, accreditation, research, outcomes]
+                format:
+                  type: string
+                  enum: [pdf, excel]
+                filters:
+                  type: object
+      responses:
+        '200':
+          description: Report exported
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+# ============================================================
+# COMPONENTS
+# ============================================================
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [super_academics]
+        university_id:
+          type: integer
+
+    CurriculumProposal:
+      type: object
+      properties:
+        id:
+          type: integer
+        college_id:
+          type: integer
+        program_id:
+          type: integer
+        academic_year:
+          type: string
+        semester:
+          type: integer
+        status:
+          type: string
+          enum: [pending, approved, rejected, revision_requested]
+        proposal_details:
+          type: object
+        submitted_by:
+          type: integer
+        submitted_at:
+          type: string
+          format: date-time
+        reviewed_by:
+          type: integer
+        reviewed_at:
+          type: string
+          format: date-time
+        comments:
+          type: string
+
+    CurriculumProposalCreate:
+      type: object
+      required: [college_id, program_id, academic_year, proposal_details]
+      properties:
+        college_id:
+          type: integer
+        program_id:
+          type: integer
+        academic_year:
+          type: string
+        semester:
+          type: integer
+        proposal_details:
+          type: object
+          properties:
+            courses:
+              type: array
+              items:
+                type: object
+            rationale:
+              type: string
+            industry_feedback:
+              type: string
+
+    Course:
+      type: object
+      properties:
+        id:
+          type: integer
+        course_code:
+          type: string
+        course_name:
+          type: string
+        program_id:
+          type: integer
+        semester:
+          type: integer
+        credits:
+          type: integer
+        syllabus:
+          type: object
+        co_po_mapped:
+          type: boolean
+
+    COPOMapping:
+      type: object
+      properties:
+        course_id:
+          type: integer
+        course_outcomes:
+          type: array
+          items:
+            type: object
+            properties:
+              co_number:
+                type: string
+              description:
+                type: string
+        program_outcomes:
+          type: array
+          items:
+            type: object
+            properties:
+              po_number:
+                type: string
+              description:
+                type: string
+        mapping_matrix:
+          type: array
+          items:
+            type: object
+            properties:
+              co:
+                type: string
+              po:
+                type: string
+              correlation:
+                type: integer
+                minimum: 0
+                maximum: 3
+
+    AcademicAudit:
+      type: object
+      properties:
+        id:
+          type: integer
+        college_id:
+          type: integer
+        audit_type:
+          type: string
+          enum: [teaching_quality, infrastructure, examination, compliance]
+        scheduled_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [scheduled, completed, report_pending]
+        auditor_id:
+          type: integer
+        findings:
+          type: string
+
+    AcademicAuditCreate:
+      type: object
+      required: [college_id, audit_type, scheduled_date]
+      properties:
+        college_id:
+          type: integer
+        audit_type:
+          type: string
+        scheduled_date:
+          type: string
+          format: date
+        auditor_id:
+          type: integer
+
+    AuditReport:
+      type: object
+      required: [findings, score]
+      properties:
+        findings:
+          type: string
+        score:
+          type: number
+          minimum: 0
+          maximum: 5
+        recommendations:
+          type: string
+        attachments:
+          type: array
+          items:
+            type: string
+
+    TeachingEvaluation:
+      type: object
+      properties:
+        faculty_id:
+          type: integer
+        faculty_name:
+          type: string
+        college_id:
+          type: integer
+        semester:
+          type: string
+        student_feedback_score:
+          type: number
+        peer_review_score:
+          type: number
+        classroom_observation_score:
+          type: number
+        overall_score:
+          type: number
+
+    FeedbackAnalysis:
+      type: object
+      properties:
+        college_id:
+          type: integer
+        semester:
+          type: string
+        total_responses:
+          type: integer
+        average_score:
+          type: number
+        distribution:
+          type: object
+        top_performers:
+          type: array
+          items:
+            type: object
+        areas_of_improvement:
+          type: array
+          items:
+            type: string
+
+    ComplianceReport:
+      type: object
+      properties:
+        college_id:
+          type: integer
+        academic_year:
+          type: string
+        total_activities:
+          type: integer
+        completed_on_time:
+          type: integer
+        delayed:
+          type: integer
+        compliance_percentage:
+          type: number
+
+    NAACCriteriaData:
+      type: object
+      properties:
+        college_id:
+          type: integer
+        academic_year:
+          type: string
+        criteria:
+          type: array
+          items:
+            type: object
+            properties:
+              criterion_number:
+                type: integer
+              criterion_name:
+                type: string
+              score:
+                type: number
+              data_points:
+                type: object
+
+    NBAAccreditation:
+      type: object
+      properties:
+        program_id:
+          type: integer
+        program_name:
+          type: string
+        college_id:
+          type: integer
+        accreditation_status:
+          type: string
+          enum: [accredited, not_accredited, under_review, expired]
+        valid_till:
+          type: string
+          format: date
+        grade:
+          type: string
+
+    AccreditationDocument:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [naac, nba, aicte]
+        criterion:
+          type: string
+        file_name:
+          type: string
+        file_url:
+          type: string
+        uploaded_at:
+          type: string
+          format: date-time
+
+    AQAR:
+      type: object
+      properties:
+        college_id:
+          type: integer
+        academic_year:
+          type: string
+        aqar_data:
+          type: object
+          properties:
+            student_enrollment:
+              type: integer
+            faculty_count:
+              type: integer
+            research_publications:
+              type: integer
+            infrastructure_additions:
+              type: array
+              items:
+                type: string
+
+    GuestFacultyRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        requesting_college_id:
+          type: integer
+        providing_college_id:
+          type: integer
+        faculty_id:
+          type: integer
+        subject:
+          type: string
+        duration:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+
+    GuestFacultyRequestCreate:
+      type: object
+      required: [requesting_college_id, subject, duration]
+      properties:
+        requesting_college_id:
+          type: integer
+        providing_college_id:
+          type: integer
+        faculty_id:
+          type: integer
+        subject:
+          type: string
+        duration:
+          type: string
+
+    ResourceSharingRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        requesting_college_id:
+          type: integer
+        resource_type:
+          type: string
+          enum: [lab, equipment, library]
+        resource_name:
+          type: string
+        requested_date:
+          type: string
+          format: date
+        status:
+          type: string
+
+    FacultyExchange:
+      type: object
+      properties:
+        id:
+          type: integer
+        faculty_id:
+          type: integer
+        from_college_id:
+          type: integer
+        to_college_id:
+          type: integer
+        duration:
+          type: string
+        start_date:
+          type: string
+          format: date
+        status:
+          type: string
+
+    FacultyExchangeCreate:
+      type: object
+      required: [faculty_id, to_college_id, duration, start_date]
+      properties:
+        faculty_id:
+          type: integer
+        to_college_id:
+          type: integer
+        duration:
+          type: string
+        start_date:
+          type: string
+          format: date
+
+    JointProgram:
+      type: object
+      properties:
+        id:
+          type: integer
+        program_name:
+          type: string
+        participating_colleges:
+          type: array
+          items:
+            type: integer
+        coordinator_id:
+          type: integer
+
+    ResearchProject:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        principal_investigator:
+          type: integer
+        college_id:
+          type: integer
+        funding_agency:
+          type: string
+        grant_amount:
+          type: number
+        start_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [ongoing, completed, suspended]
+
+    ResearchProjectCreate:
+      type: object
+      required: [title, principal_investigator, college_id]
+      properties:
+        title:
+          type: string
+        principal_investigator:
+          type: integer
+        college_id:
+          type: integer
+        funding_agency:
+          type: string
+        grant_amount:
+          type: number
+        start_date:
+          type: string
+          format: date
+
+    Publication:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        authors:
+          type: array
+          items:
+            type: integer
+        type:
+          type: string
+          enum: [journal, conference, book_chapter]
+        venue:
+          type: string
+        year:
+          type: integer
+        doi:
+          type: string
+        scopus_indexed:
+          type: boolean
+
+    PublicationCreate:
+      type: object
+      required: [title, authors, type, venue, year]
+      properties:
+        title:
+          type: string
+        authors:
+          type: array
+          items:
+            type: integer
+        type:
+          type: string
+        venue:
+          type: string
+        year:
+          type: integer
+        doi:
+          type: string
+
+    Patent:
+      type: object
+      properties:
+        id:
+          type: integer
+        title:
+          type: string
+        inventors:
+          type: array
+          items:
+            type: integer
+        application_number:
+          type: string
+        filing_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [filed, published, granted]
+
+    ResearchGrant:
+      type: object
+      properties:
+        id:
+          type: integer
+        project_id:
+          type: integer
+        funding_agency:
+          type: string
+        amount:
+          type: number
+        grant_date:
+          type: string
+          format: date
+
+    InnovationActivity:
+      type: object
+      properties:
+        id:
+          type: integer
+        activity_name:
+          type: string
+        college_id:
+          type: integer
+        date:
+          type: string
+          format: date
+        participants:
+          type: integer
+
+    PlacementStats:
+      type: object
+      properties:
+        college_id:
+          type: integer
+        program_id:
+          type: integer
+        academic_year:
+          type: string
+        total_students:
+          type: integer
+        students_placed:
+          type: integer
+        placement_percentage:
+          type: number
+        average_package:
+          type: number
+        highest_package:
+          type: number
+        top_recruiters:
+          type: array
+          items:
+            type: string
+
+    HigherStudiesStats:
+      type: object
+      properties:
+        college_id:
+          type: integer
+        academic_year:
+          type: string
+        total_students:
+          type: integer
+        pursuing_higher_studies:
+          type: integer
+        universities:
+          type: array
+          items:
+            type: string
+
+    AlumniRecord:
+      type: object
+      properties:
+        id:
+          type: integer
+        student_id:
+          type: integer
+        graduation_year:
+          type: integer
+        current_position:
+          type: string
+        company:
+          type: string
+        achievements:
+          type: array
+          items:
+            type: string
+
+    EmployerFeedback:
+      type: object
+      properties:
+        id:
+          type: integer
+        employer_name:
+          type: string
+        college_id:
+          type: integer
+        feedback_date:
+          type: string
+          format: date
+        rating:
+          type: number
+        comments:
+          type: string
+
+    SkillDevelopmentMetrics:
+      type: object
+      properties:
+        college_id:
+          type: integer
+        total_students:
+          type: integer
+        certifications_completed:
+          type: integer
+        internships_completed:
+          type: integer
+        projects_completed:
+          type: integer
+
+    FacultyDevelopmentProgram:
+      type: object
+      properties:
+        id:
+          type: integer
+        program_name:
+          type: string
+        type:
+          type: string
+          enum: [workshop, certification, training]
+        start_date:
+          type: string
+          format: date
+        duration_days:
+          type: integer
+        participants:
+          type: array
+          items:
+            type: integer
+
+    FacultyDevelopmentProgramCreate:
+      type: object
+      required: [program_name, type, start_date, duration_days]
+      properties:
+        program_name:
+          type: string
+        type:
+          type: string
+        start_date:
+          type: string
+          format: date
+        duration_days:
+          type: integer
+
+    FacultyCertification:
+      type: object
+      properties:
+        id:
+          type: integer
+        faculty_id:
+          type: integer
+        certification_name:
+          type: string
+        issuing_authority:
+          type: string
+        issue_date:
+          type: string
+          format: date
+        validity:
+          type: string
+
+    FacultyPerformance:
+      type: object
+      properties:
+        faculty_id:
+          type: integer
+        academic_year:
+          type: string
+        teaching_score:
+          type: number
+        research_publications:
+          type: integer
+        projects_guided:
+          type: integer
+        overall_rating:
+          type: number
+
+    Dashboard:
+      type: object
+      properties:
+        total_colleges:
+          type: integer
+        total_programs:
+          type: integer
+        pending_curriculum_approvals:
+          type: integer
+        scheduled_audits:
+          type: integer
+        research_projects:
+          type: integer
+        overall_placement_rate:
+          type: number
+        naac_score:
+          type: number
+
+    AcademicCalendar:
+      type: object
+      properties:
+        academic_year:
+          type: string
+        events:
+          type: array
+          items:
+            type: object
+            properties:
+              event_name:
+                type: string
+              date:
+                type: string
+                format: date
+              type:
+                type: string
+
+    PaginationMeta:
+      type: object
+      properties:
+        current_page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        last_page:
+          type: integer
+
+  responses:
+    Unauthorized:
+      description: Unauthorized - Invalid or missing token
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: Unauthorized
+
+    Forbidden:
+      description: Forbidden - Insufficient permissions
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: Forbidden
+
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              message:
+                type: string
+                example: Resource not found

@@ -1,0 +1,741 @@
+﻿openapi: 3.1.0
+info:
+  title: Admission Admin Portal API
+  description: |
+    Complete API specification for Admission Admin Portal managing 50,000+ applications per year.
+    
+    **Features**:
+    - Application submission & management (50K+ applications/year)
+    - Document verification with OCR (AWS Textract, 95% accuracy)
+    - Merit list generation with category quotas (OBC 27%, SC 15%, ST 7.5%)
+    - Seat allocation algorithm (multi-round counseling)
+    - Payment processing (Razorpay, HDFC - ₹12 Crores annually)
+    - Bulk notifications (50K emails/SMS via AWS SES, Twilio)
+    
+    **Authentication**: JWT Bearer tokens (RS256)
+    **Rate Limiting**: 100 req/min per endpoint
+    **Base URL**: https://admission-api.institution.edu
+  version: 2.0.0
+  contact:
+    name: API Support
+    email: api@institution.edu
+  license:
+    name: Proprietary
+    
+servers:
+  - url: https://admission-api.institution.edu/api
+    description: Production server
+  - url: https://staging-admission-api.institution.edu/api
+    description: Staging server
+  - url: http://localhost:8010/api
+    description: Development server
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Applications
+    description: Application submission and management
+  - name: Documents
+    description: Document upload and verification
+  - name: Merit Lists
+    description: Merit list generation and publication
+  - name: Seat Allocation
+    description: Counseling and seat allocation
+  - name: Payments
+    description: Payment processing and reconciliation
+  - name: Communications
+    description: Email/SMS notifications
+  - name: Reports
+    description: Analytics and reporting
+  - name: Staff
+    description: Staff management and permissions
+  - name: Settings
+    description: System configuration
+
+paths:
+  /health:
+    get:
+      summary: Health check
+      tags: [Health]
+      security: []
+      responses:
+        '200':
+          description: Service healthy
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  status:
+                    type: string
+                    example: ok
+                  version:
+                    type: string
+                    example: 2.0.0
+                  database:
+                    type: string
+                    example: connected
+
+  /auth/login:
+    post:
+      summary: Admin login
+      tags: [Auth]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: admin@institution.edu
+                password:
+                  type: string
+                  format: password
+                  example: Admin@12345
+                mfa_code:
+                  type: string
+                  pattern: '^[0-9]{6}$'
+                  example: '123456'
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+                  token_type:
+                    type: string
+                    example: Bearer
+                  expires_in:
+                    type: integer
+                    example: 7200
+                  staff:
+                    $ref: '#/components/schemas/Staff'
+
+  /applications:
+    get:
+      summary: List applications
+      tags: [Applications]
+      parameters:
+        - name: page
+          in: query
+          schema:
+            type: integer
+            default: 1
+        - name: per_page
+          in: query
+          schema:
+            type: integer
+            default: 50
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [submitted, under_verification, verified, rejected, admitted]
+        - name: program
+          in: query
+          schema:
+            type: string
+            example: B.Tech CSE
+        - name: category
+          in: query
+          schema:
+            type: string
+            enum: [general, obc, sc, st]
+        - name: search
+          in: query
+          schema:
+            type: string
+            example: Rahul Sharma
+      responses:
+        '200':
+          description: Applications list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Application'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+    
+    post:
+      summary: Create application (applicant-facing, separate portal)
+      tags: [Applications]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/ApplicationCreate'
+      responses:
+        '201':
+          description: Application created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Application'
+
+  /applications/{id}:
+    get:
+      summary: Get application details
+      tags: [Applications]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: ADM-2024-001234
+      responses:
+        '200':
+          description: Application details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/ApplicationDetail'
+
+    patch:
+      summary: Update application
+      tags: [Applications]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                status:
+                  type: string
+                  enum: [submitted, under_verification, verified, rejected]
+                notes:
+                  type: string
+      responses:
+        '200':
+          description: Application updated
+
+  /documents/assign:
+    post:
+      summary: Assign documents to verifier
+      tags: [Documents]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [verifier_id, application_ids]
+              properties:
+                verifier_id:
+                  type: string
+                  example: STAFF-2024-00045
+                application_ids:
+                  type: array
+                  items:
+                    type: string
+                  example: ['ADM-2024-001234', 'ADM-2024-001235']
+      responses:
+        '200':
+          description: Documents assigned
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  assigned_count:
+                    type: integer
+                    example: 10
+
+  /documents/{id}/verify:
+    post:
+      summary: Verify document
+      tags: [Documents]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision:
+                  type: string
+                  enum: [approve, reject, request_reupload]
+                comments:
+                  type: string
+                  example: Document verified, all details match
+                ocr_data:
+                  type: object
+                  additionalProperties: true
+      responses:
+        '200':
+          description: Document verified
+
+  /documents/{id}/ocr:
+    post:
+      summary: Process document with OCR
+      tags: [Documents]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: OCR processing complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  ocr_result:
+                    type: object
+                    properties:
+                      name:
+                        type: object
+                        properties:
+                          text:
+                            type: string
+                            example: RAHUL SHARMA
+                          confidence:
+                            type: number
+                            example: 0.98
+                      percentage:
+                        type: object
+                        properties:
+                          text:
+                            type: string
+                            example: '92.4'
+                          confidence:
+                            type: number
+                            example: 0.95
+
+  /merit-lists:
+    get:
+      summary: List merit lists
+      tags: [Merit Lists]
+      responses:
+        '200':
+          description: Merit lists
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/MeritList'
+    
+    post:
+      summary: Generate merit list
+      tags: [Merit Lists]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [program, academic_year, round]
+              properties:
+                program:
+                  type: string
+                  example: B.Tech CSE
+                academic_year:
+                  type: string
+                  example: 2024-2025
+                round:
+                  type: integer
+                  example: 1
+                formula:
+                  type: object
+                  properties:
+                    entrance_weight:
+                      type: number
+                      example: 0.6
+                    hsc_weight:
+                      type: number
+                      example: 0.3
+                    extra_weight:
+                      type: number
+                      example: 0.1
+      responses:
+        '201':
+          description: Merit list generated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MeritList'
+
+  /merit-lists/{id}/publish:
+    post:
+      summary: Publish merit list
+      tags: [Merit Lists]
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Merit list published
+
+  /seat-allocation/run:
+    post:
+      summary: Run seat allocation algorithm
+      tags: [Seat Allocation]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [merit_list_id, round]
+              properties:
+                merit_list_id:
+                  type: string
+                round:
+                  type: integer
+                  example: 1
+      responses:
+        '200':
+          description: Seat allocation complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  allocated_count:
+                    type: integer
+                    example: 287
+                  waitlist_count:
+                    type: integer
+                    example: 13
+
+  /payments/create-order:
+    post:
+      summary: Create payment order
+      tags: [Payments]
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [application_id, amount]
+              properties:
+                application_id:
+                  type: string
+                  example: ADM-2024-001234
+                amount:
+                  type: number
+                  example: 1500
+                gateway:
+                  type: string
+                  enum: [razorpay, hdfc]
+                  default: razorpay
+      responses:
+        '200':
+          description: Payment order created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  order_id:
+                    type: string
+                    example: order_NXQxQxXxXxXxXx
+                  amount:
+                    type: number
+                    example: 150000
+                  currency:
+                    type: string
+                    example: INR
+                  payment_url:
+                    type: string
+                    example: https://payment.razorpay.com/...
+
+  /payments/reconcile:
+    post:
+      summary: Reconcile payments with gateway
+      tags: [Payments]
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date:
+                  type: string
+                  format: date
+                  example: '2024-06-25'
+      responses:
+        '200':
+          description: Reconciliation complete
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  matched_count:
+                    type: integer
+                    example: 1247
+                  mismatched_count:
+                    type: integer
+                    example: 3
+
+  /communications/send:
+    post:
+      summary: Send bulk notification
+      tags: [Communications]
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [channel, recipient_group, message]
+              properties:
+                channel:
+                  type: array
+                  items:
+                    type: string
+                    enum: [email, sms, whatsapp]
+                  example: [email, sms]
+                recipient_group:
+                  type: string
+                  enum: [all, verified, merit_list_selected, counseling_eligible]
+                  example: merit_list_selected
+                template_id:
+                  type: string
+                  example: counseling_reminder
+                message:
+                  type: object
+                  properties:
+                    subject:
+                      type: string
+                    body:
+                      type: string
+      responses:
+        '200':
+          description: Notifications queued
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  queued_count:
+                    type: integer
+                    example: 300
+                  estimated_cost:
+                    type: number
+                    example: 1800
+
+  /reports/applications:
+    get:
+      summary: Application statistics report
+      tags: [Reports]
+      parameters:
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Application statistics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_applications:
+                    type: integer
+                    example: 52847
+                  by_program:
+                    type: object
+                    additionalProperties:
+                      type: integer
+                  by_category:
+                    type: object
+                    additionalProperties:
+                      type: integer
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+      
+  schemas:
+    Application:
+      type: object
+      properties:
+        id:
+          type: string
+          example: ADM-2024-001234
+        name:
+          type: string
+          example: Rahul Sharma
+        email:
+          type: string
+          format: email
+        mobile:
+          type: string
+          example: '9876543210'
+        program:
+          type: string
+          example: B.Tech CSE
+        category:
+          type: string
+          enum: [general, obc, sc, st]
+        status:
+          type: string
+          enum: [submitted, under_verification, verified, rejected, admitted]
+        payment_status:
+          type: string
+          enum: [pending, paid, failed, refunded]
+        created_at:
+          type: string
+          format: date-time
+    
+    ApplicationDetail:
+      allOf:
+        - $ref: '#/components/schemas/Application'
+        - type: object
+          properties:
+            dob:
+              type: string
+              format: date
+            aadhar:
+              type: string
+              example: XXXX-XXXX-1234
+            entrance_score:
+              type: number
+              example: 288
+            hsc_percentage:
+              type: number
+              example: 92.4
+            documents:
+              type: array
+              items:
+                $ref: '#/components/schemas/Document'
+    
+    ApplicationCreate:
+      type: object
+      required: [name, email, mobile, dob, program, category]
+      properties:
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        mobile:
+          type: string
+        dob:
+          type: string
+          format: date
+        aadhar:
+          type: string
+        program:
+          type: string
+        category:
+          type: string
+    
+    Document:
+      type: object
+      properties:
+        id:
+          type: string
+        type:
+          type: string
+          enum: [hsc_marksheet, school_lc, aadhar_card, caste_certificate, income_certificate]
+        status:
+          type: string
+          enum: [pending, verified, rejected]
+        url:
+          type: string
+        verified_by:
+          type: string
+        verified_at:
+          type: string
+          format: date-time
+    
+    MeritList:
+      type: object
+      properties:
+        id:
+          type: string
+        program:
+          type: string
+        academic_year:
+          type: string
+        round:
+          type: integer
+        status:
+          type: string
+          enum: [draft, published]
+        total_applicants:
+          type: integer
+        cutoff_score:
+          type: number
+        published_at:
+          type: string
+          format: date-time
+    
+    Staff:
+      type: object
+      properties:
+        id:
+          type: string
+          example: STAFF-2024-00045
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [senior_admission_officer, document_verification_coordinator, document_verifier, merit_list_manager]
+    
+    PaginationMeta:
+      type: object
+      properties:
+        current_page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        last_page:
+          type: integer

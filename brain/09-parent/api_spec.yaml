@@ -1,0 +1,881 @@
+﻿openapi: 3.1.0
+info:
+  title: Parent Portal API
+  version: 2.0.0
+  description: |
+    Parent Portal API enables parents/guardians to monitor their children's academic progress,
+    attendance, grades, fee payments, and communicate with teachers.
+    
+    **Key Features**:
+    - Multi-child management (average 1.5 children per parent)
+    - Real-time attendance notifications
+    - Secure parent-child linking with verification
+    - Integrated fee payment (Razorpay, PhonePe, UPI)
+    - FERPA/COPPA compliant with audit logging
+    - Mobile-first (85% usage via mobile app)
+    
+  contact:
+    name: Parent Portal API Support
+    email: parent-api@institution.edu
+  license:
+    name: Proprietary
+    
+servers:
+  - url: https://api.institution.edu/parent/v1
+    description: Production server
+  - url: https://staging-api.institution.edu/parent/v1
+    description: Staging server
+  - url: http://localhost:8009/api/v1
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Authentication
+    description: Parent registration, login, OTP verification, 2FA
+  - name: Parent-Child Linking
+    description: Link/unlink children, verify linking codes
+  - name: Children
+    description: View linked children information
+  - name: Attendance
+    description: View child attendance records
+  - name: Grades
+    description: View child grades and report cards
+  - name: Fees
+    description: View pending fees and payment history
+  - name: Payments
+    description: Initiate payments, verify payment status
+  - name: Messages
+    description: Communication with teachers and staff
+  - name: Notifications
+    description: Push notification preferences
+  - name: Profile
+    description: Parent profile management
+
+paths:
+  /auth/register:
+    post:
+      tags: [Authentication]
+      summary: Register new parent account
+      description: |
+        Register a new parent using mobile number. Sends OTP for verification.
+        Rate limited to 5 attempts per hour per mobile number.
+      operationId: registerParent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mobile
+              properties:
+                mobile:
+                  type: string
+                  pattern: '^\+\d{1,3}-\d{10}$'
+                  example: '+91-9876543210'
+                  description: Mobile number with country code
+                name:
+                  type: string
+                  minLength: 2
+                  maxLength: 100
+                  example: 'Rajesh Kumar'
+                email:
+                  type: string
+                  format: email
+                  example: 'rajesh@example.com'
+      responses:
+        '201':
+          description: Registration initiated, OTP sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  parent_id:
+                    type: string
+                    format: uuid
+                    example: 'PAR-2024-00567'
+                  mobile:
+                    type: string
+                    example: '+91-9876543210'
+                  otp_sent:
+                    type: boolean
+                    example: true
+                  otp_expires_at:
+                    type: string
+                    format: date-time
+                    example: '2025-10-25T10:35:00Z'
+                  message:
+                    type: string
+                    example: 'OTP sent to your mobile number'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '429':
+          $ref: '#/components/responses/TooManyRequests'
+
+  /auth/verify-otp:
+    post:
+      tags: [Authentication]
+      summary: Verify OTP and complete registration
+      description: Verify 6-digit OTP. Max 3 attempts allowed.
+      operationId: verifyOTP
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mobile
+                - otp
+              properties:
+                mobile:
+                  type: string
+                  example: '+91-9876543210'
+                otp:
+                  type: string
+                  pattern: '^\d{6}$'
+                  example: '123456'
+      responses:
+        '200':
+          description: OTP verified, account created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  access_token:
+                    type: string
+                    example: 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...'
+                  refresh_token:
+                    type: string
+                    example: 'eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...'
+                  token_type:
+                    type: string
+                    example: 'Bearer'
+                  expires_in:
+                    type: integer
+                    example: 7200
+                    description: Access token expiry in seconds
+                  parent:
+                    $ref: '#/components/schemas/Parent'
+        '400':
+          $ref: '#/components/responses/BadRequest'
+        '401':
+          description: Invalid OTP
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  error:
+                    type: string
+                    example: 'invalid_otp'
+                  message:
+                    type: string
+                    example: 'Invalid OTP. 2 attempts remaining.'
+                  attempts_remaining:
+                    type: integer
+                    example: 2
+
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login with mobile number
+      description: Initiate login, sends OTP
+      operationId: loginParent
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - mobile
+              properties:
+                mobile:
+                  type: string
+                  example: '+91-9876543210'
+      responses:
+        '200':
+          description: OTP sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  otp_sent:
+                    type: boolean
+                    example: true
+                  expires_at:
+                    type: string
+                    format: date-time
+
+  /children/link:
+    post:
+      tags: [Parent-Child Linking]
+      summary: Link child to parent account
+      description: |
+        Link a child using school-generated code or request admin approval.
+        Link becomes active after 24 hours (fraud prevention).
+      operationId: linkChild
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - method
+              properties:
+                method:
+                  type: string
+                  enum: [code, admin_approval]
+                  example: 'code'
+                linking_code:
+                  type: string
+                  pattern: '^[A-Z0-9]{7}$'
+                  example: 'ABC1234'
+                  description: Required if method=code
+                student_id:
+                  type: string
+                  example: 'STU-2024-00123'
+                  description: Required if method=admin_approval
+                relationship:
+                  type: string
+                  enum: [father, mother, guardian, other]
+                  example: 'father'
+                documents:
+                  type: array
+                  items:
+                    type: string
+                    format: uri
+                  description: Document URLs (Aadhar, birth certificate) for admin_approval
+      responses:
+        '202':
+          description: Link request accepted, will be active in 24 hours
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  link_id:
+                    type: string
+                    format: uuid
+                  student_id:
+                    type: string
+                    example: 'STU-2024-00123'
+                  student_name:
+                    type: string
+                    example: 'Aarav Kumar'
+                  status:
+                    type: string
+                    enum: [pending_activation, pending_approval]
+                    example: 'pending_activation'
+                  activates_at:
+                    type: string
+                    format: date-time
+                    example: '2025-10-26T10:30:00Z'
+                  message:
+                    type: string
+                    example: 'Child link will be active in 24 hours'
+        '400':
+          description: Invalid linking code or max parents exceeded
+        '403':
+          $ref: '#/components/responses/Forbidden'
+
+  /children:
+    get:
+      tags: [Children]
+      summary: Get all linked children
+      description: Returns all children linked to the parent with permissions
+      operationId: getLinkedChildren
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: List of linked children
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  children:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Child'
+
+  /children/{student_id}/attendance:
+    get:
+      tags: [Attendance]
+      summary: Get child attendance records
+      description: Returns attendance records for specified date range (max 90 days)
+      operationId: getChildAttendance
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+            example: 'STU-2024-00123'
+        - name: from
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+            example: '2025-10-01'
+        - name: to
+          in: query
+          required: false
+          schema:
+            type: string
+            format: date
+            example: '2025-10-31'
+      responses:
+        '200':
+          description: Attendance records
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/AttendanceResponse'
+        '403':
+          description: Parent not linked to this child
+        '404':
+          description: Student not found
+
+  /children/{student_id}/grades:
+    get:
+      tags: [Grades]
+      summary: Get child grades
+      description: Returns grades for specified semester/year
+      operationId: getChildGrades
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: string
+        - name: semester
+          in: query
+          schema:
+            type: integer
+            minimum: 1
+            maximum: 2
+            example: 1
+        - name: year
+          in: query
+          schema:
+            type: integer
+            example: 2025
+      responses:
+        '200':
+          description: Grade details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/GradesResponse'
+        '403':
+          description: Parent does not have view_grades permission
+
+  /fees/pending:
+    get:
+      tags: [Fees]
+      summary: Get pending fees for all children
+      description: Returns all pending fees across linked children
+      operationId: getPendingFees
+      security:
+        - BearerAuth: []
+      parameters:
+        - name: student_id
+          in: query
+          required: false
+          schema:
+            type: string
+          description: Filter by specific child
+      responses:
+        '200':
+          description: Pending fees
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  children:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        student_id:
+                          type: string
+                        student_name:
+                          type: string
+                        pending_fees:
+                          type: array
+                          items:
+                            $ref: '#/components/schemas/Fee'
+                        total_pending:
+                          type: number
+                          format: decimal
+                          example: 15500.00
+                  grand_total:
+                    type: number
+                    format: decimal
+                    example: 28000.00
+                  currency:
+                    type: string
+                    example: 'INR'
+
+  /payments/initiate:
+    post:
+      tags: [Payments]
+      summary: Initiate fee payment
+      description: |
+        Creates payment order with Razorpay/PhonePe.
+        Returns payment URL for redirect flow or order ID for SDK integration.
+      operationId: initiatePayment
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - fee_ids
+                - payment_method
+              properties:
+                fee_ids:
+                  type: array
+                  items:
+                    type: string
+                  example: ['FEE-2024-00789', 'FEE-2024-00790']
+                payment_method:
+                  type: string
+                  enum: [razorpay, phonepe, upi]
+                  example: 'razorpay'
+                return_url:
+                  type: string
+                  format: uri
+                  example: 'https://parent.institution.edu/payment/callback'
+      responses:
+        '201':
+          description: Payment order created
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payment_id:
+                    type: string
+                    example: 'PAY-2024-003456'
+                  razorpay_order_id:
+                    type: string
+                    example: 'order_O1A2B3C4D5E6F7'
+                  amount:
+                    type: number
+                    example: 15500.00
+                  currency:
+                    type: string
+                    example: 'INR'
+                  payment_url:
+                    type: string
+                    format: uri
+                  expiry_time:
+                    type: string
+                    format: date-time
+
+  /messages/send:
+    post:
+      tags: [Messages]
+      summary: Send message to teacher
+      description: Send message to child's teacher
+      operationId: sendMessage
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required:
+                - to_id
+                - subject
+                - body
+                - child_id
+              properties:
+                to_id:
+                  type: string
+                  example: 'FAC-2024-00045'
+                  description: Faculty ID
+                subject:
+                  type: string
+                  maxLength: 200
+                  example: 'Query about homework'
+                body:
+                  type: string
+                  maxLength: 2000
+                  example: 'Dear Teacher, Could you please clarify...'
+                child_id:
+                  type: string
+                  example: 'STU-2024-00123'
+                priority:
+                  type: string
+                  enum: [low, normal, high]
+                  example: 'normal'
+      responses:
+        '201':
+          description: Message sent
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  message_id:
+                    type: string
+                  status:
+                    type: string
+                    example: 'sent'
+                  sent_at:
+                    type: string
+                    format: date-time
+
+  /notifications/preferences:
+    get:
+      tags: [Notifications]
+      summary: Get notification preferences
+      operationId: getNotificationPreferences
+      security:
+        - BearerAuth: []
+      responses:
+        '200':
+          description: Notification preferences
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/NotificationPreferences'
+    put:
+      tags: [Notifications]
+      summary: Update notification preferences
+      operationId: updateNotificationPreferences
+      security:
+        - BearerAuth: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/NotificationPreferences'
+      responses:
+        '200':
+          description: Preferences updated
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Parent:
+      type: object
+      properties:
+        parent_id:
+          type: string
+          format: uuid
+          example: 'PAR-2024-00567'
+        name:
+          type: string
+          example: 'Rajesh Kumar'
+        mobile:
+          type: string
+          example: '+91-9876543210'
+        email:
+          type: string
+          format: email
+          example: 'rajesh@example.com'
+        created_at:
+          type: string
+          format: date-time
+        linked_children_count:
+          type: integer
+          example: 2
+
+    Child:
+      type: object
+      properties:
+        student_id:
+          type: string
+          example: 'STU-2024-00123'
+        name:
+          type: string
+          example: 'Aarav Kumar'
+        class:
+          type: string
+          example: '10th A'
+        roll_number:
+          type: string
+          example: '25'
+        date_of_birth:
+          type: string
+          format: date
+        photo_url:
+          type: string
+          format: uri
+        linked_since:
+          type: string
+          format: date-time
+        permissions:
+          type: object
+          properties:
+            view_attendance:
+              type: boolean
+              example: true
+            view_grades:
+              type: boolean
+              example: true
+            view_fees:
+              type: boolean
+              example: true
+            make_payments:
+              type: boolean
+              example: true
+            message_teachers:
+              type: boolean
+              example: true
+
+    AttendanceResponse:
+      type: object
+      properties:
+        student_id:
+          type: string
+        student_name:
+          type: string
+        period:
+          type: object
+          properties:
+            from:
+              type: string
+              format: date
+            to:
+              type: string
+              format: date
+        summary:
+          type: object
+          properties:
+            total_days:
+              type: integer
+              example: 25
+            present:
+              type: integer
+              example: 23
+            absent:
+              type: integer
+              example: 2
+            percentage:
+              type: number
+              format: float
+              example: 92.0
+        records:
+          type: array
+          items:
+            type: object
+            properties:
+              date:
+                type: string
+                format: date
+              status:
+                type: string
+                enum: [present, absent, late, half_day]
+              marked_at:
+                type: string
+                format: date-time
+              marked_by:
+                type: string
+              reason:
+                type: string
+
+    GradesResponse:
+      type: object
+      properties:
+        student_id:
+          type: string
+        semester:
+          type: integer
+        year:
+          type: integer
+        class:
+          type: string
+        subjects:
+          type: array
+          items:
+            type: object
+            properties:
+              subject_id:
+                type: string
+              subject_name:
+                type: string
+              faculty_name:
+                type: string
+              assessments:
+                type: array
+                items:
+                  type: object
+                  properties:
+                    type:
+                      type: string
+                      enum: [unit_test, mid_term, final_exam, assignment]
+                    name:
+                      type: string
+                    max_marks:
+                      type: number
+                    obtained_marks:
+                      type: number
+                    percentage:
+                      type: number
+                    conducted_on:
+                      type: string
+                      format: date
+                    published_on:
+                      type: string
+                      format: date
+              overall_grade:
+                type: string
+                example: 'A+'
+              overall_percentage:
+                type: number
+                example: 92.5
+        cgpa:
+          type: number
+          example: 9.2
+        overall_percentage:
+          type: number
+          example: 91.5
+
+    Fee:
+      type: object
+      properties:
+        fee_id:
+          type: string
+        fee_type:
+          type: string
+          enum: [tuition, transport, library, lab, hostel, exam]
+        amount:
+          type: number
+          format: decimal
+        due_date:
+          type: string
+          format: date
+        late_fee:
+          type: number
+          format: decimal
+        status:
+          type: string
+          enum: [pending, overdue, paid]
+
+    NotificationPreferences:
+      type: object
+      properties:
+        attendance:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              example: true
+            mode:
+              type: string
+              enum: [realtime, digest]
+              example: 'realtime'
+        grades:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              example: true
+            mode:
+              type: string
+              example: 'digest'
+            digest_time:
+              type: string
+              example: '18:00'
+        fee_reminders:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              example: true
+            days_before_due:
+              type: integer
+              example: 7
+        teacher_messages:
+          type: object
+          properties:
+            enabled:
+              type: boolean
+              example: true
+            mode:
+              type: string
+              example: 'realtime'
+
+  responses:
+    BadRequest:
+      description: Bad request
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: 'validation_error'
+              message:
+                type: string
+                example: 'Invalid mobile number format'
+              errors:
+                type: object
+                additionalProperties:
+                  type: array
+                  items:
+                    type: string
+
+    Forbidden:
+      description: Forbidden - Insufficient permissions
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: 'unauthorized_access'
+              message:
+                type: string
+                example: 'Parent not linked to this student'
+
+    TooManyRequests:
+      description: Rate limit exceeded
+      content:
+        application/json:
+          schema:
+            type: object
+            properties:
+              error:
+                type: string
+                example: 'rate_limit_exceeded'
+              message:
+                type: string
+                example: 'Too many requests. Please try again in 1 hour.'
+              retry_after:
+                type: integer
+                example: 3600

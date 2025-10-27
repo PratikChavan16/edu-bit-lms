@@ -1,0 +1,681 @@
+﻿{
+  "sync_version": "1.0.0",
+  "portal_name": "College Accounts Admin",
+  "last_updated": "2024-01-15T00:00:00Z",
+  "modules": [
+    {
+      "module_name": "Expense Management",
+      "entities": [
+        {
+          "entity": "expenses",
+          "sync_targets": [
+            {
+              "destination": "super_accountant",
+              "endpoint": "/api/v1/financial-data/expenses",
+              "method": "POST",
+              "frequency": "daily",
+              "schedule": "02:00",
+              "batch_size": 1000,
+              "payload_schema": {
+                "expense_number": "string",
+                "college_id": "integer",
+                "college_name": "string",
+                "category": "string",
+                "amount": "decimal(15,2)",
+                "expense_date": "date(YYYY-MM-DD)",
+                "vendor_id": "integer",
+                "vendor_name": "string",
+                "gl_code": "string",
+                "gl_code_name": "string",
+                "status": "string",
+                "approved_by": "integer",
+                "approved_by_name": "string",
+                "approved_at": "datetime(ISO8601)",
+                "payment_mode": "string",
+                "receipt_url": "string|null"
+              },
+              "validation_rules": [
+                "amount > 0",
+                "status in ['approved', 'paid']",
+                "expense_date not null",
+                "gl_code matches /^[0-9]{4}$/"
+              ],
+              "retry_policy": {
+                "max_attempts": 5,
+                "backoff_strategy": "exponential",
+                "initial_delay_seconds": 60,
+                "delays": [60, 300, 900, 3600, 14400]
+              },
+              "webhook_confirmation": false
+            }
+          ]
+        },
+        {
+          "entity": "gl_codes",
+          "sync_targets": [
+            {
+              "destination": "super_accountant",
+              "endpoint": "/api/v1/master-data/gl-codes",
+              "method": "POST",
+              "frequency": "on_change",
+              "payload_schema": {
+                "code": "string(4)",
+                "name": "string",
+                "category": "string",
+                "is_active": "boolean",
+                "college_id": "integer"
+              }
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_name": "Vendor Management",
+      "entities": [
+        {
+          "entity": "vendors",
+          "sync_targets": [
+            {
+              "destination": "accounting_system",
+              "endpoint": "/api/v1/vendors",
+              "method": "POST",
+              "frequency": "on_change",
+              "payload_schema": {
+                "vendor_code": "string",
+                "vendor_name": "string",
+                "gstin": "string(15)|null",
+                "pan": "string(10)|null",
+                "contact_person": "string",
+                "email": "string",
+                "phone": "string",
+                "address": "string",
+                "bank_account_number": "string(encrypted)",
+                "bank_ifsc": "string",
+                "bank_name": "string",
+                "payment_terms_days": "integer",
+                "status": "string"
+              },
+              "encryption_required": ["bank_account_number"],
+              "validation_rules": [
+                "gstin matches /^[0-9]{2}[A-Z]{5}[0-9]{4}[A-Z]{1}[1-9A-Z]{1}Z[0-9A-Z]{1}$/",
+                "pan matches /^[A-Z]{5}[0-9]{4}[A-Z]{1}$/",
+                "bank_ifsc matches /^[A-Z]{4}0[A-Z0-9]{6}$/"
+              ]
+            },
+            {
+              "destination": "super_accountant",
+              "endpoint": "/api/v1/master-data/vendors",
+              "method": "POST",
+              "frequency": "weekly",
+              "schedule": "monday_10:00"
+            }
+          ]
+        },
+        {
+          "entity": "vendor_bank_details",
+          "sync_targets": [
+            {
+              "destination": "payment_gateway",
+              "endpoint": "/api/v1/beneficiaries",
+              "method": "POST",
+              "frequency": "on_change",
+              "payload_schema": {
+                "beneficiary_id": "string",
+                "name": "string",
+                "account_number": "string(encrypted)",
+                "ifsc": "string",
+                "bank_name": "string",
+                "account_type": "string"
+              },
+              "encryption_required": ["account_number"],
+              "requires_verification": true,
+              "verification_method": "penny_drop"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_name": "Payment Processing",
+      "entities": [
+        {
+          "entity": "payments",
+          "sync_targets": [
+            {
+              "destination": "payment_gateway",
+              "endpoint": "/api/v2/payments/neft/initiate",
+              "method": "POST",
+              "frequency": "real_time",
+              "trigger": "on_payment_execution",
+              "timeout_seconds": 45,
+              "payload_schema": {
+                "payment_reference": "string",
+                "amount": "integer(paisa)",
+                "currency": "INR",
+                "beneficiary_account": "string",
+                "beneficiary_ifsc": "string",
+                "beneficiary_name": "string",
+                "remitter_account": "string",
+                "remitter_ifsc": "string",
+                "purpose": "string",
+                "remarks": "string"
+              },
+              "amount_conversion": {
+                "from": "rupees",
+                "to": "paisa",
+                "formula": "amount * 100"
+              },
+              "webhook_confirmation": true,
+              "webhook_url": "/api/v1/webhooks/payment-status",
+              "retry_policy": {
+                "max_attempts": 3,
+                "backoff_strategy": "exponential",
+                "retry_on_errors": ["bank_offline", "timeout"],
+                "no_retry_on_errors": ["insufficient_funds", "invalid_account"]
+              }
+            },
+            {
+              "destination": "bank_system",
+              "endpoint": "/api/v1/transactions",
+              "method": "POST",
+              "frequency": "real_time",
+              "payload_schema": {
+                "transaction_id": "string",
+                "payment_date": "date",
+                "amount": "decimal(15,2)",
+                "payment_mode": "string",
+                "vendor_name": "string",
+                "reference_number": "string"
+              }
+            },
+            {
+              "destination": "super_accountant",
+              "endpoint": "/api/v1/financial-data/payments",
+              "method": "POST",
+              "frequency": "hourly",
+              "batch_size": 500
+            }
+          ]
+        },
+        {
+          "entity": "payment_status_updates",
+          "sync_source": "payment_gateway",
+          "webhook_config": {
+            "endpoint": "/api/v1/webhooks/payment-status",
+            "method": "POST",
+            "authentication": "hmac_sha256",
+            "secret_key_env": "PAYMENT_GATEWAY_WEBHOOK_SECRET",
+            "signature_header": "X-Signature",
+            "payload_schema": {
+              "event": "string",
+              "payment_id": "string",
+              "reference_number": "string",
+              "status": "string",
+              "transaction_id": "string|null",
+              "utr_number": "string|null",
+              "completed_at": "datetime|null",
+              "failure_reason": "string|null"
+            },
+            "retry_attempts": 5,
+            "retry_delays": [60, 300, 900, 3600, 14400]
+          }
+        }
+      ]
+    },
+    {
+      "module_name": "Budget Tracking",
+      "entities": [
+        {
+          "entity": "budgets",
+          "sync_targets": [
+            {
+              "destination": "principal_portal",
+              "endpoint": "/api/v1/budgets",
+              "method": "POST",
+              "frequency": "on_change",
+              "payload_schema": {
+                "college_id": "integer",
+                "financial_year": "string",
+                "category": "string",
+                "allocated_amount": "decimal(15,2)",
+                "utilized_amount": "decimal(15,2)",
+                "remaining_amount": "decimal(15,2)",
+                "utilization_percentage": "decimal(5,2)"
+              }
+            }
+          ]
+        },
+        {
+          "entity": "budget_utilization",
+          "sync_targets": [
+            {
+              "destination": "reporting_dashboard",
+              "endpoint": "/api/v1/realtime/budget-utilization",
+              "method": "POST",
+              "frequency": "real_time",
+              "trigger": "on_expense_approval",
+              "payload_schema": {
+                "college_id": "integer",
+                "category": "string",
+                "utilized_amount": "decimal(15,2)",
+                "allocated_amount": "decimal(15,2)",
+                "utilization_percentage": "decimal(5,2)",
+                "alert_level": "string"
+              },
+              "alert_thresholds": {
+                "warning": 70,
+                "critical": 90
+              },
+              "websocket_broadcast": true
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_name": "Invoice Management",
+      "entities": [
+        {
+          "entity": "invoices",
+          "sync_targets": [
+            {
+              "destination": "vendor_portal",
+              "endpoint": "/api/v1/invoices",
+              "method": "POST",
+              "frequency": "daily",
+              "schedule": "03:00",
+              "payload_schema": {
+                "invoice_number": "string",
+                "invoice_date": "date",
+                "due_date": "date",
+                "vendor_id": "integer",
+                "po_number": "string|null",
+                "total_amount": "decimal(15,2)",
+                "gst_amount": "decimal(15,2)",
+                "paid_amount": "decimal(15,2)",
+                "outstanding_amount": "decimal(15,2)",
+                "status": "string",
+                "payment_scheduled_date": "date|null"
+              }
+            }
+          ]
+        },
+        {
+          "entity": "invoice_outstanding",
+          "sync_targets": [
+            {
+              "destination": "super_accountant",
+              "endpoint": "/api/v1/financial-data/payables",
+              "method": "POST",
+              "frequency": "daily",
+              "schedule": "04:00"
+            }
+          ]
+        }
+      ]
+    },
+    {
+      "module_name": "Financial Reports",
+      "entities": [
+        {
+          "entity": "profit_loss_report",
+          "sync_targets": [
+            {
+              "destination": "consolidation_system",
+              "endpoint": "/api/v1/reports/profit-loss",
+              "method": "POST",
+              "frequency": "monthly",
+              "schedule": "1st_of_month_06:00",
+              "payload_schema": {
+                "college_id": "integer",
+                "period": "string(YYYY-MM)",
+                "revenue": {
+                  "tuition_fees": "decimal(15,2)",
+                  "other_income": "decimal(15,2)",
+                  "total": "decimal(15,2)"
+                },
+                "expenses": {
+                  "salaries": "decimal(15,2)",
+                  "utilities": "decimal(15,2)",
+                  "supplies": "decimal(15,2)",
+                  "maintenance": "decimal(15,2)",
+                  "transport": "decimal(15,2)",
+                  "infrastructure": "decimal(15,2)",
+                  "total": "decimal(15,2)"
+                },
+                "net_income": "decimal(15,2)"
+              }
+            }
+          ]
+        },
+        {
+          "entity": "balance_sheet",
+          "sync_targets": [
+            {
+              "destination": "consolidation_system",
+              "endpoint": "/api/v1/reports/balance-sheet",
+              "method": "POST",
+              "frequency": "quarterly",
+              "schedule": "last_day_of_quarter_06:00"
+            }
+          ]
+        },
+        {
+          "entity": "cash_flow_statement",
+          "sync_targets": [
+            {
+              "destination": "consolidation_system",
+              "endpoint": "/api/v1/reports/cash-flow",
+              "method": "POST",
+              "frequency": "monthly",
+              "schedule": "1st_of_month_07:00"
+            }
+          ]
+        }
+      ]
+    }
+  ],
+  "global_settings": {
+    "max_concurrent_syncs": 5,
+    "default_timeout_seconds": 30,
+    "rate_limiting": {
+      "payment_gateway": {
+        "requests_per_minute": 10,
+        "burst": 3
+      },
+      "accounting_system": {
+        "requests_per_minute": 30,
+        "burst": 10
+      },
+      "super_accountant": {
+        "requests_per_minute": 50,
+        "burst": 20
+      }
+    },
+    "circuit_breaker": {
+      "failure_threshold": 5,
+      "success_threshold": 2,
+      "timeout_seconds": 60,
+      "half_open_requests": 1
+    },
+    "dead_letter_queue": {
+      "enabled": true,
+      "retention_days": 7,
+      "alert_threshold": 100
+    }
+  },
+  "security": {
+    "authentication": {
+      "payment_gateway": "oauth2",
+      "accounting_system": "api_key",
+      "super_accountant": "jwt_bearer",
+      "bank_system": "mutual_tls"
+    },
+    "token_expiration": {
+      "payment_gateway": 1800,
+      "accounting_system": null,
+      "super_accountant": 3600
+    },
+    "token_refresh": {
+      "payment_gateway": true,
+      "super_accountant": true
+    },
+    "encryption": {
+      "algorithm": "AES-256-GCM",
+      "fields": ["bank_account_number", "pan", "gstin"],
+      "key_rotation_days": 90
+    },
+    "signature_verification": {
+      "algorithm": "HMAC-SHA256",
+      "header": "X-Signature",
+      "secret_rotation_days": 90
+    },
+    "ip_whitelisting": {
+      "payment_gateway": true,
+      "bank_system": true,
+      "allowed_ips": ["192.168.1.0/24", "10.0.0.0/8"]
+    },
+    "audit_logging": {
+      "enabled": true,
+      "log_level": "info",
+      "include_request_body": true,
+      "include_response_body": false,
+      "retention_days": 90
+    }
+  },
+  "monitoring": {
+    "metrics": {
+      "sync_success_rate": {
+        "target": 99.0,
+        "alert_threshold": 95.0
+      },
+      "sync_latency_p95": {
+        "target_seconds": 10,
+        "alert_threshold_seconds": 30
+      },
+      "error_rate_by_type": {
+        "payment_failures": {
+          "target_percentage": 2.0,
+          "alert_threshold_percentage": 5.0
+        },
+        "network_timeouts": {
+          "target_percentage": 1.0,
+          "alert_threshold_percentage": 3.0
+        }
+      },
+      "retry_count_distribution": {
+        "track": true,
+        "alert_if_retry_rate_exceeds": 20.0
+      },
+      "queue_depth": {
+        "alert_threshold": 1000,
+        "critical_threshold": 5000
+      }
+    },
+    "health_checks": {
+      "interval_seconds": 300,
+      "endpoints": [
+        {
+          "name": "payment_gateway",
+          "url": "https://api.razorpay.com/health",
+          "expected_status": 200,
+          "timeout_seconds": 5
+        },
+        {
+          "name": "accounting_system",
+          "url": "https://accounting.example.com/api/health",
+          "expected_status": 200,
+          "timeout_seconds": 5
+        }
+      ]
+    },
+    "alerting": {
+      "channels": ["slack", "email"],
+      "slack_webhook": "${SLACK_WEBHOOK_URL}",
+      "email_recipients": ["finance-team@college.edu", "devops@bitflow.com"],
+      "alert_rules": [
+        {
+          "condition": "sync_success_rate < 95%",
+          "severity": "high",
+          "message": "Sync success rate dropped below 95%"
+        },
+        {
+          "condition": "payment_failure_rate > 5%",
+          "severity": "critical",
+          "message": "Payment failure rate exceeded 5%"
+        },
+        {
+          "condition": "queue_depth > 1000",
+          "severity": "medium",
+          "message": "Sync queue depth exceeded 1000 items"
+        },
+        {
+          "condition": "dead_letter_queue_size > 100",
+          "severity": "high",
+          "message": "Dead letter queue size exceeded 100 items"
+        }
+      ]
+    }
+  },
+  "disaster_recovery": {
+    "backup": {
+      "payment_queue": {
+        "frequency": "every_15_minutes",
+        "destination": "s3://lms-backups/payment-queue",
+        "encryption": true,
+        "retention_days": 7
+      },
+      "sync_state": {
+        "frequency": "hourly",
+        "destination": "s3://lms-backups/sync-state",
+        "encryption": true,
+        "retention_days": 30
+      }
+    },
+    "point_in_time_recovery": {
+      "enabled": true,
+      "window_hours": 24
+    },
+    "failover": {
+      "payment_gateway": {
+        "primary": "razorpay",
+        "secondary": "payu",
+        "automatic_failover": true,
+        "failover_threshold_minutes": 5
+      }
+    },
+    "data_reconciliation": {
+      "frequency": "daily",
+      "schedule": "05:00",
+      "compare_targets": ["payment_gateway", "bank_system"],
+      "discrepancy_alert": true,
+      "auto_resolve": false
+    }
+  },
+  "validation": {
+    "pre_sync": [
+      {
+        "rule": "check_payment_amount_matches_invoice",
+        "action": "block",
+        "severity": "error"
+      },
+      {
+        "rule": "verify_vendor_bank_account_active",
+        "action": "block",
+        "severity": "error"
+      },
+      {
+        "rule": "validate_budget_availability",
+        "action": "warn",
+        "severity": "warning"
+      },
+      {
+        "rule": "check_dual_approval_for_high_value",
+        "action": "block",
+        "severity": "error"
+      },
+      {
+        "rule": "verify_gst_calculation",
+        "action": "warn",
+        "severity": "warning"
+      }
+    ],
+    "post_sync": [
+      {
+        "rule": "verify_record_count_matches",
+        "action": "alert",
+        "severity": "error"
+      },
+      {
+        "rule": "check_payment_status_updated",
+        "action": "retry",
+        "severity": "warning"
+      },
+      {
+        "rule": "validate_audit_trail_created",
+        "action": "alert",
+        "severity": "error"
+      },
+      {
+        "rule": "confirm_webhook_delivery",
+        "action": "retry",
+        "severity": "warning"
+      },
+      {
+        "rule": "check_bank_balance_updated",
+        "action": "alert",
+        "severity": "warning"
+      }
+    ]
+  },
+  "troubleshooting": {
+    "common_errors": [
+      {
+        "error_code": "PAYMENT_GATEWAY_TIMEOUT",
+        "description": "Payment gateway API timeout",
+        "resolution_steps": [
+          "Check payment gateway status page",
+          "Verify network connectivity",
+          "Review timeout configuration (current: 45s)",
+          "Check if retry queue is backed up",
+          "Manual retry command: php artisan sync:retry-payments --status=timeout"
+        ],
+        "escalation_after_minutes": 15
+      },
+      {
+        "error_code": "BUDGET_EXCEEDED",
+        "description": "Expense amount exceeds available budget",
+        "resolution_steps": [
+          "Verify budget allocation for category",
+          "Check if budget was updated recently",
+          "Review pending expenses not yet approved",
+          "Manual override (requires approval): php artisan budget:override --expense-id=X --approver-id=Y"
+        ],
+        "requires_approval": true
+      },
+      {
+        "error_code": "VENDOR_INACTIVE",
+        "description": "Attempting payment to inactive vendor",
+        "resolution_steps": [
+          "Check vendor status in database",
+          "Verify vendor not blacklisted",
+          "Reactivate vendor: php artisan vendor:reactivate --id=X --reason='...'",
+          "Retry sync after reactivation"
+        ],
+        "auto_resolve": false
+      },
+      {
+        "error_code": "BANK_ACCOUNT_INVALID",
+        "description": "Beneficiary bank account validation failed",
+        "resolution_steps": [
+          "Verify account number and IFSC code",
+          "Run penny drop verification: php artisan vendor:verify-bank --id=X",
+          "Update bank details if incorrect",
+          "Contact vendor for correct details"
+        ],
+        "requires_manual_intervention": true
+      },
+      {
+        "error_code": "DUPLICATE_PAYMENT",
+        "description": "Potential duplicate payment detected",
+        "resolution_steps": [
+          "Check payment history for vendor",
+          "Verify invoice number uniqueness",
+          "Review deduplication logic",
+          "If legitimate: php artisan sync:force-payment --id=X --confirm-duplicate",
+          "If duplicate: Mark as resolved without retry"
+        ],
+        "severity": "critical"
+      }
+    ],
+    "manual_sync_commands": {
+      "sync_expenses": "php artisan sync:expenses --date=YYYY-MM-DD --college-id=X",
+      "sync_payments": "php artisan sync:payments --vendor-id=X --force",
+      "reconcile_bank": "php artisan reconcile:bank-statement --file=statement.csv --account-id=X",
+      "retry_failed": "php artisan sync:retry-failed --entity=payments --max-age-hours=24",
+      "clear_queue": "php artisan queue:clear sync-queue",
+      "view_logs": "php artisan sync:logs --entity=expenses --limit=100"
+    }
+  }
+}

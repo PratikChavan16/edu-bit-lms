@@ -1,0 +1,1243 @@
+﻿openapi: 3.1.0
+info:
+  title: Super Admin Portal API
+  version: 2.0.0
+  description: Complete API specification for Super Admin Portal - manages academic calendar, courses, timetables, exams, and user accounts across the university
+  contact:
+    name: Bitflow API Support
+    email: api@bitflow.edu
+
+servers:
+  - url: http://localhost:8000/api/super-admin
+    description: Local development
+  - url: https://{university-slug}.bitflow.edu/api/super-admin
+    description: Production
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Dashboard
+    description: Operational dashboard and overview
+  - name: Academic Calendar
+    description: Academic years, semesters, and holidays
+  - name: Courses
+    description: Course catalog and management
+  - name: Curriculum
+    description: Course-to-program mapping
+  - name: Timetable
+    description: Timetable generation and management
+  - name: Exams
+    description: Examination scheduling and management
+  - name: Users
+    description: User account management (all roles)
+  - name: Reports
+    description: Operational reports and analytics
+  - name: Configuration
+    description: System settings and templates
+  - name: Communication
+    description: Announcements and notifications
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        errors:
+          type: object
+          additionalProperties: true
+
+    AcademicYear:
+      type: object
+      properties:
+        id:
+          type: integer
+        university_id:
+          type: integer
+        name:
+          type: string
+          example: "2025-26"
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [active, archived]
+        created_at:
+          type: string
+          format: date-time
+
+    Semester:
+      type: object
+      properties:
+        id:
+          type: integer
+        academic_year_id:
+          type: integer
+        name:
+          type: string
+          example: "Odd Semester"
+        type:
+          type: string
+          enum: [odd, even, summer]
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        registration_start:
+          type: string
+          format: date
+        registration_end:
+          type: string
+          format: date
+
+    Course:
+      type: object
+      properties:
+        id:
+          type: integer
+        university_id:
+          type: integer
+        college_id:
+          type: integer
+        department_id:
+          type: integer
+        code:
+          type: string
+          example: "CS101"
+        name:
+          type: string
+        credits:
+          type: integer
+          minimum: 1
+          maximum: 6
+        type:
+          type: string
+          enum: [theory, lab, practical, project]
+        description:
+          type: string
+        prerequisites:
+          type: array
+          items:
+            type: integer
+        min_students:
+          type: integer
+          default: 20
+        max_students:
+          type: integer
+          default: 60
+        waitlist_size:
+          type: integer
+          default: 10
+        status:
+          type: string
+          enum: [active, inactive, archived]
+
+    Timetable:
+      type: object
+      properties:
+        id:
+          type: integer
+        college_id:
+          type: integer
+        semester_id:
+          type: integer
+        year:
+          type: string
+          example: "First Year"
+        section:
+          type: string
+          example: "A"
+        status:
+          type: string
+          enum: [draft, published]
+        slots:
+          type: array
+          items:
+            $ref: '#/components/schemas/TimetableSlot'
+
+    TimetableSlot:
+      type: object
+      properties:
+        day:
+          type: string
+          enum: [monday, tuesday, wednesday, thursday, friday, saturday]
+        start_time:
+          type: string
+          example: "09:00"
+        end_time:
+          type: string
+          example: "10:00"
+        course_id:
+          type: integer
+        faculty_id:
+          type: integer
+        room_id:
+          type: integer
+
+    Exam:
+      type: object
+      properties:
+        id:
+          type: integer
+        semester_id:
+          type: integer
+        course_id:
+          type: integer
+        exam_type:
+          type: string
+          enum: [mid-term, end-term, supplementary]
+        date:
+          type: string
+          format: date
+        start_time:
+          type: string
+        end_time:
+          type: string
+        duration_minutes:
+          type: integer
+        status:
+          type: string
+          enum: [scheduled, published, completed]
+
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        university_id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+          format: email
+        role:
+          type: string
+          enum: [faculty, student, principal, accountant, librarian, hod, admission_officer, exam_controller, hostel_warden, transport_manager, hr_manager, parent]
+        college_id:
+          type: integer
+          nullable: true
+        department_id:
+          type: integer
+          nullable: true
+        status:
+          type: string
+          enum: [active, inactive]
+
+paths:
+  # ==================== DASHBOARD ====================
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Get operational dashboard metrics
+      responses:
+        '200':
+          description: Dashboard data retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  metrics:
+                    type: object
+                    properties:
+                      total_courses:
+                        type: integer
+                      total_users:
+                        type: integer
+                      pending_tasks:
+                        type: integer
+                      upcoming_exams:
+                        type: integer
+                  pending_tasks:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                        count:
+                          type: integer
+                        priority:
+                          type: string
+                  recent_activity:
+                    type: array
+                    items:
+                      type: object
+                  system_health:
+                    type: object
+                    properties:
+                      api_response_time:
+                        type: integer
+                      database_status:
+                        type: string
+                      storage_usage:
+                        type: number
+
+  # ==================== ACADEMIC CALENDAR ====================
+  /academic-years:
+    get:
+      tags: [Academic Calendar]
+      summary: List all academic years
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, archived]
+      responses:
+        '200':
+          description: Academic years retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AcademicYear'
+
+    post:
+      tags: [Academic Calendar]
+      summary: Create new academic year
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, start_date, end_date]
+              properties:
+                name:
+                  type: string
+                start_date:
+                  type: string
+                  format: date
+                end_date:
+                  type: string
+                  format: date
+      responses:
+        '201':
+          description: Academic year created
+        '422':
+          description: Validation error
+
+  /academic-years/{id}:
+    get:
+      tags: [Academic Calendar]
+      summary: Get academic year details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Academic year retrieved
+
+    put:
+      tags: [Academic Calendar]
+      summary: Update academic year
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Academic year updated
+
+    delete:
+      tags: [Academic Calendar]
+      summary: Archive academic year
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Academic year archived
+
+  /semesters:
+    get:
+      tags: [Academic Calendar]
+      summary: List all semesters
+      parameters:
+        - name: academic_year_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Semesters retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Semester'
+
+    post:
+      tags: [Academic Calendar]
+      summary: Create semester
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Semester'
+      responses:
+        '201':
+          description: Semester created
+
+  /holidays:
+    get:
+      tags: [Academic Calendar]
+      summary: List holidays
+      responses:
+        '200':
+          description: Holidays retrieved
+
+    post:
+      tags: [Academic Calendar]
+      summary: Add holiday
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                date:
+                  type: string
+                  format: date
+                name:
+                  type: string
+                type:
+                  type: string
+                  enum: [national, regional, university]
+      responses:
+        '201':
+          description: Holiday added
+
+  # ==================== COURSES ====================
+  /courses:
+    get:
+      tags: [Courses]
+      summary: List all courses
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: department_id
+          in: query
+          schema:
+            type: integer
+        - name: type
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Courses retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Course'
+                  meta:
+                    type: object
+
+    post:
+      tags: [Courses]
+      summary: Create new course
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Course'
+      responses:
+        '201':
+          description: Course created
+
+  /courses/{id}:
+    get:
+      tags: [Courses]
+      summary: Get course details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Course retrieved
+
+    put:
+      tags: [Courses]
+      summary: Update course
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Course'
+      responses:
+        '200':
+          description: Course updated
+
+    delete:
+      tags: [Courses]
+      summary: Archive course
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: Course archived
+
+  /courses/{id}/faculty:
+    post:
+      tags: [Courses]
+      summary: Assign faculty to course
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                faculty_id:
+                  type: integer
+                semester_id:
+                  type: integer
+                section:
+                  type: string
+                role:
+                  type: string
+                  enum: [coordinator, co-instructor]
+      responses:
+        '200':
+          description: Faculty assigned
+
+  # ==================== CURRICULUM ====================
+  /curriculum:
+    get:
+      tags: [Curriculum]
+      summary: Get curriculum mapping
+      parameters:
+        - name: program_id
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: academic_year_id
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Curriculum retrieved
+
+    post:
+      tags: [Curriculum]
+      summary: Map course to program/semester
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                program_id:
+                  type: integer
+                year:
+                  type: integer
+                semester_id:
+                  type: integer
+                course_id:
+                  type: integer
+      responses:
+        '201':
+          description: Course mapped
+
+  # ==================== TIMETABLE ====================
+  /timetables/generate:
+    post:
+      tags: [Timetable]
+      summary: Auto-generate timetable using AI
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                college_id:
+                  type: integer
+                semester_id:
+                  type: integer
+                year:
+                  type: string
+                section:
+                  type: string
+                constraints:
+                  type: object
+                  properties:
+                    avoid_faculty_conflicts:
+                      type: boolean
+                    avoid_room_conflicts:
+                      type: boolean
+                    respect_preferences:
+                      type: boolean
+                    max_consecutive_hours:
+                      type: integer
+      responses:
+        '200':
+          description: Timetable generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  timetable_id:
+                    type: integer
+                  conflicts:
+                    type: array
+                    items:
+                      type: object
+                  generation_time_seconds:
+                    type: number
+
+  /timetables/{id}:
+    get:
+      tags: [Timetable]
+      summary: Get timetable details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Timetable retrieved
+
+    put:
+      tags: [Timetable]
+      summary: Update timetable (manual edit)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                slots:
+                  type: array
+                  items:
+                    $ref: '#/components/schemas/TimetableSlot'
+      responses:
+        '200':
+          description: Timetable updated
+
+  /timetables/{id}/publish:
+    post:
+      tags: [Timetable]
+      summary: Publish timetable
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Timetable published
+
+  /timetables/{id}/conflicts:
+    get:
+      tags: [Timetable]
+      summary: Check for conflicts
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Conflicts retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  conflicts:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        type:
+                          type: string
+                          enum: [faculty, room, student]
+                        description:
+                          type: string
+                        severity:
+                          type: string
+
+  # ==================== EXAMS ====================
+  /exams:
+    get:
+      tags: [Exams]
+      summary: List exams
+      parameters:
+        - name: semester_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Exams retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Exam'
+
+    post:
+      tags: [Exams]
+      summary: Schedule exam
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/Exam'
+      responses:
+        '201':
+          description: Exam scheduled
+
+  /exams/{id}/halls:
+    post:
+      tags: [Exams]
+      summary: Allocate exam halls
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                hall_ids:
+                  type: array
+                  items:
+                    type: integer
+                spacing_percent:
+                  type: integer
+                  default: 50
+      responses:
+        '200':
+          description: Halls allocated
+
+  /exams/{id}/seating:
+    post:
+      tags: [Exams]
+      summary: Generate seating arrangement
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                pattern:
+                  type: string
+                  enum: [alternate, random]
+      responses:
+        '200':
+          description: Seating generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  pdf_url:
+                    type: string
+
+  /exams/{id}/invigilators:
+    post:
+      tags: [Exams]
+      summary: Assign invigilators
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                faculty_ids:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '200':
+          description: Invigilators assigned
+
+  /exams/{id}/admit-cards:
+    post:
+      tags: [Exams]
+      summary: Generate admit cards
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Admit cards generated
+
+  # ==================== USERS ====================
+  /users:
+    get:
+      tags: [Users]
+      summary: List all users
+      parameters:
+        - name: role
+          in: query
+          schema:
+            type: string
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: department_id
+          in: query
+          schema:
+            type: integer
+        - name: status
+          in: query
+          schema:
+            type: string
+        - name: search
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Users retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/User'
+                  meta:
+                    type: object
+
+    post:
+      tags: [Users]
+      summary: Create new user
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, email, role]
+              properties:
+                name:
+                  type: string
+                email:
+                  type: string
+                role:
+                  type: string
+                college_id:
+                  type: integer
+                department_id:
+                  type: integer
+                password:
+                  type: string
+                send_welcome_email:
+                  type: boolean
+                  default: true
+      responses:
+        '201':
+          description: User created
+
+  /users/bulk-import:
+    post:
+      tags: [Users]
+      summary: Bulk import users via CSV
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Import successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  imported:
+                    type: integer
+                  failed:
+                    type: integer
+                  errors:
+                    type: array
+
+  /users/{id}:
+    get:
+      tags: [Users]
+      summary: Get user details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: User retrieved
+
+    put:
+      tags: [Users]
+      summary: Update user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/User'
+      responses:
+        '200':
+          description: User updated
+
+    delete:
+      tags: [Users]
+      summary: Deactivate user
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '204':
+          description: User deactivated
+
+  /users/{id}/reset-password:
+    post:
+      tags: [Users]
+      summary: Reset user password
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Password reset
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  temporary_password:
+                    type: string
+
+  # ==================== REPORTS ====================
+  /reports/course-enrollment:
+    get:
+      tags: [Reports]
+      summary: Course enrollment report
+      parameters:
+        - name: semester_id
+          in: query
+          schema:
+            type: integer
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Report generated
+
+  /reports/faculty-workload:
+    get:
+      tags: [Reports]
+      summary: Faculty workload report
+      parameters:
+        - name: faculty_id
+          in: query
+          schema:
+            type: integer
+        - name: semester_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Report generated
+
+  /reports/timetable-utilization:
+    get:
+      tags: [Reports]
+      summary: Room utilization report
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Report generated
+
+  /reports/exam-statistics:
+    get:
+      tags: [Reports]
+      summary: Exam performance statistics
+      parameters:
+        - name: semester_id
+          in: query
+          schema:
+            type: integer
+        - name: course_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Report generated
+
+  # ==================== CONFIGURATION ====================
+  /settings:
+    get:
+      tags: [Configuration]
+      summary: Get university settings
+      responses:
+        '200':
+          description: Settings retrieved
+
+    put:
+      tags: [Configuration]
+      summary: Update university settings
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+      responses:
+        '200':
+          description: Settings updated
+
+  /templates/email:
+    get:
+      tags: [Configuration]
+      summary: List email templates
+      responses:
+        '200':
+          description: Templates retrieved
+
+    post:
+      tags: [Configuration]
+      summary: Create email template
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name:
+                  type: string
+                subject:
+                  type: string
+                body:
+                  type: string
+      responses:
+        '201':
+          description: Template created
+
+  # ==================== COMMUNICATION ====================
+  /announcements:
+    get:
+      tags: [Communication]
+      summary: List announcements
+      responses:
+        '200':
+          description: Announcements retrieved
+
+    post:
+      tags: [Communication]
+      summary: Create announcement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                title:
+                  type: string
+                message:
+                  type: string
+                priority:
+                  type: string
+                  enum: [normal, important, urgent]
+                target_audience:
+                  type: object
+                  properties:
+                    roles:
+                      type: array
+                      items:
+                        type: string
+                    colleges:
+                      type: array
+                      items:
+                        type: integer
+                delivery_channels:
+                  type: array
+                  items:
+                    type: string
+                    enum: [email, sms, in-app]
+                schedule_at:
+                  type: string
+                  format: date-time
+                  nullable: true
+      responses:
+        '201':
+          description: Announcement created
+
+  /activity-logs:
+    get:
+      tags: [Communication]
+      summary: Get activity logs
+      parameters:
+        - name: user_id
+          in: query
+          schema:
+            type: integer
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Logs retrieved

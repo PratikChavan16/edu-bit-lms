@@ -1,0 +1,421 @@
+{
+  "portal_name": "Student Portal",
+  "portal_code": "08-student",
+  "last_validated": "2025-10-25",
+  "validation_status": "synced",
+  "sync_points": [
+    {
+      "id": "student-type-dto",
+      "name": "Student Type ↔ StudentResource DTO",
+      "status": "synced",
+      "last_checked": "2025-10-25",
+      "frontend_file": "src/types/index.ts",
+      "backend_file": "app/Http/Resources/StudentResource.php",
+      "critical_fields": [
+        "id",
+        "user_id",
+        "name",
+        "email",
+        "roll_number",
+        "college_id",
+        "department_id",
+        "current_semester",
+        "status"
+      ],
+      "field_mappings": {
+        "id": "string (UUID)",
+        "user_id": "string (UUID)",
+        "name": "string",
+        "email": "string",
+        "roll_number": "string",
+        "college_id": "string (UUID)",
+        "department_id": "string (UUID)",
+        "current_semester": "number",
+        "status": "'active' | 'inactive' | 'suspended' | 'graduated'"
+      },
+      "known_issues": [],
+      "validation_notes": "All fields match. Status enum synchronized."
+    },
+    {
+      "id": "enrollment-type-dto",
+      "name": "Enrollment Type ↔ EnrollmentResource DTO",
+      "status": "synced",
+      "last_checked": "2025-10-25",
+      "frontend_file": "src/types/index.ts",
+      "backend_file": "app/Http/Resources/EnrollmentResource.php",
+      "critical_fields": [
+        "id",
+        "student_id",
+        "course_id",
+        "course_name",
+        "course_code",
+        "enrolled_at",
+        "status"
+      ],
+      "field_mappings": {
+        "id": "string (UUID)",
+        "student_id": "string (UUID)",
+        "course_id": "string (UUID)",
+        "course_name": "string",
+        "course_code": "string",
+        "enrolled_at": "string (ISO 8601)",
+        "status": "'active' | 'completed' | 'dropped'"
+      },
+      "known_issues": [],
+      "validation_notes": "All fields match. Enrollment status enum synchronized."
+    },
+    {
+      "id": "attendance-type-dto",
+      "name": "Attendance Type ↔ AttendanceResource DTO",
+      "status": "synced",
+      "last_checked": "2025-10-25",
+      "frontend_file": "src/types/index.ts",
+      "backend_file": "app/Http/Resources/AttendanceResource.php",
+      "critical_fields": [
+        "id",
+        "student_id",
+        "course_id",
+        "course_name",
+        "date",
+        "status"
+      ],
+      "field_mappings": {
+        "id": "string (UUID)",
+        "student_id": "string (UUID)",
+        "course_id": "string (UUID)",
+        "course_name": "string",
+        "date": "string (YYYY-MM-DD)",
+        "status": "'present' | 'absent' | 'late'"
+      },
+      "known_issues": [],
+      "validation_notes": "All fields match. Attendance status enum synchronized."
+    },
+    {
+      "id": "grade-type-dto",
+      "name": "Grade Type ↔ GradeResource DTO",
+      "status": "synced",
+      "last_checked": "2025-10-25",
+      "frontend_file": "src/types/index.ts",
+      "backend_file": "app/Http/Resources/GradeResource.php",
+      "critical_fields": [
+        "id",
+        "student_id",
+        "course_id",
+        "course_name",
+        "exam_type",
+        "marks",
+        "max_marks",
+        "graded_at"
+      ],
+      "field_mappings": {
+        "id": "string (UUID)",
+        "student_id": "string (UUID)",
+        "course_id": "string (UUID)",
+        "course_name": "string",
+        "exam_type": "'quiz' | 'midterm' | 'final' | 'assignment'",
+        "marks": "number",
+        "max_marks": "number",
+        "graded_at": "string (ISO 8601)"
+      },
+      "known_issues": [],
+      "validation_notes": "All fields match. Exam type enum synchronized."
+    },
+    {
+      "id": "assignment-type-dto",
+      "name": "Assignment Type ↔ AssignmentResource DTO",
+      "status": "synced",
+      "last_checked": "2025-10-25",
+      "frontend_file": "src/types/index.ts",
+      "backend_file": "app/Http/Resources/AssignmentResource.php",
+      "critical_fields": [
+        "id",
+        "course_id",
+        "course_name",
+        "title",
+        "description",
+        "max_marks",
+        "due_date",
+        "file_url"
+      ],
+      "field_mappings": {
+        "id": "string (UUID)",
+        "course_id": "string (UUID)",
+        "course_name": "string",
+        "title": "string",
+        "description": "string",
+        "max_marks": "number",
+        "due_date": "string (ISO 8601)",
+        "file_url": "string | null"
+      },
+      "known_issues": [],
+      "validation_notes": "All fields match."
+    },
+    {
+      "id": "submission-type-dto",
+      "name": "Submission Type ↔ SubmissionResource DTO",
+      "status": "synced",
+      "last_checked": "2025-10-25",
+      "frontend_file": "src/types/index.ts",
+      "backend_file": "app/Http/Resources/SubmissionResource.php",
+      "critical_fields": [
+        "id",
+        "assignment_id",
+        "student_id",
+        "file_url",
+        "submitted_at",
+        "grade",
+        "feedback"
+      ],
+      "field_mappings": {
+        "id": "string (UUID)",
+        "assignment_id": "string (UUID)",
+        "student_id": "string (UUID)",
+        "file_url": "string",
+        "submitted_at": "string (ISO 8601)",
+        "grade": "number | null",
+        "feedback": "string | null"
+      },
+      "known_issues": [],
+      "validation_notes": "All fields match."
+    },
+    {
+      "id": "fee-payment-type-dto",
+      "name": "FeePayment Type ↔ FeePaymentResource DTO",
+      "status": "synced",
+      "last_checked": "2025-10-25",
+      "frontend_file": "src/types/index.ts",
+      "backend_file": "app/Http/Resources/FeePaymentResource.php",
+      "critical_fields": [
+        "id",
+        "student_id",
+        "invoice_id",
+        "amount",
+        "paid_at",
+        "method",
+        "status"
+      ],
+      "field_mappings": {
+        "id": "string (UUID)",
+        "student_id": "string (UUID)",
+        "invoice_id": "string (UUID)",
+        "amount": "number (NUMERIC 10,2)",
+        "paid_at": "string (ISO 8601)",
+        "method": "'cash' | 'card' | 'online' | 'bank_transfer'",
+        "status": "'pending' | 'completed' | 'failed' | 'refunded'"
+      },
+      "known_issues": [],
+      "validation_notes": "All fields match. Payment method and status enums synchronized."
+    },
+    {
+      "id": "student-api-routes",
+      "name": "Student API Routes ↔ OpenAPI Spec",
+      "status": "synced",
+      "last_checked": "2025-10-25",
+      "api_spec_file": "brain/08-student/api_spec.yaml",
+      "backend_routes_file": "routes/api.php",
+      "endpoints": [
+        {
+          "method": "GET",
+          "path": "/api/students/me",
+          "description": "Get authenticated student profile",
+          "status": "synced"
+        },
+        {
+          "method": "GET",
+          "path": "/api/students/{id}",
+          "description": "Get student by ID",
+          "status": "synced"
+        },
+        {
+          "method": "GET",
+          "path": "/api/students/{id}/courses",
+          "description": "Get student's enrolled courses",
+          "status": "synced"
+        },
+        {
+          "method": "GET",
+          "path": "/api/students/{id}/attendance",
+          "description": "Get student's attendance records",
+          "status": "synced"
+        },
+        {
+          "method": "GET",
+          "path": "/api/students/{id}/grades",
+          "description": "Get student's grades",
+          "status": "synced"
+        },
+        {
+          "method": "GET",
+          "path": "/api/students/{id}/assignments",
+          "description": "Get student's assignments",
+          "status": "synced"
+        },
+        {
+          "method": "POST",
+          "path": "/api/assignments/{id}/submit",
+          "description": "Submit assignment",
+          "status": "synced"
+        },
+        {
+          "method": "GET",
+          "path": "/api/students/{id}/fees",
+          "description": "Get student's fee payments",
+          "status": "synced"
+        },
+        {
+          "method": "GET",
+          "path": "/api/students/{id}/notifications",
+          "description": "Get student's notifications",
+          "status": "synced"
+        }
+      ],
+      "known_issues": [],
+      "validation_notes": "All endpoints defined in OpenAPI spec exist in Laravel routes."
+    },
+    {
+      "id": "student-db-model",
+      "name": "Students Table ↔ Student Model",
+      "status": "synced",
+      "last_checked": "2025-10-25",
+      "database_schema_file": "brain/08-student/db_schema.sql",
+      "model_file": "app/Models/Student.php",
+      "table_name": "students",
+      "columns": [
+        {
+          "name": "id",
+          "db_type": "UUID",
+          "model_cast": "string",
+          "fillable": false,
+          "status": "synced"
+        },
+        {
+          "name": "user_id",
+          "db_type": "UUID",
+          "model_cast": "string",
+          "fillable": true,
+          "status": "synced"
+        },
+        {
+          "name": "college_id",
+          "db_type": "UUID",
+          "model_cast": "string",
+          "fillable": true,
+          "status": "synced"
+        },
+        {
+          "name": "department_id",
+          "db_type": "UUID",
+          "model_cast": "string",
+          "fillable": true,
+          "status": "synced"
+        },
+        {
+          "name": "roll_number",
+          "db_type": "VARCHAR(20)",
+          "model_cast": "string",
+          "fillable": true,
+          "status": "synced"
+        },
+        {
+          "name": "enrollment_year",
+          "db_type": "INTEGER",
+          "model_cast": "integer",
+          "fillable": true,
+          "status": "synced"
+        },
+        {
+          "name": "current_semester",
+          "db_type": "INTEGER",
+          "model_cast": "integer",
+          "fillable": true,
+          "status": "synced"
+        },
+        {
+          "name": "status",
+          "db_type": "VARCHAR(20)",
+          "model_cast": "string",
+          "fillable": true,
+          "status": "synced"
+        }
+      ],
+      "indexes": [
+        "PRIMARY KEY (id)",
+        "UNIQUE (user_id)",
+        "UNIQUE (college_id, roll_number)",
+        "INDEX idx_students_college (college_id)",
+        "INDEX idx_students_department (department_id)",
+        "INDEX idx_students_status (status)"
+      ],
+      "constraints": [
+        "CHECK (status IN ('active', 'inactive', 'suspended', 'graduated'))",
+        "CHECK (current_semester >= 1 AND current_semester <= 12)",
+        "CHECK (enrollment_year >= 1900 AND enrollment_year <= 2100)"
+      ],
+      "known_issues": [],
+      "validation_notes": "All database columns exist in model fillable/casts. All constraints validated in Laravel."
+    },
+    {
+      "id": "student-status-enum",
+      "name": "StudentStatus Enum Synchronization",
+      "status": "synced",
+      "last_checked": "2025-10-25",
+      "typescript_enum_file": "src/types/enums.ts",
+      "php_enum_file": "app/Enums/StudentStatus.php",
+      "database_constraint": "CHECK (status IN ('active', 'inactive', 'suspended', 'graduated'))",
+      "enum_values": [
+        {
+          "value": "active",
+          "typescript": "✅",
+          "php": "✅",
+          "database": "✅"
+        },
+        {
+          "value": "inactive",
+          "typescript": "✅",
+          "php": "✅",
+          "database": "✅"
+        },
+        {
+          "value": "suspended",
+          "typescript": "✅",
+          "php": "✅",
+          "database": "✅"
+        },
+        {
+          "value": "graduated",
+          "typescript": "✅",
+          "php": "✅",
+          "database": "✅"
+        }
+      ],
+      "known_issues": [],
+      "validation_notes": "All 4 status values synchronized across all layers."
+    }
+  ],
+  "validation_summary": {
+    "total_sync_points": 10,
+    "synced": 10,
+    "out_of_sync": 0,
+    "needs_attention": 0,
+    "sync_percentage": 100
+  },
+  "automated_checks": {
+    "last_run": "2025-10-25T10:30:00Z",
+    "next_scheduled": "2025-10-26T10:30:00Z",
+    "check_script": "scripts/validate-sync.sh",
+    "ci_integration": true,
+    "pre_commit_hook": true
+  },
+  "manual_validation_required": [
+    "Review field mappings after major schema changes",
+    "Verify enum values when adding new statuses",
+    "Check API response structure after backend refactoring",
+    "Validate type definitions after TypeScript upgrades"
+  ],
+  "maintenance_notes": [
+    "Run `pnpm validate:types` before each commit",
+    "Update this checklist when adding new models/types",
+    "Document intentional mismatches in known_issues",
+    "Keep OpenAPI spec as source of truth for APIs"
+  ]
+}

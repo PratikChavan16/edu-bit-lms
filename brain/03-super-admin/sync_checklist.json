@@ -1,0 +1,334 @@
+﻿{
+  "version": "2.0",
+  "last_updated": "2025-10-25",
+  "portal": "super-admin",
+  "description": "Type definitions and validation rules for frontend-backend synchronization",
+  
+  "entities": {
+    "Course": {
+      "backend_model": "App\\Models\\Course",
+      "frontend_type": "types/course.ts",
+      "database_table": "courses",
+      "fields": {
+        "id": { "type": "uuid", "required": true, "readonly": true },
+        "university_id": { "type": "uuid", "required": true, "readonly": true },
+        "college_id": { "type": "uuid", "required": true },
+        "department_id": { "type": "uuid", "required": true },
+        "code": { "type": "string", "required": true, "max_length": 20, "unique": true, "validation": "^[A-Z]{2,4}[0-9]{3}$" },
+        "name": { "type": "string", "required": true, "max_length": 255 },
+        "credits": { "type": "integer", "required": true, "min": 1, "max": 6 },
+        "type": { "type": "enum", "required": true, "values": ["theory", "lab", "practical", "project"] },
+        "description": { "type": "text", "required": false },
+        "syllabus": { "type": "text", "required": false },
+        "hours_per_week": { "type": "integer", "required": true, "min": 1, "max": 10 },
+        "min_students": { "type": "integer", "required": true, "default": 20 },
+        "max_students": { "type": "integer", "required": true, "default": 60 },
+        "waitlist_size": { "type": "integer", "required": false, "default": 10 },
+        "status": { "type": "enum", "required": true, "values": ["active", "inactive", "archived"], "default": "active" },
+        "created_at": { "type": "timestamp", "required": true, "readonly": true },
+        "updated_at": { "type": "timestamp", "required": true, "readonly": true }
+      },
+      "relationships": {
+        "college": { "type": "belongsTo", "model": "College" },
+        "department": { "type": "belongsTo", "model": "Department" },
+        "prerequisites": { "type": "belongsToMany", "model": "Course", "pivot": "course_prerequisites" },
+        "faculty": { "type": "belongsToMany", "model": "Faculty", "pivot": "course_faculty" },
+        "enrollments": { "type": "hasMany", "model": "Enrollment" }
+      }
+    },
+
+    "AcademicYear": {
+      "backend_model": "App\\Models\\AcademicYear",
+      "frontend_type": "types/academic-year.ts",
+      "database_table": "academic_years",
+      "fields": {
+        "id": { "type": "uuid", "required": true, "readonly": true },
+        "university_id": { "type": "uuid", "required": true, "readonly": true },
+        "name": { "type": "string", "required": true, "max_length": 50, "validation": "^\\d{4}-\\d{2}$" },
+        "start_date": { "type": "date", "required": true },
+        "end_date": { "type": "date", "required": true },
+        "status": { "type": "enum", "required": true, "values": ["active", "archived"], "default": "active" },
+        "published_at": { "type": "timestamp", "required": false },
+        "created_at": { "type": "timestamp", "required": true, "readonly": true },
+        "updated_at": { "type": "timestamp", "required": true, "readonly": true }
+      },
+      "relationships": {
+        "semesters": { "type": "hasMany", "model": "Semester" }
+      }
+    },
+
+    "Semester": {
+      "backend_model": "App\\Models\\Semester",
+      "frontend_type": "types/semester.ts",
+      "database_table": "semesters",
+      "fields": {
+        "id": { "type": "uuid", "required": true, "readonly": true },
+        "academic_year_id": { "type": "uuid", "required": true },
+        "name": { "type": "string", "required": true, "max_length": 100 },
+        "type": { "type": "enum", "required": true, "values": ["odd", "even", "summer"] },
+        "start_date": { "type": "date", "required": true },
+        "end_date": { "type": "date", "required": true },
+        "registration_start": { "type": "date", "required": true },
+        "registration_end": { "type": "date", "required": true },
+        "created_at": { "type": "timestamp", "required": true, "readonly": true },
+        "updated_at": { "type": "timestamp", "required": true, "readonly": true }
+      },
+      "relationships": {
+        "academicYear": { "type": "belongsTo", "model": "AcademicYear" },
+        "timetables": { "type": "hasMany", "model": "Timetable" },
+        "exams": { "type": "hasMany", "model": "Exam" }
+      }
+    },
+
+    "Timetable": {
+      "backend_model": "App\\Models\\Timetable",
+      "frontend_type": "types/timetable.ts",
+      "database_table": "timetables",
+      "fields": {
+        "id": { "type": "uuid", "required": true, "readonly": true },
+        "college_id": { "type": "uuid", "required": true },
+        "semester_id": { "type": "uuid", "required": true },
+        "program_id": { "type": "uuid", "required": true },
+        "year": { "type": "integer", "required": true, "min": 1, "max": 4 },
+        "section": { "type": "string", "required": true, "max_length": 10 },
+        "status": { "type": "enum", "required": true, "values": ["draft", "published"], "default": "draft" },
+        "conflicts": { "type": "json", "required": false, "default": [] },
+        "generated_at": { "type": "timestamp", "required": false },
+        "published_at": { "type": "timestamp", "required": false },
+        "created_at": { "type": "timestamp", "required": true, "readonly": true },
+        "updated_at": { "type": "timestamp", "required": true, "readonly": true }
+      },
+      "relationships": {
+        "college": { "type": "belongsTo", "model": "College" },
+        "semester": { "type": "belongsTo", "model": "Semester" },
+        "program": { "type": "belongsTo", "model": "Program" },
+        "slots": { "type": "hasMany", "model": "TimetableSlot" }
+      }
+    },
+
+    "TimetableSlot": {
+      "backend_model": "App\\Models\\TimetableSlot",
+      "frontend_type": "types/timetable.ts#TimetableSlot",
+      "database_table": "timetable_slots",
+      "fields": {
+        "id": { "type": "uuid", "required": true, "readonly": true },
+        "timetable_id": { "type": "uuid", "required": true },
+        "day": { "type": "enum", "required": true, "values": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"] },
+        "start_time": { "type": "time", "required": true },
+        "end_time": { "type": "time", "required": true },
+        "course_id": { "type": "uuid", "required": true },
+        "faculty_id": { "type": "uuid", "required": true },
+        "room_id": { "type": "uuid", "required": true },
+        "has_conflict": { "type": "boolean", "required": true, "default": false },
+        "created_at": { "type": "timestamp", "required": true, "readonly": true },
+        "updated_at": { "type": "timestamp", "required": true, "readonly": true }
+      },
+      "relationships": {
+        "timetable": { "type": "belongsTo", "model": "Timetable" },
+        "course": { "type": "belongsTo", "model": "Course" },
+        "faculty": { "type": "belongsTo", "model": "Faculty" },
+        "room": { "type": "belongsTo", "model": "Room" }
+      }
+    },
+
+    "Exam": {
+      "backend_model": "App\\Models\\Exam",
+      "frontend_type": "types/exam.ts",
+      "database_table": "exams",
+      "fields": {
+        "id": { "type": "uuid", "required": true, "readonly": true },
+        "semester_id": { "type": "uuid", "required": true },
+        "course_id": { "type": "uuid", "required": true },
+        "exam_type": { "type": "enum", "required": true, "values": ["mid-term", "end-term", "supplementary"] },
+        "date": { "type": "date", "required": true },
+        "start_time": { "type": "time", "required": true },
+        "end_time": { "type": "time", "required": true },
+        "duration_minutes": { "type": "integer", "required": true, "min": 30, "max": 300 },
+        "max_marks": { "type": "decimal", "required": true, "precision": 5, "scale": 2, "default": 100 },
+        "passing_marks": { "type": "decimal", "required": true, "precision": 5, "scale": 2, "default": 40 },
+        "status": { "type": "enum", "required": true, "values": ["scheduled", "ongoing", "completed", "cancelled"], "default": "scheduled" },
+        "created_at": { "type": "timestamp", "required": true, "readonly": true },
+        "updated_at": { "type": "timestamp", "required": true, "readonly": true }
+      },
+      "relationships": {
+        "semester": { "type": "belongsTo", "model": "Semester" },
+        "course": { "type": "belongsTo", "model": "Course" },
+        "hallAllocations": { "type": "hasMany", "model": "ExamHallAllocation" },
+        "invigilators": { "type": "hasMany", "model": "Invigilator" },
+        "seatingArrangements": { "type": "hasMany", "model": "SeatingArrangement" },
+        "grades": { "type": "hasMany", "model": "Grade" }
+      }
+    },
+
+    "Room": {
+      "backend_model": "App\\Models\\Room",
+      "frontend_type": "types/room.ts",
+      "database_table": "rooms",
+      "fields": {
+        "id": { "type": "uuid", "required": true, "readonly": true },
+        "college_id": { "type": "uuid", "required": true },
+        "name": { "type": "string", "required": true, "max_length": 100 },
+        "building": { "type": "string", "required": true, "max_length": 100 },
+        "floor": { "type": "integer", "required": true, "min": 0, "max": 20 },
+        "capacity": { "type": "integer", "required": true, "min": 10, "max": 500 },
+        "type": { "type": "enum", "required": true, "values": ["classroom", "lab", "auditorium", "seminar"] },
+        "has_projector": { "type": "boolean", "required": true, "default": false },
+        "has_ac": { "type": "boolean", "required": true, "default": false },
+        "has_computers": { "type": "boolean", "required": true, "default": false },
+        "status": { "type": "enum", "required": true, "values": ["active", "maintenance", "inactive"], "default": "active" },
+        "created_at": { "type": "timestamp", "required": true, "readonly": true },
+        "updated_at": { "type": "timestamp", "required": true, "readonly": true }
+      },
+      "relationships": {
+        "college": { "type": "belongsTo", "model": "College" },
+        "timetableSlots": { "type": "hasMany", "model": "TimetableSlot" }
+      }
+    },
+
+    "User": {
+      "backend_model": "App\\Models\\User",
+      "frontend_type": "types/user.ts",
+      "database_table": "users",
+      "fields": {
+        "id": { "type": "uuid", "required": true, "readonly": true },
+        "university_id": { "type": "uuid", "required": true, "readonly": true },
+        "college_id": { "type": "uuid", "required": false },
+        "department_id": { "type": "uuid", "required": false },
+        "email": { "type": "email", "required": true, "unique": true, "max_length": 255 },
+        "password": { "type": "string", "required": true, "min_length": 8, "writeonly": true },
+        "first_name": { "type": "string", "required": true, "max_length": 100 },
+        "last_name": { "type": "string", "required": true, "max_length": 100 },
+        "phone": { "type": "string", "required": false, "max_length": 20 },
+        "role": { "type": "enum", "required": true, "values": ["super_admin", "principal", "faculty", "student", "accountant", "librarian", "hod"] },
+        "status": { "type": "enum", "required": true, "values": ["active", "inactive", "suspended"], "default": "active" },
+        "two_factor_enabled": { "type": "boolean", "required": true, "default": false },
+        "created_at": { "type": "timestamp", "required": true, "readonly": true },
+        "updated_at": { "type": "timestamp", "required": true, "readonly": true }
+      },
+      "relationships": {
+        "university": { "type": "belongsTo", "model": "University" },
+        "college": { "type": "belongsTo", "model": "College" },
+        "department": { "type": "belongsTo", "model": "Department" },
+        "activityLogs": { "type": "hasMany", "model": "ActivityLog" }
+      }
+    },
+
+    "ActivityLog": {
+      "backend_model": "App\\Models\\ActivityLog",
+      "frontend_type": "types/activity-log.ts",
+      "database_table": "activity_logs",
+      "fields": {
+        "id": { "type": "uuid", "required": true, "readonly": true },
+        "user_id": { "type": "uuid", "required": true },
+        "action": { "type": "string", "required": true, "max_length": 100 },
+        "resource_type": { "type": "string", "required": true, "max_length": 100 },
+        "resource_id": { "type": "uuid", "required": false },
+        "changes": { "type": "json", "required": false },
+        "ip_address": { "type": "string", "required": false, "max_length": 45 },
+        "user_agent": { "type": "text", "required": false },
+        "created_at": { "type": "timestamp", "required": true, "readonly": true }
+      },
+      "relationships": {
+        "user": { "type": "belongsTo", "model": "User" }
+      }
+    }
+  },
+
+  "api_endpoints": {
+    "courses": {
+      "list": { "method": "GET", "path": "/api/super-admin/courses", "response": "PaginatedResponse<Course>" },
+      "show": { "method": "GET", "path": "/api/super-admin/courses/:id", "response": "Course" },
+      "create": { "method": "POST", "path": "/api/super-admin/courses", "request": "CreateCourseRequest", "response": "Course" },
+      "update": { "method": "PUT", "path": "/api/super-admin/courses/:id", "request": "UpdateCourseRequest", "response": "Course" },
+      "delete": { "method": "DELETE", "path": "/api/super-admin/courses/:id", "response": "void" }
+    },
+    "timetables": {
+      "list": { "method": "GET", "path": "/api/super-admin/timetables", "response": "PaginatedResponse<Timetable>" },
+      "show": { "method": "GET", "path": "/api/super-admin/timetables/:id", "response": "Timetable" },
+      "generate": { "method": "POST", "path": "/api/super-admin/timetables/generate", "request": "GenerateTimetableRequest", "response": "Timetable" },
+      "publish": { "method": "POST", "path": "/api/super-admin/timetables/:id/publish", "response": "Timetable" }
+    },
+    "exams": {
+      "list": { "method": "GET", "path": "/api/super-admin/exams", "response": "PaginatedResponse<Exam>" },
+      "show": { "method": "GET", "path": "/api/super-admin/exams/:id", "response": "Exam" },
+      "create": { "method": "POST", "path": "/api/super-admin/exams", "request": "CreateExamRequest", "response": "Exam" },
+      "update": { "method": "PUT", "path": "/api/super-admin/exams/:id", "request": "UpdateExamRequest", "response": "Exam" }
+    },
+    "users": {
+      "list": { "method": "GET", "path": "/api/super-admin/users", "response": "PaginatedResponse<User>" },
+      "show": { "method": "GET", "path": "/api/super-admin/users/:id", "response": "User" },
+      "create": { "method": "POST", "path": "/api/super-admin/users", "request": "CreateUserRequest", "response": "User" },
+      "bulkImport": { "method": "POST", "path": "/api/super-admin/users/bulk-import", "request": "BulkImportRequest", "response": "BulkImportResponse" }
+    }
+  },
+
+  "validation_rules": {
+    "course_code": "^[A-Z]{2,4}[0-9]{3}$",
+    "academic_year": "^\\d{4}-\\d{2}$",
+    "email": "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$",
+    "phone": "^\\+?[1-9]\\d{1,14}$",
+    "time": "^([01]\\d|2[0-3]):([0-5]\\d)$",
+    "date": "^\\d{4}-(0[1-9]|1[0-2])-(0[1-9]|[12]\\d|3[01])$"
+  },
+
+  "enums": {
+    "CourseType": ["theory", "lab", "practical", "project"],
+    "SemesterType": ["odd", "even", "summer"],
+    "ExamType": ["mid-term", "end-term", "supplementary"],
+    "RoomType": ["classroom", "lab", "auditorium", "seminar"],
+    "UserRole": ["super_admin", "principal", "faculty", "student", "accountant", "librarian", "hod"],
+    "Status": ["active", "inactive", "archived"],
+    "TimetableStatus": ["draft", "published"],
+    "ExamStatus": ["scheduled", "ongoing", "completed", "cancelled"],
+    "DayOfWeek": ["monday", "tuesday", "wednesday", "thursday", "friday", "saturday"]
+  },
+
+  "sync_checklist": [
+    {
+      "step": 1,
+      "description": "Verify all entity fields match between backend models and frontend types",
+      "files": ["backend: app/Models/*.php", "frontend: types/*.ts"]
+    },
+    {
+      "step": 2,
+      "description": "Ensure enum values are identical in database, backend, and frontend",
+      "files": ["database: db_schema.sql", "backend: app/Enums/*.php", "frontend: types/enums.ts"]
+    },
+    {
+      "step": 3,
+      "description": "Validate API endpoint paths match between backend routes and frontend API client",
+      "files": ["backend: routes/api.php", "frontend: lib/api.ts"]
+    },
+    {
+      "step": 4,
+      "description": "Check validation rules are consistent in backend Form Requests and frontend Zod schemas",
+      "files": ["backend: app/Http/Requests/*.php", "frontend: lib/validations/*.ts"]
+    },
+    {
+      "step": 5,
+      "description": "Verify relationship definitions match between Eloquent models and TypeScript types",
+      "files": ["backend: app/Models/*.php", "frontend: types/*.ts"]
+    },
+    {
+      "step": 6,
+      "description": "Ensure response structures in API spec match frontend type expectations",
+      "files": ["api_spec.yaml", "frontend: types/*.ts"]
+    }
+  ],
+
+  "automated_checks": {
+    "schema_validator": "npm run validate:schema",
+    "type_generator": "npm run generate:types",
+    "api_contract_test": "npm run test:contracts"
+  },
+
+  "notes": [
+    "Run 'npm run generate:types' to auto-generate TypeScript types from OpenAPI spec",
+    "Update this file whenever adding new entities or modifying existing ones",
+    "Use Zod schema validation on frontend to match Laravel validation rules",
+    "Keep enum values synchronized across database constraints, backend enums, and frontend types",
+    "Use UUID v4 for all primary keys and foreign keys",
+    "All timestamps use ISO 8601 format (YYYY-MM-DDTHH:mm:ssZ)"
+  ]
+}
+

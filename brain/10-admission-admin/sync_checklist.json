@@ -1,0 +1,1208 @@
+﻿{
+  "metadata": {
+    "portal": "Admission Admin Portal",
+    "version": "1.0.0",
+    "lastUpdated": "2024-01-20",
+    "description": "Data synchronization strategy and checklist for maintaining consistency across services, external integrations, and real-time updates",
+    "maintainer": "Platform Engineering Team"
+  },
+
+  "eventSubscriptions": {
+    "description": "CloudEvents-based event subscriptions for inter-service communication",
+    "events": [
+      {
+        "eventType": "application.submitted",
+        "source": "student-portal",
+        "subscriber": "admission-admin-service",
+        "handler": "ApplicationEventHandler::onApplicationSubmitted",
+        "actions": [
+          "Create application record in admission_admin DB",
+          "Trigger document assignment workflow",
+          "Send confirmation email to applicant",
+          "Update dashboard statistics cache (Redis)",
+          "Emit WebSocket event to connected admin clients"
+        ],
+        "priority": "high",
+        "retryPolicy": {
+          "maxAttempts": 3,
+          "backoffType": "exponential",
+          "initialDelayMs": 1000,
+          "maxDelayMs": 10000
+        },
+        "dlq": "application-events-dlq",
+        "monitoring": {
+          "alertOnFailure": true,
+          "alertThreshold": 5,
+          "alertChannel": "pagerduty"
+        }
+      },
+      {
+        "eventType": "document.uploaded",
+        "source": "student-portal",
+        "subscriber": "admission-admin-service",
+        "handler": "DocumentEventHandler::onDocumentUploaded",
+        "actions": [
+          "Store document metadata in documents table",
+          "Validate S3 upload (check hash, size, type)",
+          "Queue OCR processing job (ProcessDocumentOCR)",
+          "Update application document_status",
+          "Notify assigned verifier if document set complete"
+        ],
+        "priority": "medium",
+        "retryPolicy": {
+          "maxAttempts": 3,
+          "backoffType": "exponential",
+          "initialDelayMs": 2000,
+          "maxDelayMs": 15000
+        },
+        "dlq": "document-events-dlq"
+      },
+      {
+        "eventType": "document.verified",
+        "source": "admission-admin-service",
+        "subscriber": "student-portal",
+        "handler": "NotificationHandler::onDocumentVerified",
+        "actions": [
+          "Update application status in student portal DB",
+          "Send email notification to applicant (approved/rejected)",
+          "Update verification queue cache",
+          "Log verification event in audit_logs"
+        ],
+        "priority": "high",
+        "retryPolicy": {
+          "maxAttempts": 5,
+          "backoffType": "exponential",
+          "initialDelayMs": 1000,
+          "maxDelayMs": 20000
+        }
+      },
+      {
+        "eventType": "payment.captured",
+        "source": "payment-gateway",
+        "subscriber": "admission-admin-service",
+        "handler": "PaymentEventHandler::onPaymentCaptured",
+        "actions": [
+          "Update payment status in payments table",
+          "Mark application as payment_confirmed",
+          "Update financial reports cache",
+          "Send payment receipt email to applicant",
+          "Emit WebSocket event for real-time dashboard update"
+        ],
+        "priority": "critical",
+        "retryPolicy": {
+          "maxAttempts": 5,
+          "backoffType": "exponential",
+          "initialDelayMs": 500,
+          "maxDelayMs": 10000
+        },
+        "idempotencyKey": "payment_id",
+        "monitoring": {
+          "alertOnFailure": true,
+          "alertThreshold": 2,
+          "alertChannel": "pagerduty"
+        }
+      },
+      {
+        "eventType": "meritlist.published",
+        "source": "admission-admin-service",
+        "subscriber": "student-portal",
+        "handler": "MeritListHandler::onMeritListPublished",
+        "actions": [
+          "Sync merit list data to student portal DB (50K+ records)",
+          "Enable choice filling for eligible applicants",
+          "Send merit list announcement email (bulk 50K+)",
+          "Update merit list cache (Redis with 1-hour TTL)",
+          "Emit WebSocket broadcast event (high load expected)",
+          "Update seat availability matrix"
+        ],
+        "priority": "critical",
+        "retryPolicy": {
+          "maxAttempts": 5,
+          "backoffType": "exponential",
+          "initialDelayMs": 2000,
+          "maxDelayMs": 30000
+        },
+        "rateLimit": {
+          "enabled": true,
+          "maxConcurrent": 10,
+          "comment": "Prevent overwhelming student portal DB during sync"
+        },
+        "monitoring": {
+          "alertOnFailure": true,
+          "alertThreshold": 1,
+          "alertChannel": "pagerduty",
+          "slackChannel": "#admissions-critical"
+        }
+      },
+      {
+        "eventType": "seat.allocated",
+        "source": "admission-admin-service",
+        "subscriber": "student-portal",
+        "handler": "SeatAllocationHandler::onSeatAllocated",
+        "actions": [
+          "Update applicant admission status in student portal",
+          "Send admission confirmation email with deadline",
+          "Create student record in student-portal DB (if accepted)",
+          "Update seat availability matrix",
+          "Log allocation event in audit_logs"
+        ],
+        "priority": "critical",
+        "retryPolicy": {
+          "maxAttempts": 5,
+          "backoffType": "exponential",
+          "initialDelayMs": 1000,
+          "maxDelayMs": 20000
+        }
+      },
+      {
+        "eventType": "counseling.deadline_approaching",
+        "source": "admission-admin-service",
+        "subscriber": "notification-service",
+        "handler": "ReminderHandler::onDeadlineApproaching",
+        "actions": [
+          "Send reminder email to applicants (48h, 24h, 6h, 1h intervals)",
+          "Send reminder SMS to applicants (24h, 6h intervals)",
+          "Update reminder_sent flags in counseling_rounds table",
+          "Track delivery status in communications table"
+        ],
+        "priority": "medium",
+        "retryPolicy": {
+          "maxAttempts": 3,
+          "backoffType": "linear",
+          "initialDelayMs": 5000,
+          "maxDelayMs": 15000
+        }
+      }
+    ],
+    "summary": {
+      "totalEvents": 7,
+      "criticalEvents": 3,
+      "highPriorityEvents": 2,
+      "mediumPriorityEvents": 2
+    }
+  },
+
+  "cronJobs": {
+    "description": "Scheduled jobs for periodic synchronization, cleanup, and reporting",
+    "jobs": [
+      {
+        "jobName": "PaymentReconciliation",
+        "schedule": "0 2 * * *",
+        "scheduleDescription": "Daily at 2:00 AM IST",
+        "handler": "ReconcilePaymentsJob",
+        "actions": [
+          "Fetch yesterday's payment transactions from Razorpay API",
+          "Fetch yesterday's payment transactions from HDFC API",
+          "Compare with payments table records",
+          "Flag mismatches (missing records, amount discrepancies, status mismatches)",
+          "Generate reconciliation report (CSV + email to finance team)",
+          "Update payment statuses if gateway has newer data",
+          "Alert on critical mismatches (amount >₹10,000 difference)"
+        ],
+        "timeout": "30 minutes",
+        "retryOnFailure": true,
+        "maxRetries": 2,
+        "monitoring": {
+          "alertOnFailure": true,
+          "alertChannel": "slack",
+          "slackChannel": "#finance-alerts",
+          "successNotification": false
+        },
+        "dependencies": [
+          "Razorpay API access",
+          "HDFC Payment Gateway API access",
+          "SMTP access for email reports"
+        ]
+      },
+      {
+        "jobName": "OCRProcessingQueue",
+        "schedule": "*/5 * * * *",
+        "scheduleDescription": "Every 5 minutes",
+        "handler": "ProcessPendingOCRJob",
+        "actions": [
+          "Query documents with status=uploaded AND ocr_status=pending",
+          "Dispatch ProcessDocumentOCR jobs (batch of 20 at a time)",
+          "Update ocr_status=processing for dispatched documents",
+          "Monitor AWS Textract quota (1000 pages/hour limit)",
+          "Throttle if approaching quota limit (>900 pages processed in last hour)"
+        ],
+        "timeout": "2 minutes",
+        "retryOnFailure": true,
+        "maxRetries": 3,
+        "rateLimit": {
+          "maxDocumentsPerRun": 20,
+          "comment": "Prevent overwhelming AWS Textract API"
+        }
+      },
+      {
+        "jobName": "CounselingReminders",
+        "schedule": "0 9 * * *",
+        "scheduleDescription": "Daily at 9:00 AM IST",
+        "handler": "SendCounselingRemindersJob",
+        "actions": [
+          "Query counseling_rounds with status=active",
+          "For each round, check deadline proximity (48h, 24h, 6h, 1h)",
+          "Query merit_list_applicants with choice_filled=false",
+          "Emit counseling.deadline_approaching events (batched)",
+          "Update last_reminder_sent timestamp",
+          "Track reminder delivery status in communications table"
+        ],
+        "timeout": "15 minutes",
+        "retryOnFailure": true,
+        "maxRetries": 2,
+        "monitoring": {
+          "alertOnFailure": true,
+          "alertChannel": "slack",
+          "slackChannel": "#admissions-ops"
+        }
+      },
+      {
+        "jobName": "DailyReportGeneration",
+        "schedule": "0 23 * * *",
+        "scheduleDescription": "Daily at 11:00 PM IST",
+        "handler": "GenerateDailyReportsJob",
+        "actions": [
+          "Generate application statistics report (submitted, verified, approved, rejected counts)",
+          "Generate document verification performance report (avg time, backlog)",
+          "Generate payment collection report (daily revenue, payment methods breakdown)",
+          "Generate merit list progress report (if active cycle)",
+          "Store reports in S3 (reports/ bucket with 2-year retention)",
+          "Email summary report to senior officers",
+          "Update reports cache in Redis (24-hour TTL)"
+        ],
+        "timeout": "10 minutes",
+        "retryOnFailure": true,
+        "maxRetries": 2,
+        "monitoring": {
+          "alertOnFailure": true,
+          "alertChannel": "email",
+          "emailTo": ["senior.officer@example.com"]
+        }
+      },
+      {
+        "jobName": "SessionCleanup",
+        "schedule": "0 * * * *",
+        "scheduleDescription": "Every hour",
+        "handler": "CleanupExpiredSessionsJob",
+        "actions": [
+          "Delete session records from staff table where last_activity_at < (NOW() - 24 hours)",
+          "Clear expired auth tokens from Redis cache",
+          "Log cleanup statistics (sessions deleted, tokens cleared)"
+        ],
+        "timeout": "5 minutes",
+        "retryOnFailure": false
+      },
+      {
+        "jobName": "ExternalScoreSync",
+        "schedule": "0 3 * * *",
+        "scheduleDescription": "Daily at 3:00 AM IST",
+        "handler": "SyncEntranceExamScoresJob",
+        "actions": [
+          "Query applications with entrance_exam IN ('JEE', 'CET') AND score_verified=false",
+          "For each application, call Entrance Exam Service API to fetch latest score",
+          "Update entrance_score and score_verified_at if score changed",
+          "Flag discrepancies (self-reported score differs from API score by >5%)",
+          "Update applications cache",
+          "Generate sync report (applications processed, discrepancies found)"
+        ],
+        "timeout": "30 minutes",
+        "retryOnFailure": true,
+        "maxRetries": 2,
+        "rateLimit": {
+          "maxRequestsPerMinute": 100,
+          "comment": "Entrance Exam Service API rate limit"
+        },
+        "monitoring": {
+          "alertOnFailure": true,
+          "alertChannel": "slack",
+          "slackChannel": "#admissions-ops"
+        }
+      },
+      {
+        "jobName": "CacheWarmup",
+        "schedule": "0 6 * * *",
+        "scheduleDescription": "Daily at 6:00 AM IST (before office hours)",
+        "handler": "WarmupCachesJob",
+        "actions": [
+          "Pre-load dashboard statistics into Redis (application counts, verification queue)",
+          "Pre-load active merit lists into Redis",
+          "Pre-load seat availability matrix into Redis",
+          "Pre-load program/category configuration into Redis",
+          "Set TTL to 12 hours for all warmup caches"
+        ],
+        "timeout": "5 minutes",
+        "retryOnFailure": true,
+        "maxRetries": 1,
+        "comment": "Ensures fast dashboard load times during peak usage (9 AM - 6 PM)"
+      },
+      {
+        "jobName": "AuditLogArchival",
+        "schedule": "0 1 1 * *",
+        "scheduleDescription": "Monthly on 1st at 1:00 AM IST",
+        "handler": "ArchiveOldAuditLogsJob",
+        "actions": [
+          "Query audit_logs with created_at < (NOW() - 2 years)",
+          "Export to S3 Glacier (audit-logs-archive/ bucket)",
+          "Delete archived records from audit_logs table (after successful S3 upload)",
+          "Generate archival report (records archived, S3 location)",
+          "Maintain 7-year retention in S3 Glacier (compliance requirement)"
+        ],
+        "timeout": "60 minutes",
+        "retryOnFailure": true,
+        "maxRetries": 2,
+        "monitoring": {
+          "alertOnFailure": true,
+          "alertChannel": "email",
+          "emailTo": ["compliance@example.com"]
+        }
+      },
+      {
+        "jobName": "DeadLetterQueueProcessor",
+        "schedule": "*/15 * * * *",
+        "scheduleDescription": "Every 15 minutes",
+        "handler": "ProcessDLQMessagesJob",
+        "actions": [
+          "Check application-events-dlq for failed messages",
+          "Check document-events-dlq for failed messages",
+          "Attempt to reprocess messages (manual inspection recommended if retry >3)",
+          "Alert on persistent failures (same message failed >5 times)",
+          "Move permanently failed messages to manual-review queue"
+        ],
+        "timeout": "5 minutes",
+        "retryOnFailure": false,
+        "monitoring": {
+          "alertOnFailure": false,
+          "alertOnPersistentFailures": true,
+          "alertChannel": "pagerduty"
+        }
+      }
+    ],
+    "summary": {
+      "totalJobs": 9,
+      "criticalJobs": 3,
+      "dailyJobs": 5,
+      "hourlyJobs": 2,
+      "frequentJobs": 2
+    }
+  },
+
+  "consistencyChecks": {
+    "description": "Automated validation checks to ensure data integrity across services",
+    "checks": [
+      {
+        "checkName": "ApplicationPaymentLinkage",
+        "frequency": "hourly",
+        "query": "SELECT a.id, a.application_number, a.payment_status FROM applications a LEFT JOIN payments p ON a.id = p.application_id WHERE a.payment_status = 'CONFIRMED' AND p.id IS NULL",
+        "expectedResult": "0 rows",
+        "action": "Alert if any applications have payment_status=CONFIRMED but no payment record exists",
+        "severity": "high",
+        "alertChannel": "slack",
+        "slackChannel": "#admissions-critical",
+        "autoFix": false,
+        "comment": "Indicates data inconsistency between applications and payments tables"
+      },
+      {
+        "checkName": "DocumentApplicationMapping",
+        "frequency": "daily",
+        "query": "SELECT d.id, d.application_id FROM documents d LEFT JOIN applications a ON d.application_id = a.id WHERE a.id IS NULL",
+        "expectedResult": "0 rows",
+        "action": "Alert if any documents reference non-existent applications (orphaned documents)",
+        "severity": "medium",
+        "alertChannel": "slack",
+        "slackChannel": "#admissions-ops",
+        "autoFix": false
+      },
+      {
+        "checkName": "MeritListRankSequence",
+        "frequency": "on_merit_list_publish",
+        "query": "SELECT merit_list_id, COUNT(*) as total, COUNT(DISTINCT rank) as unique_ranks FROM merit_list_applicants GROUP BY merit_list_id HAVING total != unique_ranks",
+        "expectedResult": "0 rows",
+        "action": "Alert if merit list has duplicate ranks or gaps in rank sequence",
+        "severity": "critical",
+        "alertChannel": "pagerduty",
+        "autoFix": false,
+        "comment": "Merit list rank integrity is critical for fair admissions"
+      },
+      {
+        "checkName": "SeatAllocationDuplicates",
+        "frequency": "on_allocation_run",
+        "query": "SELECT applicant_id, COUNT(*) as allocation_count FROM seat_allocations WHERE round_id = $CURRENT_ROUND GROUP BY applicant_id HAVING allocation_count > 1",
+        "expectedResult": "0 rows",
+        "action": "Alert if any applicant has multiple seat allocations in same round",
+        "severity": "critical",
+        "alertChannel": "pagerduty",
+        "autoFix": true,
+        "autoFixAction": "Delete duplicate allocations, keep earliest allocation by created_at",
+        "comment": "Database locking should prevent this, but check as safety net"
+      },
+      {
+        "checkName": "DocumentVerificationStatusSync",
+        "frequency": "hourly",
+        "query": "SELECT a.id, a.document_status, COUNT(d.id) as total_docs, COUNT(CASE WHEN d.status = 'APPROVED' THEN 1 END) as approved_docs FROM applications a JOIN documents d ON a.id = d.application_id GROUP BY a.id, a.document_status HAVING a.document_status = 'VERIFIED' AND approved_docs < total_docs",
+        "expectedResult": "0 rows",
+        "action": "Alert if application has document_status=VERIFIED but not all documents are approved",
+        "severity": "medium",
+        "alertChannel": "slack",
+        "slackChannel": "#admissions-ops",
+        "autoFix": false
+      },
+      {
+        "checkName": "PaymentAmountMatch",
+        "frequency": "daily",
+        "query": "SELECT p.id, p.amount, a.category, a.program, ac.fee_amount FROM payments p JOIN applications a ON p.application_id = a.id JOIN admission_cycles ac ON a.admission_cycle_id = ac.id WHERE p.status = 'CAPTURED' AND p.amount != ac.fee_amount",
+        "expectedResult": "0 rows (or flagged exceptions)",
+        "action": "Alert if payment amount doesn't match expected fee for category",
+        "severity": "high",
+        "alertChannel": "slack",
+        "slackChannel": "#finance-alerts",
+        "autoFix": false,
+        "comment": "Some exceptions allowed for partial payments or scholarships (needs manual review)"
+      },
+      {
+        "checkName": "ChoiceFillingCompletion",
+        "frequency": "daily_during_counseling",
+        "query": "SELECT COUNT(*) FROM merit_list_applicants WHERE merit_list_id = $ACTIVE_MERIT_LIST AND choice_filled = false AND $CURRENT_TIMESTAMP < $DEADLINE",
+        "expectedResult": "tracked metric",
+        "action": "Generate report of pending choice fillings, send reminder to applicants",
+        "severity": "low",
+        "alertChannel": "none",
+        "autoFix": false,
+        "comment": "Not an error, but operational metric for counseling progress"
+      },
+      {
+        "checkName": "StaffPermissionValidity",
+        "frequency": "weekly",
+        "query": "SELECT id, role, permissions FROM staff WHERE role NOT IN ('SENIOR_OFFICER', 'COORDINATOR', 'VERIFIER', 'MERIT_MANAGER', 'COUNSELING_COORDINATOR', 'DATA_ENTRY')",
+        "expectedResult": "0 rows",
+        "action": "Alert if any staff record has invalid role value",
+        "severity": "medium",
+        "alertChannel": "slack",
+        "slackChannel": "#tech-team",
+        "autoFix": false,
+        "comment": "Indicates possible data corruption or migration issue"
+      }
+    ],
+    "summary": {
+      "totalChecks": 8,
+      "criticalChecks": 2,
+      "highSeverityChecks": 2,
+      "mediumSeverityChecks": 3,
+      "lowSeverityChecks": 1
+    }
+  },
+
+  "retryMechanisms": {
+    "description": "Retry strategies for handling transient failures in external service integrations",
+    "strategies": [
+      {
+        "service": "Razorpay Payment Gateway",
+        "scenario": "Webhook signature verification failure",
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3,
+          "backoffType": "exponential",
+          "initialDelayMs": 1000,
+          "maxDelayMs": 10000,
+          "retryableErrors": ["NETWORK_ERROR", "TIMEOUT", "503_SERVICE_UNAVAILABLE"],
+          "nonRetryableErrors": ["INVALID_SIGNATURE", "400_BAD_REQUEST"]
+        },
+        "fallback": "Store webhook payload in failed_webhooks table for manual review",
+        "monitoring": {
+          "alertOnMaxAttemptsExceeded": true,
+          "alertChannel": "pagerduty"
+        }
+      },
+      {
+        "service": "AWS Textract OCR",
+        "scenario": "OCR processing timeout or throttling",
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 5,
+          "backoffType": "exponential",
+          "initialDelayMs": 2000,
+          "maxDelayMs": 30000,
+          "retryableErrors": ["THROTTLING_EXCEPTION", "PROVISIONED_THROUGHPUT_EXCEEDED", "TIMEOUT"],
+          "nonRetryableErrors": ["INVALID_PARAMETER", "UNSUPPORTED_DOCUMENT"]
+        },
+        "fallback": "Mark document as requires_manual_ocr, assign to human reviewer",
+        "monitoring": {
+          "alertOnMaxAttemptsExceeded": true,
+          "alertChannel": "slack",
+          "slackChannel": "#admissions-ops"
+        }
+      },
+      {
+        "service": "Twilio SMS Gateway",
+        "scenario": "SMS delivery failure",
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3,
+          "backoffType": "linear",
+          "initialDelayMs": 5000,
+          "maxDelayMs": 15000,
+          "retryableErrors": ["NETWORK_ERROR", "TIMEOUT", "RATE_LIMIT_EXCEEDED"],
+          "nonRetryableErrors": ["INVALID_PHONE_NUMBER", "UNSUBSCRIBED"]
+        },
+        "fallback": "Switch to MSG91 gateway if Twilio fails 3 times",
+        "monitoring": {
+          "alertOnMaxAttemptsExceeded": false,
+          "trackFailureRate": true,
+          "failureRateThreshold": 5
+        }
+      },
+      {
+        "service": "AWS SES Email",
+        "scenario": "Email delivery failure",
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 5,
+          "backoffType": "exponential",
+          "initialDelayMs": 1000,
+          "maxDelayMs": 20000,
+          "retryableErrors": ["THROTTLING", "TIMEOUT", "NETWORK_ERROR"],
+          "nonRetryableErrors": ["INVALID_EMAIL", "BLACKLISTED", "MAILBOX_FULL"]
+        },
+        "fallback": "Log failed email in communications table with status=failed, retry after 1 hour",
+        "monitoring": {
+          "alertOnMaxAttemptsExceeded": false,
+          "trackFailureRate": true,
+          "failureRateThreshold": 2
+        }
+      },
+      {
+        "service": "Entrance Exam Service API",
+        "scenario": "Score fetch timeout or API unavailable",
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 3,
+          "backoffType": "exponential",
+          "initialDelayMs": 2000,
+          "maxDelayMs": 15000,
+          "retryableErrors": ["TIMEOUT", "503_SERVICE_UNAVAILABLE", "NETWORK_ERROR"],
+          "nonRetryableErrors": ["INVALID_ROLL_NUMBER", "EXAM_NOT_FOUND", "401_UNAUTHORIZED"]
+        },
+        "fallback": "Use cached score if available (cache TTL: 24 hours), otherwise mark as pending_verification",
+        "monitoring": {
+          "alertOnMaxAttemptsExceeded": true,
+          "alertChannel": "slack",
+          "slackChannel": "#admissions-ops"
+        }
+      },
+      {
+        "service": "Student Portal Handoff API",
+        "scenario": "Student data sync failure after admission",
+        "retryPolicy": {
+          "enabled": true,
+          "maxAttempts": 5,
+          "backoffType": "exponential",
+          "initialDelayMs": 3000,
+          "maxDelayMs": 30000,
+          "retryableErrors": ["TIMEOUT", "DATABASE_ERROR", "503_SERVICE_UNAVAILABLE"],
+          "nonRetryableErrors": ["DUPLICATE_STUDENT", "INVALID_DATA"]
+        },
+        "fallback": "Queue student data in retry queue (processed every 15 minutes), alert if not synced within 6 hours",
+        "monitoring": {
+          "alertOnMaxAttemptsExceeded": true,
+          "alertChannel": "pagerduty",
+          "comment": "Critical: admitted students must be synced to access student portal"
+        }
+      }
+    ],
+    "summary": {
+      "totalStrategies": 6,
+      "servicesWithFallback": 6,
+      "averageMaxAttempts": 4
+    }
+  },
+
+  "dataIntegrityRules": {
+    "description": "Database constraints and validation rules enforced at application level",
+    "rules": [
+      {
+        "rule": "UniqueApplicationEmail",
+        "constraint": "UNIQUE(email, admission_cycle_id)",
+        "enforcement": "database",
+        "errorMessage": "Email already used in this admission cycle",
+        "validationLevel": "application_and_database"
+      },
+      {
+        "rule": "UniqueApplicationMobile",
+        "constraint": "UNIQUE(mobile, admission_cycle_id)",
+        "enforcement": "database",
+        "errorMessage": "Mobile number already used in this admission cycle",
+        "validationLevel": "application_and_database"
+      },
+      {
+        "rule": "UniqueAadharPerCycle",
+        "constraint": "UNIQUE(aadhar, admission_cycle_id)",
+        "enforcement": "database",
+        "errorMessage": "Aadhar already used in this admission cycle",
+        "validationLevel": "application_and_database"
+      },
+      {
+        "rule": "StatusTransitionValidation",
+        "enforcement": "application",
+        "validTransitions": {
+          "DRAFT": ["SUBMITTED"],
+          "SUBMITTED": ["UNDER_REVIEW", "REJECTED"],
+          "UNDER_REVIEW": ["APPROVED", "REJECTED"],
+          "APPROVED": ["WAITLISTED", "REJECTED"],
+          "WAITLISTED": ["APPROVED", "REJECTED"],
+          "REJECTED": []
+        },
+        "errorMessage": "Invalid status transition",
+        "validationLevel": "application"
+      },
+      {
+        "rule": "PaymentAmountValidation",
+        "enforcement": "application",
+        "logic": "payment.amount must match admission_cycle.fee_amount for applicant's category",
+        "exceptions": "Partial payments allowed if marked as partial=true",
+        "errorMessage": "Payment amount does not match expected fee",
+        "validationLevel": "application"
+      },
+      {
+        "rule": "DocumentTypeCompleteness",
+        "enforcement": "application",
+        "requiredDocuments": ["HSC_MARKSHEET", "ENTRANCE_SCORECARD", "AADHAR_CARD", "PHOTO", "SIGNATURE", "INCOME_CERTIFICATE", "CASTE_CERTIFICATE", "DOMICILE_CERTIFICATE"],
+        "logic": "Application can only move to UNDER_REVIEW status if all required documents uploaded and verified",
+        "errorMessage": "All required documents must be uploaded and verified",
+        "validationLevel": "application"
+      },
+      {
+        "rule": "MeritScoreRange",
+        "enforcement": "application",
+        "logic": "merit_score must be between 0 and 250",
+        "errorMessage": "Invalid merit score",
+        "validationLevel": "application_and_database"
+      },
+      {
+        "rule": "SeatAllocationRoundSequence",
+        "enforcement": "application",
+        "logic": "round_number must be sequential (Round 1 before Round 2)",
+        "errorMessage": "Invalid counseling round sequence",
+        "validationLevel": "application"
+      },
+      {
+        "rule": "OneAllocationPerApplicantPerRound",
+        "enforcement": "database",
+        "constraint": "UNIQUE(applicant_id, round_id)",
+        "errorMessage": "Applicant already has seat allocation in this round",
+        "validationLevel": "application_and_database"
+      },
+      {
+        "rule": "PaymentIdempotency",
+        "enforcement": "application",
+        "logic": "Duplicate payment requests with same order_id must return existing payment record, not create new",
+        "errorMessage": "Duplicate payment order",
+        "validationLevel": "application",
+        "implementation": "Check if payment with order_id exists before creating new record"
+      }
+    ],
+    "summary": {
+      "totalRules": 10,
+      "databaseConstraints": 5,
+      "applicationLevelValidations": 8
+    }
+  },
+
+  "externalServiceSync": {
+    "description": "Synchronization strategies for external service integrations",
+    "services": [
+      {
+        "serviceName": "Entrance Exam Service (JEE/CET API)",
+        "syncType": "pull",
+        "frequency": "daily",
+        "method": "API polling",
+        "endpoint": "GET /api/scores",
+        "authentication": "OAuth 2.0 Bearer token",
+        "dataFlow": "Entrance Exam Service → Admission Admin",
+        "syncedData": ["entrance_score", "exam_type", "roll_number", "exam_date", "score_verified_at"],
+        "cacheStrategy": {
+          "enabled": true,
+          "ttl": "24 hours",
+          "invalidateOn": ["manual_refresh", "score_discrepancy_detected"]
+        },
+        "consistency": "eventual",
+        "conflictResolution": "API score takes precedence over self-reported score",
+        "monitoring": {
+          "trackSyncSuccessRate": true,
+          "alertOnSyncFailure": true,
+          "alertChannel": "slack"
+        }
+      },
+      {
+        "serviceName": "Student Portal",
+        "syncType": "push",
+        "frequency": "event-driven",
+        "method": "Event bus (CloudEvents) + REST API",
+        "triggerEvents": ["document.verified", "meritlist.published", "seat.allocated"],
+        "endpoint": "POST /api/admissions/sync",
+        "authentication": "JWT token",
+        "dataFlow": "Admission Admin → Student Portal",
+        "syncedData": ["application_status", "document_status", "merit_rank", "seat_allocation", "admission_status"],
+        "retryQueue": {
+          "enabled": true,
+          "maxRetries": 5,
+          "retryInterval": "15 minutes"
+        },
+        "consistency": "eventual (target: <5 minutes lag)",
+        "monitoring": {
+          "trackSyncLag": true,
+          "alertOnLagExceeded": true,
+          "lagThreshold": "10 minutes",
+          "alertChannel": "pagerduty"
+        }
+      },
+      {
+        "serviceName": "Payment Gateways (Razorpay, HDFC)",
+        "syncType": "push-pull",
+        "frequency": "real-time (webhooks) + daily reconciliation",
+        "method": "Webhooks for real-time updates, API polling for reconciliation",
+        "webhookEndpoints": [
+          "POST /api/webhooks/razorpay",
+          "POST /api/webhooks/hdfc"
+        ],
+        "reconciliationEndpoint": "GET /api/payments/list",
+        "authentication": "Webhook HMAC signature + API key",
+        "dataFlow": "Bidirectional (webhooks from gateway, reconciliation API calls to gateway)",
+        "syncedData": ["payment_status", "gateway_transaction_id", "captured_at", "failure_reason"],
+        "consistency": "strong (via webhooks) + eventual (via reconciliation)",
+        "conflictResolution": "Gateway data takes precedence in case of mismatch",
+        "monitoring": {
+          "trackWebhookDelivery": true,
+          "alertOnWebhookFailure": true,
+          "alertChannel": "pagerduty"
+        }
+      },
+      {
+        "serviceName": "Communication Gateways (AWS SES, Twilio, MSG91)",
+        "syncType": "push",
+        "frequency": "real-time",
+        "method": "API calls",
+        "endpoints": [
+          "POST /api/email/send (AWS SES)",
+          "POST /api/sms/send (Twilio/MSG91)"
+        ],
+        "authentication": "API keys",
+        "dataFlow": "Admission Admin → Communication Gateways",
+        "syncedData": ["message_id", "delivery_status", "delivered_at", "failure_reason"],
+        "deliveryTracking": {
+          "enabled": true,
+          "method": "Webhooks for delivery status",
+          "webhookEndpoints": [
+            "POST /api/webhooks/ses-delivery",
+            "POST /api/webhooks/twilio-status"
+          ]
+        },
+        "consistency": "eventual",
+        "monitoring": {
+          "trackDeliveryRate": true,
+          "alertOnLowDeliveryRate": true,
+          "deliveryRateThreshold": 95,
+          "alertChannel": "slack"
+        }
+      },
+      {
+        "serviceName": "Elasticsearch (Application Search)",
+        "syncType": "push",
+        "frequency": "real-time (on data change)",
+        "method": "Index API calls",
+        "endpoint": "POST /applications/_doc",
+        "authentication": "API key",
+        "dataFlow": "Admission Admin → Elasticsearch",
+        "syncedData": ["application_number", "full_name", "email", "mobile", "program", "status", "category", "merit_score", "submitted_at"],
+        "indexingStrategy": "Index on create/update, delete on application deletion",
+        "consistency": "eventual (target: <1 minute lag)",
+        "reindexing": {
+          "fullReindexSchedule": "quarterly",
+          "incrementalReindexSchedule": "daily (for updates missed due to failures)"
+        },
+        "monitoring": {
+          "trackIndexingLag": true,
+          "alertOnIndexingFailure": true,
+          "alertChannel": "slack"
+        }
+      },
+      {
+        "serviceName": "AWS S3 (Document Storage)",
+        "syncType": "push",
+        "frequency": "on-demand",
+        "method": "S3 SDK",
+        "operations": ["PUT (upload)", "GET (download via pre-signed URLs)", "DELETE (on application deletion)"],
+        "authentication": "IAM role",
+        "dataFlow": "Bidirectional (upload from student portal, download in admin portal)",
+        "syncedData": ["document file", "metadata (file_name, content_type, size, hash)"],
+        "lifecycle": {
+          "enabled": true,
+          "transitionToGlacier": "after 2 years",
+          "deleteAfter": "7 years (compliance requirement)"
+        },
+        "consistency": "strong (via S3 read-after-write consistency)",
+        "monitoring": {
+          "trackUploadSuccessRate": true,
+          "alertOnUploadFailure": true,
+          "alertChannel": "slack"
+        }
+      }
+    ],
+    "summary": {
+      "totalServices": 6,
+      "realTimeSyncServices": 4,
+      "batchSyncServices": 2,
+      "bidirectionalServices": 1
+    }
+  },
+
+  "cacheInvalidationStrategies": {
+    "description": "Redis cache management and invalidation rules",
+    "strategies": [
+      {
+        "cacheName": "dashboard_statistics",
+        "keyPattern": "stats:dashboard:*",
+        "ttl": "30 seconds",
+        "invalidationTriggers": [
+          "application.submitted",
+          "application.status_changed",
+          "document.verified",
+          "payment.captured"
+        ],
+        "invalidationStrategy": "delete_on_event",
+        "warmupStrategy": "pre-load at 6 AM daily (CacheWarmup job)"
+      },
+      {
+        "cacheName": "application_list",
+        "keyPattern": "apps:list:{filters_hash}",
+        "ttl": "60 seconds",
+        "invalidationTriggers": [
+          "application.created",
+          "application.updated",
+          "application.deleted"
+        ],
+        "invalidationStrategy": "delete_all_matching_pattern (apps:list:*)",
+        "comment": "Invalidate all filter combinations when any application changes"
+      },
+      {
+        "cacheName": "merit_list_data",
+        "keyPattern": "merit:list:{merit_list_id}",
+        "ttl": "1 hour",
+        "invalidationTriggers": [
+          "meritlist.published",
+          "meritlist.updated"
+        ],
+        "invalidationStrategy": "delete_specific_key",
+        "comment": "Long TTL because merit lists don't change frequently after publication"
+      },
+      {
+        "cacheName": "seat_availability_matrix",
+        "keyPattern": "seats:availability:{round_id}",
+        "ttl": "5 minutes",
+        "invalidationTriggers": [
+          "seat.allocated",
+          "seat.released"
+        ],
+        "invalidationStrategy": "delete_on_event",
+        "comment": "Short TTL because seat availability changes frequently during counseling"
+      },
+      {
+        "cacheName": "verification_queue",
+        "keyPattern": "queue:verification:{verifier_id}",
+        "ttl": "120 seconds",
+        "invalidationTriggers": [
+          "document.assigned",
+          "document.verified"
+        ],
+        "invalidationStrategy": "delete_specific_key"
+      },
+      {
+        "cacheName": "entrance_exam_scores",
+        "keyPattern": "exam:score:{exam_type}:{roll_number}",
+        "ttl": "24 hours",
+        "invalidationTriggers": [
+          "manual_refresh_requested",
+          "score_discrepancy_detected"
+        ],
+        "invalidationStrategy": "delete_specific_key",
+        "comment": "Long TTL because exam scores don't change"
+      },
+      {
+        "cacheName": "staff_permissions",
+        "keyPattern": "staff:permissions:{staff_id}",
+        "ttl": "1 hour",
+        "invalidationTriggers": [
+          "staff.role_changed",
+          "staff.permissions_updated"
+        ],
+        "invalidationStrategy": "delete_specific_key"
+      },
+      {
+        "cacheName": "admission_cycle_config",
+        "keyPattern": "config:cycle:{cycle_id}",
+        "ttl": "12 hours",
+        "invalidationTriggers": [
+          "config.updated"
+        ],
+        "invalidationStrategy": "delete_specific_key",
+        "comment": "Very long TTL because config changes are rare"
+      }
+    ],
+    "summary": {
+      "totalCacheTypes": 8,
+      "eventDrivenCaches": 7,
+      "timeCachesOnly": 1
+    }
+  },
+
+  "monitoringAndAlerting": {
+    "description": "Monitoring setup for synchronization health and data consistency",
+    "metrics": [
+      {
+        "metricName": "event_processing_lag",
+        "description": "Time between event emission and processing completion",
+        "type": "gauge",
+        "unit": "milliseconds",
+        "target": "<5000ms (5 seconds)",
+        "alertThreshold": ">10000ms (10 seconds)",
+        "alertChannel": "slack",
+        "dashboardPanel": "CloudWatch/Grafana"
+      },
+      {
+        "metricName": "webhook_delivery_success_rate",
+        "description": "Percentage of webhooks successfully delivered (2xx response)",
+        "type": "percentage",
+        "unit": "percent",
+        "target": ">99%",
+        "alertThreshold": "<95%",
+        "alertChannel": "pagerduty",
+        "dashboardPanel": "Grafana"
+      },
+      {
+        "metricName": "dead_letter_queue_size",
+        "description": "Number of messages in DLQ (failed event processing)",
+        "type": "counter",
+        "unit": "count",
+        "target": "0",
+        "alertThreshold": ">10",
+        "alertChannel": "slack",
+        "dashboardPanel": "CloudWatch"
+      },
+      {
+        "metricName": "payment_reconciliation_mismatches",
+        "description": "Number of payment records with mismatched amounts or statuses",
+        "type": "counter",
+        "unit": "count",
+        "target": "0",
+        "alertThreshold": ">5",
+        "alertChannel": "pagerduty",
+        "dashboardPanel": "Grafana"
+      },
+      {
+        "metricName": "ocr_processing_queue_length",
+        "description": "Number of documents pending OCR processing",
+        "type": "gauge",
+        "unit": "count",
+        "target": "<100",
+        "alertThreshold": ">500",
+        "alertChannel": "slack",
+        "dashboardPanel": "CloudWatch"
+      },
+      {
+        "metricName": "external_api_response_time",
+        "description": "Average response time for external API calls",
+        "type": "gauge",
+        "unit": "milliseconds",
+        "target": "<2000ms",
+        "alertThreshold": ">5000ms",
+        "alertChannel": "slack",
+        "dashboardPanel": "Grafana"
+      },
+      {
+        "metricName": "cache_hit_rate",
+        "description": "Percentage of cache hits vs total cache requests",
+        "type": "percentage",
+        "unit": "percent",
+        "target": ">80%",
+        "alertThreshold": "<50%",
+        "alertChannel": "slack",
+        "dashboardPanel": "Grafana"
+      },
+      {
+        "metricName": "consistency_check_failures",
+        "description": "Number of failed consistency checks (data integrity issues)",
+        "type": "counter",
+        "unit": "count",
+        "target": "0",
+        "alertThreshold": ">3",
+        "alertChannel": "pagerduty",
+        "dashboardPanel": "Grafana"
+      },
+      {
+        "metricName": "sync_lag_student_portal",
+        "description": "Time between admission event and student portal sync completion",
+        "type": "gauge",
+        "unit": "seconds",
+        "target": "<300s (5 minutes)",
+        "alertThreshold": ">600s (10 minutes)",
+        "alertChannel": "pagerduty",
+        "dashboardPanel": "Grafana"
+      }
+    ],
+    "alerts": [
+      {
+        "alertName": "HighEventProcessingLag",
+        "condition": "event_processing_lag > 10000ms for 5 minutes",
+        "severity": "warning",
+        "channel": "slack",
+        "recipients": ["#admissions-ops"]
+      },
+      {
+        "alertName": "WebhookDeliveryFailure",
+        "condition": "webhook_delivery_success_rate < 95% for 10 minutes",
+        "severity": "critical",
+        "channel": "pagerduty",
+        "recipients": ["on-call-engineer"]
+      },
+      {
+        "alertName": "PaymentReconciliationIssue",
+        "condition": "payment_reconciliation_mismatches > 5",
+        "severity": "critical",
+        "channel": "pagerduty",
+        "recipients": ["on-call-engineer", "#finance-alerts"]
+      },
+      {
+        "alertName": "OCRQueueBacklog",
+        "condition": "ocr_processing_queue_length > 500 for 30 minutes",
+        "severity": "warning",
+        "channel": "slack",
+        "recipients": ["#admissions-ops"]
+      },
+      {
+        "alertName": "StudentPortalSyncLag",
+        "condition": "sync_lag_student_portal > 600s",
+        "severity": "critical",
+        "channel": "pagerduty",
+        "recipients": ["on-call-engineer"]
+      }
+    ],
+    "dashboards": [
+      {
+        "dashboardName": "Admission Admin - Synchronization Health",
+        "platform": "Grafana",
+        "panels": [
+          "Event Processing Lag (line chart)",
+          "Webhook Success Rate (gauge)",
+          "DLQ Size (counter)",
+          "OCR Queue Length (line chart)",
+          "Payment Reconciliation Status (table)",
+          "External API Response Times (heatmap)",
+          "Cache Hit Rates (bar chart)"
+        ]
+      },
+      {
+        "dashboardName": "Admission Admin - Data Consistency",
+        "platform": "Grafana",
+        "panels": [
+          "Consistency Check Results (table)",
+          "Application-Payment Linkage Status",
+          "Document-Application Mapping Status",
+          "Merit List Rank Integrity",
+          "Seat Allocation Duplicates"
+        ]
+      }
+    ]
+  },
+
+  "disasterRecoveryAndBackup": {
+    "description": "Backup and recovery strategies for data synchronization",
+    "backups": [
+      {
+        "backupName": "ApplicationsTable",
+        "frequency": "hourly",
+        "method": "PostgreSQL continuous archiving (WAL)",
+        "retention": "7 days (hourly), 4 weeks (daily), 1 year (weekly)",
+        "storageLocation": "AWS S3 (database-backups/ bucket)",
+        "encryption": "AES-256"
+      },
+      {
+        "backupName": "DocumentsS3Bucket",
+        "frequency": "continuous (S3 versioning)",
+        "method": "S3 versioning + cross-region replication",
+        "retention": "7 years (compliance requirement)",
+        "storageLocation": "AWS S3 (primary: us-east-1, replica: us-west-2)"
+      },
+      {
+        "backupName": "EventLogs",
+        "frequency": "daily",
+        "method": "CloudWatch Logs export to S3",
+        "retention": "30 days (CloudWatch), 2 years (S3)",
+        "storageLocation": "AWS S3 (event-logs/ bucket)"
+      }
+    ],
+    "recoveryProcedures": [
+      {
+        "scenario": "Database corruption",
+        "procedure": "Restore from latest WAL backup, replay transactions since backup",
+        "rto": "1 hour",
+        "rpo": "0 minutes (continuous archiving)"
+      },
+      {
+        "scenario": "Event processing failure",
+        "procedure": "Replay events from DLQ or event log backup, validate data consistency with checks",
+        "rto": "30 minutes",
+        "rpo": "5 minutes (event buffer)"
+      },
+      {
+        "scenario": "Cache failure (Redis down)",
+        "procedure": "Application continues with direct DB queries (slower), Redis auto-recovers or manual restart",
+        "rto": "5 minutes",
+        "rpo": "N/A (cache is ephemeral)"
+      }
+    ]
+  },
+
+  "complianceAndAudit": {
+    "description": "Audit logging and compliance requirements for data synchronization",
+    "auditRequirements": [
+      {
+        "requirement": "7-year retention of audit logs",
+        "implementation": "audit_logs table + archival to S3 Glacier after 2 years",
+        "regulatoryBasis": "RTI Act, AICTE Guidelines"
+      },
+      {
+        "requirement": "Immutable audit trail for admission decisions",
+        "implementation": "Append-only audit_logs table, no DELETE permission",
+        "regulatoryBasis": "Right to Information Act"
+      },
+      {
+        "requirement": "PII encryption at rest and in transit",
+        "implementation": "Field-level encryption (aadhar, income) + TLS 1.3 for transit",
+        "regulatoryBasis": "IT Act 2000, DPDP Act 2023"
+      },
+      {
+        "requirement": "Payment data PCI DSS compliance",
+        "implementation": "Tokenization (no raw card data stored), PCI DSS Level 1 certified gateways",
+        "regulatoryBasis": "PCI DSS v3.2.1"
+      }
+    ],
+    "syncAuditLogs": [
+      {
+        "logType": "EventProcessingLog",
+        "fields": ["event_id", "event_type", "source", "handler", "status", "processing_time_ms", "error_message", "timestamp"],
+        "retention": "2 years",
+        "storageLocation": "audit_logs table + CloudWatch"
+      },
+      {
+        "logType": "ExternalAPICallLog",
+        "fields": ["service_name", "endpoint", "request_id", "http_method", "status_code", "response_time_ms", "error", "timestamp"],
+        "retention": "1 year",
+        "storageLocation": "CloudWatch Logs"
+      },
+      {
+        "logType": "DataConsistencyCheckLog",
+        "fields": ["check_name", "expected_result", "actual_result", "status", "alert_sent", "timestamp"],
+        "retention": "2 years",
+        "storageLocation": "audit_logs table"
+      }
+    ]
+  }
+}

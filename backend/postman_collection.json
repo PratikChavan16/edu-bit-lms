@@ -1,0 +1,377 @@
+{
+	"info": {
+		"_postman_id": "bitflow-lms-api-v1",
+		"name": "Bitflow LMS API v1",
+		"description": "Complete API documentation for Bitflow LMS - Multi-tenant Campus Management System",
+		"schema": "https://schema.getpostman.com/json/collection/v2.1.0/collection.json",
+		"version": "1.0.0"
+	},
+	"auth": {
+		"type": "bearer",
+		"bearer": [
+			{
+				"key": "token",
+				"value": "{{access_token}}",
+				"type": "string"
+			}
+		]
+	},
+	"variable": [
+		{
+			"key": "base_url",
+			"value": "http://localhost:8000/api/v1",
+			"type": "string"
+		},
+		{
+			"key": "access_token",
+			"value": "",
+			"type": "string"
+		},
+		{
+			"key": "refresh_token",
+			"value": "",
+			"type": "string"
+		}
+	],
+	"item": [
+		{
+			"name": "Authentication",
+			"item": [
+				{
+					"name": "Login",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('access_token', response.data.access_token);",
+									"    pm.collectionVariables.set('refresh_token', response.data.refresh_token);",
+									"    pm.test('Login successful', () => {",
+									"        pm.expect(response.success).to.be.true;",
+									"        pm.expect(response.data).to.have.property('access_token');",
+									"    });",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"email\": \"admin@bitflow.app\",\n  \"password\": \"Bitflow@2025\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/login",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "login"]
+						},
+						"description": "Authenticate user with email and password. Returns JWT access token (15 min expiry) and refresh token (7 days expiry).\n\n**Request Body:**\n- `email` (string, required): User's email address\n- `password` (string, required): User's password\n\n**Response:**\n- `access_token`: JWT token for API authentication\n- `refresh_token`: Token to refresh access token\n- `token_type`: \"Bearer\"\n- `expires_in`: Token expiry in seconds (900 = 15 minutes)\n- `user`: User object with roles, permissions, and university\n\n**Test Accounts:**\n- Bitflow Owner: admin@bitflow.app / Bitflow@2025\n- University Owner: owner@demo.bitflow.edu / University@2025\n- Super Admin: superadmin@demo.bitflow.edu / SuperAdmin@2025\n- Faculty: faculty@demo.bitflow.edu / Faculty@2025\n- Student: student@demo.bitflow.edu / Student@2025"
+					},
+					"response": [
+						{
+							"name": "Successful Login",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"admin@bitflow.app\",\n  \"password\": \"Bitflow@2025\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/auth/login",
+									"host": ["{{base_url}}"],
+									"path": ["auth", "login"]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n  \"success\": true,\n  \"message\": \"Login successful\",\n  \"data\": {\n    \"access_token\": \"eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9...\",\n    \"refresh_token\": \"f47ac10b-58cc-4372-a567-0e02b2c3d479\",\n    \"token_type\": \"Bearer\",\n    \"expires_in\": 900,\n    \"user\": {\n      \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n      \"email\": \"admin@bitflow.app\",\n      \"username\": \"bitflow_admin\",\n      \"full_name\": \"Bitflow Administrator\",\n      \"university_id\": \"660e8400-e29b-41d4-a716-446655440000\",\n      \"status\": \"active\",\n      \"roles\": [\n        {\n          \"id\": \"770e8400-e29b-41d4-a716-446655440000\",\n          \"name\": \"Bitflow Owner\",\n          \"slug\": \"bitflow_owner\",\n          \"level\": 1\n        }\n      ],\n      \"permissions\": [\n        \"users.view\",\n        \"users.create\",\n        \"users.update\",\n        \"users.delete\"\n      ],\n      \"university\": {\n        \"id\": \"660e8400-e29b-41d4-a716-446655440000\",\n        \"name\": \"Demo University\",\n        \"domain\": \"demo.bitflow.edu\"\n      }\n    }\n  }\n}"
+						},
+						{
+							"name": "Invalid Credentials",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"email\": \"wrong@email.com\",\n  \"password\": \"wrongpassword\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/auth/login",
+									"host": ["{{base_url}}"],
+									"path": ["auth", "login"]
+								}
+							},
+							"status": "Unauthorized",
+							"code": 401,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n  \"success\": false,\n  \"message\": \"Invalid credentials\"\n}"
+						}
+					]
+				},
+				{
+					"name": "Get Current User",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/me",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "me"]
+						},
+						"description": "Get authenticated user's profile with roles, permissions, and university details.\n\n**Authentication:** Bearer token required\n\n**Response:**\n- User object with:\n  - Basic info (id, email, username, full_name)\n  - Roles array with permissions\n  - University details\n  - Status and verification state"
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/auth/me",
+									"host": ["{{base_url}}"],
+									"path": ["auth", "me"]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"id\": \"550e8400-e29b-41d4-a716-446655440000\",\n    \"email\": \"admin@bitflow.app\",\n    \"username\": \"bitflow_admin\",\n    \"first_name\": \"Bitflow\",\n    \"last_name\": \"Administrator\",\n    \"full_name\": \"Bitflow Administrator\",\n    \"phone\": \"+1-555-0001\",\n    \"university_id\": \"660e8400-e29b-41d4-a716-446655440000\",\n    \"status\": \"active\",\n    \"email_verified_at\": \"2025-01-15T10:00:00Z\",\n    \"created_at\": \"2025-01-01T00:00:00Z\",\n    \"roles\": [\n      {\n        \"id\": \"770e8400-e29b-41d4-a716-446655440000\",\n        \"name\": \"Bitflow Owner\",\n        \"slug\": \"bitflow_owner\",\n        \"level\": 1,\n        \"scope\": \"platform\"\n      }\n    ],\n    \"permissions\": [\"users.view\", \"users.create\"],\n    \"university\": {\n      \"id\": \"660e8400-e29b-41d4-a716-446655440000\",\n      \"name\": \"Demo University\",\n      \"slug\": \"demo-university\",\n      \"domain\": \"demo.bitflow.edu\",\n      \"status\": \"active\"\n    }\n  }\n}"
+						}
+					]
+				},
+				{
+					"name": "Refresh Token",
+					"event": [
+						{
+							"listen": "test",
+							"script": {
+								"exec": [
+									"if (pm.response.code === 200) {",
+									"    const response = pm.response.json();",
+									"    pm.collectionVariables.set('access_token', response.data.access_token);",
+									"}"
+								],
+								"type": "text/javascript"
+							}
+						}
+					],
+					"request": {
+						"method": "POST",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"refresh_token\": \"{{refresh_token}}\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/refresh",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "refresh"]
+						},
+						"description": "Generate a new access token using refresh token. Access tokens expire every 15 minutes, refresh tokens last 7 days.\n\n**Request Body:**\n- `refresh_token` (string, required): Valid refresh token from login\n\n**Response:**\n- `access_token`: New JWT access token\n- `token_type`: \"Bearer\"\n- `expires_in`: 900 seconds (15 minutes)"
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "POST",
+								"header": [],
+								"body": {
+									"mode": "raw",
+									"raw": "{\n  \"refresh_token\": \"f47ac10b-58cc-4372-a567-0e02b2c3d479\"\n}",
+									"options": {
+										"raw": {
+											"language": "json"
+										}
+									}
+								},
+								"url": {
+									"raw": "{{base_url}}/auth/refresh",
+									"host": ["{{base_url}}"],
+									"path": ["auth", "refresh"]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n  \"success\": true,\n  \"data\": {\n    \"access_token\": \"eyJ0eXAiOiJKV1QiLCJhbGciOiJSUzI1NiJ9...\",\n    \"token_type\": \"Bearer\",\n    \"expires_in\": 900\n  }\n}"
+						}
+					]
+				},
+				{
+					"name": "Update Profile",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"first_name\": \"Updated\",\n  \"last_name\": \"Name\",\n  \"phone\": \"+1-555-9999\",\n  \"profile_picture\": \"https://example.com/avatar.jpg\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/profile",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "profile"]
+						},
+						"description": "Update authenticated user's profile information.\n\n**Authentication:** Bearer token required\n\n**Request Body (all optional):**\n- `first_name` (string): User's first name\n- `last_name` (string): User's last name\n- `phone` (string): Phone number\n- `profile_picture` (string): URL to profile image\n\n**Response:**\n- Updated user object"
+					},
+					"response": []
+				},
+				{
+					"name": "Change Password",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "PUT",
+						"header": [
+							{
+								"key": "Content-Type",
+								"value": "application/json"
+							}
+						],
+						"body": {
+							"mode": "raw",
+							"raw": "{\n  \"current_password\": \"Bitflow@2025\",\n  \"new_password\": \"NewSecure@2025\",\n  \"new_password_confirmation\": \"NewSecure@2025\"\n}"
+						},
+						"url": {
+							"raw": "{{base_url}}/auth/password",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "password"]
+						},
+						"description": "Change authenticated user's password. All sessions will be invalidated after password change.\n\n**Authentication:** Bearer token required\n\n**Request Body:**\n- `current_password` (string, required): Current password\n- `new_password` (string, required): New password (min 8 chars, must include uppercase, lowercase, number, special char)\n- `new_password_confirmation` (string, required): Confirm new password\n\n**Response:**\n- Success message\n\n**Note:** All active sessions will be terminated after password change for security."
+					},
+					"response": []
+				},
+				{
+					"name": "Logout",
+					"request": {
+						"auth": {
+							"type": "bearer",
+							"bearer": [
+								{
+									"key": "token",
+									"value": "{{access_token}}",
+									"type": "string"
+								}
+							]
+						},
+						"method": "POST",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/auth/logout",
+							"host": ["{{base_url}}"],
+							"path": ["auth", "logout"]
+						},
+						"description": "Logout authenticated user and invalidate current session.\n\n**Authentication:** Bearer token required\n\n**Response:**\n- Success message\n\n**Note:** This invalidates the refresh token associated with current session. Access token remains valid until expiry (15 min) but cannot refresh."
+					},
+					"response": []
+				}
+			],
+			"description": "Authentication endpoints for login, logout, token refresh, and profile management."
+		},
+		{
+			"name": "Health Check",
+			"item": [
+				{
+					"name": "API Health",
+					"request": {
+						"method": "GET",
+						"header": [],
+						"url": {
+							"raw": "{{base_url}}/health",
+							"host": ["{{base_url}}"],
+							"path": ["health"]
+						},
+						"description": "Check API health status. No authentication required.\n\n**Response:**\n- `status`: \"ok\" if API is running\n- `timestamp`: Current server timestamp\n- `version`: API version"
+					},
+					"response": [
+						{
+							"name": "Success",
+							"originalRequest": {
+								"method": "GET",
+								"header": [],
+								"url": {
+									"raw": "{{base_url}}/health",
+									"host": ["{{base_url}}"],
+									"path": ["health"]
+								}
+							},
+							"status": "OK",
+							"code": 200,
+							"_postman_previewlanguage": "json",
+							"header": [],
+							"cookie": [],
+							"body": "{\n  \"status\": \"ok\",\n  \"timestamp\": \"2025-01-15T12:00:00Z\",\n  \"version\": \"1.0.0\"\n}"
+						}
+					]
+				}
+			]
+		}
+	]
+}

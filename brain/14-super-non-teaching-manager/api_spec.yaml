@@ -1,0 +1,705 @@
+﻿openapi: 3.1.0
+info:
+  title: Super Non-Teaching Manager Portal API
+  version: 1.0.0
+  description: |
+    REST API for university-wide non-teaching staff HR management system.
+    Covers recruitment, attendance, leave, performance, training, and employee services.
+  contact:
+    name: BitFlow Nova API Support
+    email: api@bitflow.com
+
+servers:
+  - url: https://api.edubit.com/v1
+    description: Production
+  - url: https://staging-api.edubit.com/v1
+    description: Staging
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Authentication
+  - name: Employees
+  - name: Recruitment
+  - name: Attendance
+  - name: Leave
+  - name: Performance
+  - name: Training
+  - name: Transfers
+  - name: Separations
+  - name: Reports
+
+paths:
+  # Authentication
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Login
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  data:
+                    type: object
+                    properties:
+                      token:
+                        type: string
+                      user:
+                        $ref: '#/components/schemas/User'
+
+  # Employees
+  /employees:
+    get:
+      tags: [Employees]
+      summary: List all non-teaching employees
+      parameters:
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: designation
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [active, probation, suspended, resigned, terminated]
+        - name: search
+          in: query
+          schema:
+            type: string
+        - name: page
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Employee list
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Employee'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+    post:
+      tags: [Employees]
+      summary: Create new employee (onboarding)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/EmployeeCreate'
+      responses:
+        '201':
+          description: Employee created
+
+  /employees/{id}:
+    get:
+      tags: [Employees]
+      summary: Get employee details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Employee details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    $ref: '#/components/schemas/Employee'
+
+  # Recruitment
+  /recruitment/requisitions:
+    get:
+      tags: [Recruitment]
+      summary: List job requisitions
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, pending_approval, approved, rejected, filled, cancelled]
+      responses:
+        '200':
+          description: Requisition list
+
+    post:
+      tags: [Recruitment]
+      summary: Create job requisition
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/JobRequisition'
+      responses:
+        '201':
+          description: Requisition created
+
+  /recruitment/applications:
+    get:
+      tags: [Recruitment]
+      summary: List job applications
+      responses:
+        '200':
+          description: Application list
+
+  /recruitment/interviews:
+    post:
+      tags: [Recruitment]
+      summary: Schedule interview
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                application_id:
+                  type: integer
+                interview_date:
+                  type: string
+                  format: date-time
+                interview_type:
+                  type: string
+                  enum: [phone_screening, technical, hr, final]
+                panel_members:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '201':
+          description: Interview scheduled
+
+  # Attendance
+  /attendance/punch:
+    post:
+      tags: [Attendance]
+      summary: Record attendance punch (from biometric device)
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [employee_id, punch_time, device_id]
+              properties:
+                employee_id:
+                  type: integer
+                punch_time:
+                  type: string
+                  format: date-time
+                punch_type:
+                  type: string
+                  enum: [in, out]
+                device_id:
+                  type: string
+      responses:
+        '201':
+          description: Punch recorded
+
+  /attendance/muster-roll:
+    get:
+      tags: [Attendance]
+      summary: Generate muster roll
+      parameters:
+        - name: college_id
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Muster roll data
+
+  /attendance/regularize:
+    post:
+      tags: [Attendance]
+      summary: Regularize missed attendance
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                employee_id:
+                  type: integer
+                date:
+                  type: string
+                  format: date
+                reason:
+                  type: string
+                supporting_document:
+                  type: string
+      responses:
+        '201':
+          description: Regularization requested
+
+  # Leave Management
+  /leave/applications:
+    get:
+      tags: [Leave]
+      summary: List leave applications
+      parameters:
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending, approved, rejected, cancelled]
+        - name: leave_type
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Leave applications
+
+    post:
+      tags: [Leave]
+      summary: Apply for leave
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/LeaveApplication'
+      responses:
+        '201':
+          description: Leave applied
+
+  /leave/applications/{id}/approve:
+    post:
+      tags: [Leave]
+      summary: Approve leave
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Leave approved
+
+  /leave/balance/{employee_id}:
+    get:
+      tags: [Leave]
+      summary: Get employee leave balance
+      parameters:
+        - name: employee_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Leave balance
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  casual_leave:
+                    type: number
+                  sick_leave:
+                    type: number
+                  earned_leave:
+                    type: number
+                  loss_of_pay:
+                    type: number
+
+  # Performance Management
+  /performance/appraisals:
+    get:
+      tags: [Performance]
+      summary: List performance appraisals
+      parameters:
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Appraisal list
+
+    post:
+      tags: [Performance]
+      summary: Create appraisal cycle
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                year:
+                  type: integer
+                start_date:
+                  type: string
+                  format: date
+                end_date:
+                  type: string
+                  format: date
+      responses:
+        '201':
+          description: Appraisal cycle created
+
+  /performance/appraisals/{id}/submit:
+    post:
+      tags: [Performance]
+      summary: Submit appraisal
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                ratings:
+                  type: object
+                comments:
+                  type: string
+                overall_rating:
+                  type: number
+      responses:
+        '200':
+          description: Appraisal submitted
+
+  # Training
+  /training/programs:
+    get:
+      tags: [Training]
+      summary: List training programs
+      responses:
+        '200':
+          description: Training programs
+
+    post:
+      tags: [Training]
+      summary: Create training program
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              $ref: '#/components/schemas/TrainingProgram'
+      responses:
+        '201':
+          description: Program created
+
+  /training/enrollments:
+    post:
+      tags: [Training]
+      summary: Enroll employees in training
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                program_id:
+                  type: integer
+                employee_ids:
+                  type: array
+                  items:
+                    type: integer
+      responses:
+        '201':
+          description: Employees enrolled
+
+  # Transfers
+  /transfers:
+    get:
+      tags: [Transfers]
+      summary: List transfer requests
+      responses:
+        '200':
+          description: Transfer requests
+
+    post:
+      tags: [Transfers]
+      summary: Create transfer request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                employee_id:
+                  type: integer
+                from_college_id:
+                  type: integer
+                to_college_id:
+                  type: integer
+                reason:
+                  type: string
+                effective_date:
+                  type: string
+                  format: date
+      responses:
+        '201':
+          description: Transfer created
+
+  # Separations
+  /separations:
+    get:
+      tags: [Separations]
+      summary: List separations (resignations/terminations)
+      responses:
+        '200':
+          description: Separation list
+
+    post:
+      tags: [Separations]
+      summary: Initiate separation
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                employee_id:
+                  type: integer
+                separation_type:
+                  type: string
+                  enum: [resignation, termination, retirement]
+                last_working_day:
+                  type: string
+                  format: date
+                reason:
+                  type: string
+      responses:
+        '201':
+          description: Separation initiated
+
+  # Reports
+  /reports/attendance-summary:
+    get:
+      tags: [Reports]
+      summary: Attendance summary report
+      parameters:
+        - name: from_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Attendance summary
+
+  /reports/attrition:
+    get:
+      tags: [Reports]
+      summary: Attrition report
+      responses:
+        '200':
+          description: Attrition metrics
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+
+    Employee:
+      type: object
+      properties:
+        id:
+          type: integer
+        employee_code:
+          type: string
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        college_id:
+          type: integer
+        designation:
+          type: string
+        department:
+          type: string
+        date_of_joining:
+          type: string
+          format: date
+        status:
+          type: string
+          enum: [active, probation, suspended, resigned, terminated]
+        reporting_to:
+          type: integer
+
+    EmployeeCreate:
+      type: object
+      required: [first_name, last_name, email, college_id, designation, date_of_joining]
+      properties:
+        first_name:
+          type: string
+        last_name:
+          type: string
+        email:
+          type: string
+        phone:
+          type: string
+        college_id:
+          type: integer
+        designation:
+          type: string
+        department:
+          type: string
+        date_of_joining:
+          type: string
+          format: date
+        salary:
+          type: number
+
+    JobRequisition:
+      type: object
+      properties:
+        college_id:
+          type: integer
+        position_title:
+          type: string
+        department:
+          type: string
+        number_of_positions:
+          type: integer
+        job_description:
+          type: string
+        required_qualifications:
+          type: string
+        salary_range:
+          type: string
+        urgency:
+          type: string
+          enum: [immediate, within_1_month, within_3_months]
+
+    LeaveApplication:
+      type: object
+      required: [employee_id, leave_type, from_date, to_date, reason]
+      properties:
+        employee_id:
+          type: integer
+        leave_type:
+          type: string
+          enum: [casual, sick, earned, loss_of_pay]
+        from_date:
+          type: string
+          format: date
+        to_date:
+          type: string
+          format: date
+        number_of_days:
+          type: number
+        reason:
+          type: string
+        supporting_document:
+          type: string
+
+    TrainingProgram:
+      type: object
+      properties:
+        title:
+          type: string
+        description:
+          type: string
+        trainer_name:
+          type: string
+        start_date:
+          type: string
+          format: date
+        end_date:
+          type: string
+          format: date
+        capacity:
+          type: integer
+        training_type:
+          type: string
+          enum: [technical, soft_skills, compliance, safety]
+
+    PaginationMeta:
+      type: object
+      properties:
+        current_page:
+          type: integer
+        total_pages:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer

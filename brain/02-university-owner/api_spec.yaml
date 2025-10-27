@@ -1,0 +1,843 @@
+﻿openapi: 3.1.0
+info:
+  title: University Owner Portal API
+  version: 2.0.0
+  description: Complete API specification for University Owner Portal - manages colleges, programs, faculty, students, and university-wide operations
+  contact:
+    name: Bitflow API Support
+    email: api@bitflow.edu
+
+servers:
+  - url: http://localhost:8000/api/owner
+    description: Local development
+  - url: https://{university-slug}.bitflow.edu/api/owner
+    description: Production
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Dashboard
+    description: University dashboard and overview metrics
+  - name: Colleges
+    description: College management operations
+  - name: Programs
+    description: Academic programs and curriculum
+  - name: Faculty
+    description: Faculty management
+  - name: Students
+    description: Student management
+  - name: Admissions
+    description: Admission process management
+  - name: Financial
+    description: Fee collection and financial operations
+  - name: Reports
+    description: Analytics and reporting
+  - name: Infrastructure
+    description: Campus facilities management
+  - name: Settings
+    description: University settings and configuration
+
+paths:
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Get university dashboard metrics
+      responses:
+        '200':
+          description: Dashboard data retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    type: object
+                    properties:
+                      total_students: {type: integer, example: 15247}
+                      total_faculty: {type: integer, example: 892}
+                      total_colleges: {type: integer, example: 8}
+                      fee_collection_percentage: {type: number, example: 87.5}
+                  enrollment_trend:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        month: {type: string}
+                        count: {type: integer}
+                  fee_collection_by_college:
+                    type: array
+                    items:
+                      type: object
+                      properties:
+                        college: {type: string}
+                        percentage: {type: number}
+                  recent_activities:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Activity'
+                  pending_approvals:
+                    type: array
+                    items:
+                      type: object
+
+  /colleges:
+    get:
+      tags: [Colleges]
+      summary: List all colleges
+      parameters:
+        - name: search
+          in: query
+          schema: {type: string}
+        - name: status
+          in: query
+          schema: {type: string, enum: [active, inactive]}
+        - name: page
+          in: query
+          schema: {type: integer, default: 1}
+      responses:
+        '200':
+          description: Colleges retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/College'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+    
+    post:
+      tags: [Colleges]
+      summary: Create new college
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, code, student_capacity]
+              properties:
+                name: {type: string, minLength: 3, maxLength: 100}
+                code: {type: string, minLength: 2, maxLength: 10}
+                address: {type: string}
+                email: {type: string, format: email}
+                phone: {type: string}
+                student_capacity: {type: integer, minimum: 10}
+                principal_id: {type: string, format: uuid, nullable: true}
+      responses:
+        '201':
+          description: College created successfully
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/College'
+        '422':
+          $ref: '#/components/responses/ValidationError'
+
+  /colleges/{id}:
+    get:
+      tags: [Colleges]
+      summary: Get college details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: College details retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/CollegeDetails'
+    
+    patch:
+      tags: [Colleges]
+      summary: Update college
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: {type: string}
+                address: {type: string}
+                email: {type: string}
+                phone: {type: string}
+                student_capacity: {type: integer}
+                status: {type: string, enum: [active, inactive]}
+      responses:
+        '200':
+          description: College updated successfully
+    
+    delete:
+      tags: [Colleges]
+      summary: Delete college
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '204':
+          description: College deleted successfully
+
+  /colleges/{id}/assign-principal:
+    post:
+      tags: [Colleges]
+      summary: Assign principal to college
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [principal_id]
+              properties:
+                principal_id: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Principal assigned successfully
+
+  /programs:
+    get:
+      tags: [Programs]
+      summary: List all academic programs
+      parameters:
+        - name: search
+          in: query
+          schema: {type: string}
+        - name: degree_type
+          in: query
+          schema: {type: string, enum: [UG, PG, Diploma, Certificate]}
+        - name: college_id
+          in: query
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Programs retrieved successfully
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Program'
+    
+    post:
+      tags: [Programs]
+      summary: Create academic program
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, degree_type, duration_years, total_credits]
+              properties:
+                name: {type: string}
+                code: {type: string}
+                degree_type: {type: string, enum: [UG, PG, Diploma, Certificate]}
+                duration_years: {type: number}
+                total_credits: {type: integer}
+                college_ids: {type: array, items: {type: string, format: uuid}}
+                eligibility_criteria: {type: string}
+      responses:
+        '201':
+          description: Program created successfully
+
+  /programs/{id}/curriculum:
+    post:
+      tags: [Programs]
+      summary: Manage program curriculum
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                courses:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      course_id: {type: string, format: uuid}
+                      semester: {type: integer}
+                      is_elective: {type: boolean}
+      responses:
+        '200':
+          description: Curriculum updated successfully
+
+  /faculty:
+    get:
+      tags: [Faculty]
+      summary: List all faculty members
+      parameters:
+        - name: search
+          in: query
+          schema: {type: string}
+        - name: college_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: department_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: designation
+          in: query
+          schema: {type: string}
+      responses:
+        '200':
+          description: Faculty list retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Faculty'
+    
+    post:
+      tags: [Faculty]
+      summary: Hire new faculty
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [first_name, last_name, email, college_id, department_id, designation]
+              properties:
+                first_name: {type: string}
+                last_name: {type: string}
+                email: {type: string, format: email}
+                phone: {type: string}
+                date_of_birth: {type: string, format: date}
+                college_id: {type: string, format: uuid}
+                department_id: {type: string, format: uuid}
+                designation: {type: string, enum: [Professor, Associate Professor, Assistant Professor, Lecturer]}
+                employment_type: {type: string, enum: [Full-time, Part-time, Visiting]}
+                joining_date: {type: string, format: date}
+                monthly_salary: {type: number}
+      responses:
+        '201':
+          description: Faculty hired successfully
+
+  /faculty/{id}:
+    get:
+      tags: [Faculty]
+      summary: Get faculty profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Faculty profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/FacultyProfile'
+
+  /faculty/{id}/leaves:
+    get:
+      tags: [Faculty]
+      summary: Get faculty leave requests
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Leave requests retrieved
+
+  /faculty/leaves/{leaveId}/approve:
+    post:
+      tags: [Faculty]
+      summary: Approve faculty leave
+      parameters:
+        - name: leaveId
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Leave approved successfully
+
+  /students:
+    get:
+      tags: [Students]
+      summary: List all students
+      parameters:
+        - name: search
+          in: query
+          schema: {type: string}
+        - name: college_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: program_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: year
+          in: query
+          schema: {type: integer}
+      responses:
+        '200':
+          description: Students list retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Student'
+
+  /students/{id}:
+    get:
+      tags: [Students]
+      summary: Get student profile
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Student profile retrieved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentProfile'
+
+  /students/{id}/transfer:
+    post:
+      tags: [Students]
+      summary: Transfer student to another college
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [target_college_id]
+              properties:
+                target_college_id: {type: string, format: uuid}
+                reason: {type: string}
+      responses:
+        '200':
+          description: Student transferred successfully
+
+  /students/bulk-import:
+    post:
+      tags: [Students]
+      summary: Bulk import students from CSV
+      requestBody:
+        required: true
+        content:
+          multipart/form-data:
+            schema:
+              type: object
+              properties:
+                file:
+                  type: string
+                  format: binary
+      responses:
+        '200':
+          description: Students imported successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_imported: {type: integer}
+                  failed: {type: array}
+
+  /admissions/applications:
+    get:
+      tags: [Admissions]
+      summary: List admission applications
+      parameters:
+        - name: program_id
+          in: query
+          schema: {type: string, format: uuid}
+        - name: status
+          in: query
+          schema: {type: string, enum: [pending, approved, rejected]}
+      responses:
+        '200':
+          description: Applications retrieved
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/AdmissionApplication'
+
+  /admissions/applications/{id}/review:
+    post:
+      tags: [Admissions]
+      summary: Review admission application
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [decision]
+              properties:
+                decision: {type: string, enum: [approve, reject]}
+                remarks: {type: string}
+      responses:
+        '200':
+          description: Application reviewed
+
+  /admissions/merit-lists:
+    get:
+      tags: [Admissions]
+      summary: Get merit lists
+      responses:
+        '200':
+          description: Merit lists retrieved
+
+  /admissions/merit-lists/{id}/approve:
+    post:
+      tags: [Admissions]
+      summary: Approve merit list
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Merit list approved
+
+  /financial/dashboard:
+    get:
+      tags: [Financial]
+      summary: Get financial dashboard
+      responses:
+        '200':
+          description: Financial metrics retrieved
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_fees_receivable: {type: number}
+                  total_collected: {type: number}
+                  collection_percentage: {type: number}
+                  by_college:
+                    type: array
+                    items:
+                      type: object
+
+  /financial/fee-structures:
+    get:
+      tags: [Financial]
+      summary: Get fee structures
+      responses:
+        '200':
+          description: Fee structures retrieved
+    
+    post:
+      tags: [Financial]
+      summary: Create fee structure
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [program_id, semester, components]
+              properties:
+                program_id: {type: string, format: uuid}
+                semester: {type: integer}
+                components:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name: {type: string}
+                      amount: {type: number}
+      responses:
+        '201':
+          description: Fee structure created
+
+  /financial/expenses/pending:
+    get:
+      tags: [Financial]
+      summary: Get pending expense approvals
+      responses:
+        '200':
+          description: Pending expenses retrieved
+
+  /financial/expenses/{id}/approve:
+    post:
+      tags: [Financial]
+      summary: Approve expense request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema: {type: string, format: uuid}
+      responses:
+        '200':
+          description: Expense approved
+
+  /reports/generate:
+    post:
+      tags: [Reports]
+      summary: Generate report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [report_type]
+              properties:
+                report_type: {type: string, enum: [academic, faculty, financial, attendance]}
+                filters: {type: object}
+                export_format: {type: string, enum: [pdf, excel, csv]}
+      responses:
+        '200':
+          description: Report generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_url: {type: string}
+
+  /settings/profile:
+    get:
+      tags: [Settings]
+      summary: Get university profile settings
+      responses:
+        '200':
+          description: Profile settings retrieved
+    
+    patch:
+      tags: [Settings]
+      summary: Update university profile
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                name: {type: string}
+                logo_url: {type: string}
+                address: {type: string}
+                email: {type: string}
+                phone: {type: string}
+                website: {type: string}
+                timezone: {type: string}
+      responses:
+        '200':
+          description: Profile updated
+
+  /settings/academic-calendar:
+    get:
+      tags: [Settings]
+      summary: Get academic calendar
+      responses:
+        '200':
+          description: Calendar retrieved
+    
+    post:
+      tags: [Settings]
+      summary: Configure academic calendar
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                academic_year: {type: string}
+                semesters:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      name: {type: string}
+                      start_date: {type: string, format: date}
+                      end_date: {type: string, format: date}
+      responses:
+        '200':
+          description: Calendar configured
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    College:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        university_id: {type: string, format: uuid}
+        name: {type: string}
+        code: {type: string}
+        slug: {type: string}
+        address: {type: string}
+        email: {type: string}
+        phone: {type: string}
+        student_capacity: {type: integer}
+        principal_id: {type: string, format: uuid, nullable: true}
+        status: {type: string, enum: [active, inactive]}
+        created_at: {type: string, format: date-time}
+        updated_at: {type: string, format: date-time}
+    
+    CollegeDetails:
+      allOf:
+        - $ref: '#/components/schemas/College'
+        - type: object
+          properties:
+            students_count: {type: integer}
+            faculty_count: {type: integer}
+            programs_count: {type: integer}
+            departments_count: {type: integer}
+            attendance_rate: {type: number}
+            pass_percentage: {type: number}
+            principal: {$ref: '#/components/schemas/User'}
+    
+    Program:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        university_id: {type: string, format: uuid}
+        name: {type: string}
+        code: {type: string}
+        degree_type: {type: string}
+        duration_years: {type: number}
+        total_credits: {type: integer}
+        status: {type: string}
+        created_at: {type: string, format: date-time}
+    
+    Faculty:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        first_name: {type: string}
+        last_name: {type: string}
+        email: {type: string}
+        phone: {type: string}
+        designation: {type: string}
+        employment_type: {type: string}
+        college_id: {type: string, format: uuid}
+        department_id: {type: string, format: uuid}
+        status: {type: string}
+    
+    FacultyProfile:
+      allOf:
+        - $ref: '#/components/schemas/Faculty'
+        - type: object
+          properties:
+            qualifications: {type: array}
+            courses_teaching: {type: array}
+            attendance_record: {type: object}
+    
+    Student:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        roll_number: {type: string}
+        first_name: {type: string}
+        last_name: {type: string}
+        email: {type: string}
+        college_id: {type: string, format: uuid}
+        program_id: {type: string, format: uuid}
+        year: {type: integer}
+        cgpa: {type: number}
+        status: {type: string}
+    
+    StudentProfile:
+      allOf:
+        - $ref: '#/components/schemas/Student'
+        - type: object
+          properties:
+            attendance_summary: {type: object}
+            fee_payment_status: {type: object}
+    
+    AdmissionApplication:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        application_number: {type: string}
+        applicant_name: {type: string}
+        program_id: {type: string, format: uuid}
+        marks_percentage: {type: number}
+        status: {type: string}
+        applied_at: {type: string, format: date-time}
+    
+    Activity:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        type: {type: string}
+        description: {type: string}
+        timestamp: {type: string, format: date-time}
+    
+    User:
+      type: object
+      properties:
+        id: {type: string, format: uuid}
+        first_name: {type: string}
+        last_name: {type: string}
+        email: {type: string}
+        role: {type: string}
+    
+    PaginationMeta:
+      type: object
+      properties:
+        current_page: {type: integer}
+        total: {type: integer}
+        per_page: {type: integer}
+        last_page: {type: integer}
+    
+    Error:
+      type: object
+      properties:
+        message: {type: string}
+        errors: {type: object}
+  
+  responses:
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+

@@ -1,0 +1,1168 @@
+﻿openapi: 3.0.3
+info:
+  title: College Fee Admin Portal API
+  description: |
+    Complete API specification for College Fee Admin Portal covering fee management, payment collection, receipts, refunds, scholarships, and financial reporting.
+    
+    **Base URL (Production)**: https://api.bitflow.edu.in/college-fee-admin
+    **Base URL (Staging)**: https://staging-api.bitflow.edu.in/college-fee-admin
+    
+    **Authentication**: JWT Bearer Token
+    **Rate Limiting**: 1000 requests/hour per user
+    **Annual Revenue**: ₹60 Crores/year
+    
+  version: 1.0.0
+  contact:
+    name: BitFlow API Support
+    email: api-support@bitflow.edu.in
+
+servers:
+  - url: https://api.bitflow.edu.in/college-fee-admin
+    description: Production server
+  - url: https://staging-api.bitflow.edu.in/college-fee-admin
+    description: Staging server
+  - url: http://localhost:8013/api/v1
+    description: Local development
+
+security:
+  - BearerAuth: []
+
+tags:
+  - name: Authentication
+  - name: Fee Structure
+  - name: Payments
+  - name: Receipts
+  - name: Installments
+  - name: Defaulters
+  - name: Refunds
+  - name: Scholarships
+  - name: Reports
+
+paths:
+  # ============================================
+  # AUTHENTICATION
+  # ============================================
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: Fee Admin login
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                password:
+                  type: string
+                  format: password
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  success:
+                    type: boolean
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/FeeAdmin'
+
+  # ============================================
+  # FEE STRUCTURE
+  # ============================================
+  /fee-structure:
+    get:
+      tags: [Fee Structure]
+      summary: Get all fee structures
+      parameters:
+        - name: program_id
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Fee structure list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/FeeStructure'
+
+  /fee-structure/components:
+    post:
+      tags: [Fee Structure]
+      summary: Create fee component
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, amount, is_mandatory]
+              properties:
+                name:
+                  type: string
+                  example: Tuition Fee
+                amount:
+                  type: number
+                  example: 120000
+                gst_percent:
+                  type: number
+                  example: 0
+                is_mandatory:
+                  type: boolean
+      responses:
+        '201':
+          description: Component created
+
+  /fee-structure/programs/{program_id}:
+    put:
+      tags: [Fee Structure]
+      summary: Update program fee structure
+      parameters:
+        - name: program_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                year:
+                  type: integer
+                components:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      component_id:
+                        type: integer
+                      amount:
+                        type: number
+      responses:
+        '200':
+          description: Fee structure updated
+
+  /fee-structure/student/{student_id}:
+    get:
+      tags: [Fee Structure]
+      summary: Get personalized fee structure for student
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Student fee structure
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/StudentFeeStructure'
+
+  # ============================================
+  # PAYMENTS
+  # ============================================
+  /payments/online/initiate:
+    post:
+      tags: [Payments]
+      summary: Initiate online payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_id, amount]
+              properties:
+                student_id:
+                  type: integer
+                amount:
+                  type: number
+                  example: 75000
+                payment_for:
+                  type: string
+                  enum: [full_fee, installment]
+                installment_number:
+                  type: integer
+      responses:
+        '200':
+          description: Payment initiated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  payment_id:
+                    type: string
+                  razorpay_order_id:
+                    type: string
+                  amount:
+                    type: number
+                  redirect_url:
+                    type: string
+
+  /payments/online/callback:
+    post:
+      tags: [Payments]
+      summary: Payment gateway callback (webhook)
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                razorpay_payment_id:
+                  type: string
+                razorpay_order_id:
+                  type: string
+                razorpay_signature:
+                  type: string
+      responses:
+        '200':
+          description: Payment verified
+
+  /payments/cash:
+    post:
+      tags: [Payments]
+      summary: Record cash payment at counter
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_id, amount, received_by]
+              properties:
+                student_id:
+                  type: integer
+                amount:
+                  type: number
+                received_by:
+                  type: integer
+                cash_denominations:
+                  type: object
+                  example: { "2000": 10, "500": 20, "100": 10 }
+      responses:
+        '201':
+          description: Cash payment recorded
+
+  /payments/cheque:
+    post:
+      tags: [Payments]
+      summary: Record cheque/DD payment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_id, amount, bank_name, cheque_number, cheque_date]
+              properties:
+                student_id:
+                  type: integer
+                amount:
+                  type: number
+                bank_name:
+                  type: string
+                cheque_number:
+                  type: string
+                cheque_date:
+                  type: string
+                  format: date
+                photo_url:
+                  type: string
+      responses:
+        '201':
+          description: Cheque payment recorded
+
+  /payments/cheque/{id}/status:
+    put:
+      tags: [Payments]
+      summary: Update cheque status (bounced/realized)
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [status]
+              properties:
+                status:
+                  type: string
+                  enum: [deposited, realized, bounced]
+                remarks:
+                  type: string
+      responses:
+        '200':
+          description: Status updated
+
+  /payments/history:
+    get:
+      tags: [Payments]
+      summary: Get payment history
+      parameters:
+        - name: student_id
+          in: query
+          required: true
+          schema:
+            type: integer
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Payment history
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payment'
+
+  # ============================================
+  # RECEIPTS
+  # ============================================
+  /receipts/{id}/download:
+    get:
+      tags: [Receipts]
+      summary: Download receipt PDF
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Receipt PDF
+          content:
+            application/pdf:
+              schema:
+                type: string
+                format: binary
+
+  /receipts/verify/{receipt_number}:
+    get:
+      tags: [Receipts]
+      summary: Verify receipt authenticity (public endpoint)
+      security: []
+      parameters:
+        - name: receipt_number
+          in: path
+          required: true
+          schema:
+            type: string
+      responses:
+        '200':
+          description: Verification result
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  valid:
+                    type: boolean
+                  student_name:
+                    type: string
+                  amount:
+                    type: number
+                  payment_date:
+                    type: string
+                    format: date
+
+  /receipts/duplicate-request:
+    post:
+      tags: [Receipts]
+      summary: Request duplicate receipt
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [receipt_id, reason]
+              properties:
+                receipt_id:
+                  type: integer
+                reason:
+                  type: string
+      responses:
+        '201':
+          description: Duplicate request submitted
+
+  # ============================================
+  # INSTALLMENTS
+  # ============================================
+  /installments/plans:
+    get:
+      tags: [Installments]
+      summary: Get all installment plans
+      responses:
+        '200':
+          description: Installment plans
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/InstallmentPlan'
+
+  /installments/plans/create:
+    post:
+      tags: [Installments]
+      summary: Create installment plan
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [name, installments]
+              properties:
+                name:
+                  type: string
+                  example: Standard 3-Installment Plan
+                installments:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      sequence:
+                        type: integer
+                      percentage:
+                        type: number
+                      due_date:
+                        type: string
+                        format: date
+      responses:
+        '201':
+          description: Plan created
+
+  /installments/student/{student_id}:
+    get:
+      tags: [Installments]
+      summary: Get student installment schedule
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Installment schedule
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/StudentInstallment'
+
+  /installments/pay-partial:
+    post:
+      tags: [Installments]
+      summary: Make partial payment against installment
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_id, installment_number, amount]
+              properties:
+                student_id:
+                  type: integer
+                installment_number:
+                  type: integer
+                amount:
+                  type: number
+      responses:
+        '201':
+          description: Partial payment recorded
+
+  # ============================================
+  # DEFAULTERS
+  # ============================================
+  /defaulters:
+    get:
+      tags: [Defaulters]
+      summary: Get defaulter list
+      parameters:
+        - name: aging_bucket
+          in: query
+          schema:
+            type: string
+            enum: [0-30, 31-60, 61-90, >90]
+        - name: program_id
+          in: query
+          schema:
+            type: integer
+        - name: year
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Defaulter list
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Defaulter'
+
+  /defaulters/aging-report:
+    get:
+      tags: [Defaulters]
+      summary: Get aging report
+      responses:
+        '200':
+          description: Aging report
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  aging_0_30:
+                    type: object
+                    properties:
+                      count:
+                        type: integer
+                      amount:
+                        type: number
+                  aging_31_60:
+                    type: object
+                  aging_61_90:
+                    type: object
+                  aging_over_90:
+                    type: object
+
+  /reminders/send:
+    post:
+      tags: [Defaulters]
+      summary: Send payment reminders
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_ids, template]
+              properties:
+                student_ids:
+                  type: array
+                  items:
+                    type: integer
+                template:
+                  type: string
+                  enum: [7_days_before, due_date, 3_days_after, 7_days_after]
+      responses:
+        '200':
+          description: Reminders sent
+
+  /hall-tickets/block:
+    post:
+      tags: [Defaulters]
+      summary: Block hall tickets for defaulters
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_ids, reason]
+              properties:
+                student_ids:
+                  type: array
+                  items:
+                    type: integer
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Hall tickets blocked
+
+  /hall-tickets/{student_id}/unblock:
+    put:
+      tags: [Defaulters]
+      summary: Unblock hall ticket after payment
+      parameters:
+        - name: student_id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Hall ticket unblocked
+
+  # ============================================
+  # REFUNDS
+  # ============================================
+  /refunds/request:
+    post:
+      tags: [Refunds]
+      summary: Submit refund request
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_id, refund_type, reason, bank_details]
+              properties:
+                student_id:
+                  type: integer
+                refund_type:
+                  type: string
+                  enum: [dropout, overpayment, scholarship, correction]
+                reason:
+                  type: string
+                expected_amount:
+                  type: number
+                bank_details:
+                  type: object
+                  properties:
+                    account_number:
+                      type: string
+                    ifsc_code:
+                      type: string
+                    account_holder_name:
+                      type: string
+      responses:
+        '201':
+          description: Refund request submitted
+
+  /refunds/pending-approvals:
+    get:
+      tags: [Refunds]
+      summary: Get pending refund approvals
+      responses:
+        '200':
+          description: Pending refunds
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/RefundRequest'
+
+  /refunds/{id}/approve:
+    put:
+      tags: [Refunds]
+      summary: Approve/reject refund request
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action]
+              properties:
+                action:
+                  type: string
+                  enum: [approve, reject]
+                calculated_amount:
+                  type: number
+                remarks:
+                  type: string
+      responses:
+        '200':
+          description: Refund processed
+
+  /refunds/{id}/disburse:
+    post:
+      tags: [Refunds]
+      summary: Disburse refund via NEFT
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [utr_number]
+              properties:
+                utr_number:
+                  type: string
+      responses:
+        '200':
+          description: Refund disbursed
+
+  # ============================================
+  # SCHOLARSHIPS
+  # ============================================
+  /scholarships/apply:
+    post:
+      tags: [Scholarships]
+      summary: Apply for scholarship
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [student_id, scholarship_type]
+              properties:
+                student_id:
+                  type: integer
+                scholarship_type:
+                  type: string
+                  enum: [merit, financial, sports, government]
+                academic_year:
+                  type: string
+                documents:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Application submitted
+
+  /scholarships/pending:
+    get:
+      tags: [Scholarships]
+      summary: Get pending scholarship applications
+      responses:
+        '200':
+          description: Pending applications
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/ScholarshipApplication'
+
+  /scholarships/{id}/approve:
+    put:
+      tags: [Scholarships]
+      summary: Approve scholarship
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [action, amount]
+              properties:
+                action:
+                  type: string
+                  enum: [approve, reject]
+                amount:
+                  type: number
+                remarks:
+                  type: string
+      responses:
+        '200':
+          description: Scholarship processed
+
+  /scholarships/{id}/adjust-fee:
+    post:
+      tags: [Scholarships]
+      summary: Adjust fee structure after scholarship approval
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Fee adjusted
+
+  # ============================================
+  # REPORTS
+  # ============================================
+  /reports/daily-collection:
+    get:
+      tags: [Reports]
+      summary: Daily collection report
+      parameters:
+        - name: date
+          in: query
+          required: true
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Daily collection
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/DailyCollectionReport'
+
+  /reports/monthly-revenue:
+    get:
+      tags: [Reports]
+      summary: Monthly revenue report
+      parameters:
+        - name: month
+          in: query
+          required: true
+          schema:
+            type: string
+        - name: year
+          in: query
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Monthly revenue
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/MonthlyRevenueReport'
+
+  /reports/payment-analytics:
+    get:
+      tags: [Reports]
+      summary: Payment mode analytics
+      parameters:
+        - name: from_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: to_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Payment analytics
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  online_percentage:
+                    type: number
+                  cash_percentage:
+                    type: number
+                  cheque_percentage:
+                    type: number
+                  total_transactions:
+                    type: integer
+
+  /reports/defaulter-aging:
+    get:
+      tags: [Reports]
+      summary: Defaulter aging report
+      responses:
+        '200':
+          description: Aging report
+
+  /reports/schedule-email:
+    post:
+      tags: [Reports]
+      summary: Schedule automated report email
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [report_type, frequency, recipients]
+              properties:
+                report_type:
+                  type: string
+                  enum: [daily_collection, monthly_revenue]
+                frequency:
+                  type: string
+                  enum: [daily, weekly, monthly]
+                recipients:
+                  type: array
+                  items:
+                    type: string
+      responses:
+        '201':
+          description: Schedule created
+
+components:
+  securitySchemes:
+    BearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  schemas:
+    FeeAdmin:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        college_id:
+          type: integer
+        college_name:
+          type: string
+
+    FeeStructure:
+      type: object
+      properties:
+        id:
+          type: integer
+        program_id:
+          type: integer
+        program_name:
+          type: string
+        year:
+          type: integer
+        components:
+          type: array
+          items:
+            type: object
+            properties:
+              component_id:
+                type: integer
+              name:
+                type: string
+              amount:
+                type: number
+        total_amount:
+          type: number
+
+    StudentFeeStructure:
+      type: object
+      properties:
+        student_id:
+          type: integer
+        student_name:
+          type: string
+        program_name:
+          type: string
+        year:
+          type: integer
+        category:
+          type: string
+        original_fee:
+          type: number
+        scholarship_amount:
+          type: number
+        net_payable:
+          type: number
+        paid_amount:
+          type: number
+        pending_amount:
+          type: number
+
+    Payment:
+      type: object
+      properties:
+        id:
+          type: integer
+        student_id:
+          type: integer
+        amount:
+          type: number
+        payment_mode:
+          type: string
+          enum: [online, cash, cheque, dd, neft]
+        payment_date:
+          type: string
+          format: date-time
+        status:
+          type: string
+          enum: [success, pending, failed]
+        transaction_id:
+          type: string
+        receipt_number:
+          type: string
+
+    InstallmentPlan:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        installments:
+          type: array
+          items:
+            type: object
+            properties:
+              sequence:
+                type: integer
+              percentage:
+                type: number
+              due_date:
+                type: string
+                format: date
+
+    StudentInstallment:
+      type: object
+      properties:
+        installment_number:
+          type: integer
+        due_date:
+          type: string
+          format: date
+        amount:
+          type: number
+        paid_amount:
+          type: number
+        pending_amount:
+          type: number
+        status:
+          type: string
+          enum: [pending, partial, paid, overdue]
+        late_fee:
+          type: number
+
+    Defaulter:
+      type: object
+      properties:
+        student_id:
+          type: integer
+        student_name:
+          type: string
+        roll_number:
+          type: string
+        program_name:
+          type: string
+        pending_amount:
+          type: number
+        days_overdue:
+          type: integer
+        last_payment_date:
+          type: string
+          format: date
+        contact_number:
+          type: string
+
+    RefundRequest:
+      type: object
+      properties:
+        id:
+          type: integer
+        student_id:
+          type: integer
+        student_name:
+          type: string
+        refund_type:
+          type: string
+        reason:
+          type: string
+        expected_amount:
+          type: number
+        calculated_amount:
+          type: number
+        status:
+          type: string
+          enum: [pending, approved, rejected, disbursed]
+
+    ScholarshipApplication:
+      type: object
+      properties:
+        id:
+          type: integer
+        student_id:
+          type: integer
+        student_name:
+          type: string
+        scholarship_type:
+          type: string
+        academic_year:
+          type: string
+        status:
+          type: string
+          enum: [pending, approved, rejected]
+        amount:
+          type: number
+
+    DailyCollectionReport:
+      type: object
+      properties:
+        date:
+          type: string
+          format: date
+        total_collection:
+          type: number
+        transaction_count:
+          type: integer
+        online_collection:
+          type: number
+        cash_collection:
+          type: number
+        cheque_collection:
+          type: number
+
+    MonthlyRevenueReport:
+      type: object
+      properties:
+        month:
+          type: string
+        year:
+          type: integer
+        total_revenue:
+          type: number
+        program_wise:
+          type: array
+          items:
+            type: object
+            properties:
+              program_name:
+                type: string
+              revenue:
+                type: number
+        year_wise:
+          type: array
+          items:
+            type: object

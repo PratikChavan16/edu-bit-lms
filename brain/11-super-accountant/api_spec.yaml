@@ -1,0 +1,962 @@
+﻿openapi: 3.0.3
+info:
+  title: Super Accountant Portal API
+  description: |
+    Complete API specification for the Super Accountant Portal.
+    Manages financial operations across 15 colleges with ₹150 Cr/year budget.
+    
+    **Key Features:**
+    - Payroll processing for 500+ employees
+    - Expense management with multi-level approval
+    - Budget allocation and tracking
+    - Vendor payment processing
+    - Bank reconciliation
+    - Financial reporting
+    - Audit trail
+    
+  version: 1.0.0
+  contact:
+    name: API Support
+    email: api@edubit.com
+  license:
+    name: Proprietary
+
+servers:
+  - url: http://localhost:8011/api
+    description: Local development
+  - url: https://staging-api.edubit.com/api
+    description: Staging environment
+  - url: https://api.edubit.com/api
+    description: Production environment
+
+security:
+  - bearerAuth: []
+
+tags:
+  - name: Authentication
+    description: User authentication and session management
+  - name: Dashboard
+    description: Financial dashboard and statistics
+  - name: Payroll
+    description: Payroll processing and management
+  - name: Expenses
+    description: Expense creation, approval, and tracking
+  - name: Budgets
+    description: Budget allocation and utilization
+  - name: Vendors
+    description: Vendor management and payments
+  - name: Bank Reconciliation
+    description: Bank statement reconciliation
+  - name: Reports
+    description: Financial reports generation
+  - name: Audit Trail
+    description: Activity logs and audit trail
+  - name: Settings
+    description: System configuration and user management
+
+paths:
+  # ==================== Authentication ====================
+  /auth/login:
+    post:
+      tags: [Authentication]
+      summary: User login
+      description: Authenticate user with email and password
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, password]
+              properties:
+                email:
+                  type: string
+                  format: email
+                  example: rajesh.sharma@edubit.com
+                password:
+                  type: string
+                  format: password
+                  example: password123
+                remember_me:
+                  type: boolean
+                  default: false
+      responses:
+        '200':
+          description: Login successful
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                    example: eyJhbGciOiJSUzI1NiIsInR5cCI6IkpXVCJ9...
+                  user:
+                    $ref: '#/components/schemas/User'
+                  requires_mfa:
+                    type: boolean
+        '401':
+          $ref: '#/components/responses/Unauthorized'
+        '429':
+          description: Too many failed attempts - account locked
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Error'
+
+  /auth/mfa/verify:
+    post:
+      tags: [Authentication]
+      summary: Verify MFA code
+      security: []
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [email, code]
+              properties:
+                email:
+                  type: string
+                  format: email
+                code:
+                  type: string
+                  pattern: '^\d{6}$'
+                  example: '123456'
+      responses:
+        '200':
+          description: MFA verified successfully
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  token:
+                    type: string
+                  user:
+                    $ref: '#/components/schemas/User'
+
+  /auth/logout:
+    post:
+      tags: [Authentication]
+      summary: User logout
+      responses:
+        '200':
+          description: Logout successful
+
+  # ==================== Dashboard ====================
+  /dashboard:
+    get:
+      tags: [Dashboard]
+      summary: Get dashboard overview
+      description: Financial overview with stats, pending approvals, and alerts
+      parameters:
+        - name: month
+          in: query
+          schema:
+            type: string
+            format: date
+            example: '2025-10'
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+          description: Filter by specific college (optional)
+      responses:
+        '200':
+          description: Dashboard data
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  stats:
+                    type: object
+                    properties:
+                      total_revenue:
+                        type: number
+                        example: 12500000
+                      total_expenses:
+                        type: number
+                        example: 8200000
+                      net_cash_flow:
+                        type: number
+                        example: 4300000
+                      budget_utilization:
+                        type: number
+                        example: 87
+                  pending_approvals:
+                    type: object
+                    properties:
+                      expenses:
+                        type: integer
+                        example: 127
+                      budget_revisions:
+                        type: integer
+                        example: 5
+                      vendor_payments:
+                        type: integer
+                        example: 18
+                  alerts:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Alert'
+
+  # ==================== Payroll ====================
+  /payroll:
+    get:
+      tags: [Payroll]
+      summary: List all payrolls
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+        - name: month
+          in: query
+          schema:
+            type: string
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [draft, processing, paid, failed]
+      responses:
+        '200':
+          description: List of payrolls
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Payroll'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+    post:
+      tags: [Payroll]
+      summary: Process new payroll
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [month, year, payment_date, college_ids]
+              properties:
+                month:
+                  type: string
+                  example: november
+                year:
+                  type: integer
+                  example: 2025
+                payment_date:
+                  type: string
+                  format: date
+                  example: '2025-11-05'
+                college_ids:
+                  type: array
+                  items:
+                    type: integer
+                  example: [1, 2, 3]
+      responses:
+        '201':
+          description: Payroll processing initiated
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payroll'
+
+  /payroll/{id}:
+    get:
+      tags: [Payroll]
+      summary: Get payroll details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Payroll details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Payroll'
+
+  /payroll/{id}/payslips:
+    get:
+      tags: [Payroll]
+      summary: Get payslips for a payroll
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of payslips
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Payslip'
+
+  # ==================== Expenses ====================
+  /expenses:
+    get:
+      tags: [Expenses]
+      summary: List expenses
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+        - name: status
+          in: query
+          schema:
+            type: string
+            enum: [pending_principal, pending_super_accountant, approved, rejected]
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+        - name: min_amount
+          in: query
+          schema:
+            type: number
+        - name: max_amount
+          in: query
+          schema:
+            type: number
+      responses:
+        '200':
+          description: List of expenses
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Expense'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+    post:
+      tags: [Expenses]
+      summary: Create new expense
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, category, description, college_id]
+              properties:
+                amount:
+                  type: number
+                  example: 75000
+                category:
+                  type: string
+                  enum: [equipment, maintenance, supplies, utilities, other]
+                description:
+                  type: string
+                  minLength: 10
+                  maxLength: 500
+                college_id:
+                  type: integer
+                department_id:
+                  type: integer
+      responses:
+        '201':
+          description: Expense created
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+
+  /expenses/{id}:
+    get:
+      tags: [Expenses]
+      summary: Get expense details
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Expense details
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+
+  /expenses/{id}/approve:
+    post:
+      tags: [Expenses]
+      summary: Approve expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        content:
+          application/json:
+            schema:
+              type: object
+              properties:
+                comments:
+                  type: string
+      responses:
+        '200':
+          description: Expense approved
+          content:
+            application/json:
+              schema:
+                $ref: '#/components/schemas/Expense'
+
+  /expenses/{id}/reject:
+    post:
+      tags: [Expenses]
+      summary: Reject expense
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [reason]
+              properties:
+                reason:
+                  type: string
+      responses:
+        '200':
+          description: Expense rejected
+
+  # ==================== Budgets ====================
+  /budgets:
+    get:
+      tags: [Budgets]
+      summary: List budgets
+      parameters:
+        - name: fiscal_year
+          in: query
+          schema:
+            type: string
+            example: '2024-25'
+        - name: college_id
+          in: query
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: List of budgets
+          content:
+            application/json:
+              schema:
+                type: array
+                items:
+                  $ref: '#/components/schemas/Budget'
+
+    post:
+      tags: [Budgets]
+      summary: Allocate new budget
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [college_id, department_id, category, allocated_amount, fiscal_year]
+              properties:
+                college_id:
+                  type: integer
+                department_id:
+                  type: integer
+                category:
+                  type: string
+                allocated_amount:
+                  type: number
+                fiscal_year:
+                  type: string
+                  example: '2024-25'
+      responses:
+        '201':
+          description: Budget allocated
+
+  /budgets/{id}/utilization:
+    get:
+      tags: [Budgets]
+      summary: Get budget utilization
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      responses:
+        '200':
+          description: Budget utilization details
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  budget_id:
+                    type: integer
+                  allocated_amount:
+                    type: number
+                  spent:
+                    type: number
+                  committed:
+                    type: number
+                  available:
+                    type: number
+                  utilization_percentage:
+                    type: number
+                  status:
+                    type: string
+                    enum: [green, yellow, red, black]
+
+  # ==================== Vendors ====================
+  /vendors:
+    get:
+      tags: [Vendors]
+      summary: List vendors
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+        - name: category
+          in: query
+          schema:
+            type: string
+      responses:
+        '200':
+          description: List of vendors
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/Vendor'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+  /vendors/{id}/payments:
+    post:
+      tags: [Vendors]
+      summary: Process vendor payment
+      parameters:
+        - name: id
+          in: path
+          required: true
+          schema:
+            type: integer
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [amount, invoice_number]
+              properties:
+                amount:
+                  type: number
+                invoice_number:
+                  type: string
+                po_number:
+                  type: string
+                payment_date:
+                  type: string
+                  format: date
+      responses:
+        '201':
+          description: Payment initiated
+
+  # ==================== Bank Reconciliation ====================
+  /bank-reconciliation/import:
+    post:
+      tags: [Bank Reconciliation]
+      summary: Import bank statement
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [bank_account_id, transactions]
+              properties:
+                bank_account_id:
+                  type: integer
+                transactions:
+                  type: array
+                  items:
+                    type: object
+                    properties:
+                      date:
+                        type: string
+                        format: date
+                      type:
+                        type: string
+                        enum: [credit, debit]
+                      amount:
+                        type: number
+                      reference:
+                        type: string
+                      description:
+                        type: string
+      responses:
+        '200':
+          description: Statement imported
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  total_count:
+                    type: integer
+                  matched_count:
+                    type: integer
+                  unmatched_count:
+                    type: integer
+
+  # ==================== Reports ====================
+  /reports/generate:
+    post:
+      tags: [Reports]
+      summary: Generate financial report
+      requestBody:
+        required: true
+        content:
+          application/json:
+            schema:
+              type: object
+              required: [report_type, start_date, end_date]
+              properties:
+                report_type:
+                  type: string
+                  enum: [profit_loss, balance_sheet, cash_flow, budget_vs_actual]
+                start_date:
+                  type: string
+                  format: date
+                end_date:
+                  type: string
+                  format: date
+                college_id:
+                  type: integer
+                format:
+                  type: string
+                  enum: [pdf, excel, csv]
+                  default: pdf
+      responses:
+        '200':
+          description: Report generated
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  report_id:
+                    type: string
+                  download_url:
+                    type: string
+
+  # ==================== Audit Trail ====================
+  /audit-logs:
+    get:
+      tags: [Audit Trail]
+      summary: Get audit logs
+      parameters:
+        - $ref: '#/components/parameters/page'
+        - $ref: '#/components/parameters/limit'
+        - name: user_id
+          in: query
+          schema:
+            type: integer
+        - name: action
+          in: query
+          schema:
+            type: string
+        - name: start_date
+          in: query
+          schema:
+            type: string
+            format: date
+        - name: end_date
+          in: query
+          schema:
+            type: string
+            format: date
+      responses:
+        '200':
+          description: Audit logs
+          content:
+            application/json:
+              schema:
+                type: object
+                properties:
+                  data:
+                    type: array
+                    items:
+                      $ref: '#/components/schemas/AuditLog'
+                  meta:
+                    $ref: '#/components/schemas/PaginationMeta'
+
+components:
+  securitySchemes:
+    bearerAuth:
+      type: http
+      scheme: bearer
+      bearerFormat: JWT
+
+  parameters:
+    page:
+      name: page
+      in: query
+      schema:
+        type: integer
+        default: 1
+    limit:
+      name: limit
+      in: query
+      schema:
+        type: integer
+        default: 50
+        maximum: 100
+
+  schemas:
+    User:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        email:
+          type: string
+        role:
+          type: string
+          enum: [super_accountant, college_accounts_admin, accounts_assistant, auditor]
+        mfa_enabled:
+          type: boolean
+
+    Payroll:
+      type: object
+      properties:
+        id:
+          type: integer
+        payroll_id:
+          type: string
+          example: PAY-2025-10
+        month:
+          type: string
+        year:
+          type: integer
+        total_employees:
+          type: integer
+        gross_salary:
+          type: number
+        net_salary:
+          type: number
+        status:
+          type: string
+          enum: [draft, processing, paid, failed]
+        payment_date:
+          type: string
+          format: date
+        created_at:
+          type: string
+          format: date-time
+
+    Payslip:
+      type: object
+      properties:
+        id:
+          type: integer
+        employee_id:
+          type: integer
+        employee_name:
+          type: string
+        basic_salary:
+          type: number
+        allowances:
+          type: object
+        deductions:
+          type: object
+        gross_salary:
+          type: number
+        net_salary:
+          type: number
+
+    Expense:
+      type: object
+      properties:
+        id:
+          type: integer
+        expense_id:
+          type: string
+          example: EXP-2847
+        amount:
+          type: number
+        category:
+          type: string
+        description:
+          type: string
+        status:
+          type: string
+          enum: [pending_principal, pending_super_accountant, approved, rejected]
+        college:
+          type: object
+          properties:
+            id:
+              type: integer
+            name:
+              type: string
+        created_by:
+          $ref: '#/components/schemas/User'
+        created_at:
+          type: string
+          format: date-time
+
+    Budget:
+      type: object
+      properties:
+        id:
+          type: integer
+        college_id:
+          type: integer
+        department_id:
+          type: integer
+        category:
+          type: string
+        allocated_amount:
+          type: number
+        spent:
+          type: number
+        committed:
+          type: number
+        available:
+          type: number
+        utilization_percentage:
+          type: number
+        fiscal_year:
+          type: string
+
+    Vendor:
+      type: object
+      properties:
+        id:
+          type: integer
+        name:
+          type: string
+        gstin:
+          type: string
+        pan:
+          type: string
+        category:
+          type: string
+        total_transactions:
+          type: integer
+        total_amount:
+          type: number
+        rating:
+          type: number
+        is_active:
+          type: boolean
+
+    AuditLog:
+      type: object
+      properties:
+        id:
+          type: integer
+        user_id:
+          type: integer
+        user_name:
+          type: string
+        action:
+          type: string
+        resource_type:
+          type: string
+        resource_id:
+          type: integer
+        ip_address:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    Alert:
+      type: object
+      properties:
+        id:
+          type: integer
+        type:
+          type: string
+          enum: [budget_exceeded, payment_overdue, compliance_deadline]
+        severity:
+          type: string
+          enum: [critical, warning, info]
+        message:
+          type: string
+        created_at:
+          type: string
+          format: date-time
+
+    PaginationMeta:
+      type: object
+      properties:
+        current_page:
+          type: integer
+        per_page:
+          type: integer
+        total:
+          type: integer
+        last_page:
+          type: integer
+
+    Error:
+      type: object
+      properties:
+        message:
+          type: string
+        errors:
+          type: object
+
+  responses:
+    Unauthorized:
+      description: Unauthorized
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    NotFound:
+      description: Resource not found
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
+    ValidationError:
+      description: Validation error
+      content:
+        application/json:
+          schema:
+            $ref: '#/components/schemas/Error'
