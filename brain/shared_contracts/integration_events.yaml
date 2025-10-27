@@ -1,0 +1,609 @@
+# Integration Events - Cross-Portal Communication
+# Version: 1.0.0
+# Last Updated: 2025-01-XX
+# Purpose: Event schemas for communication between portals
+# Pattern: Event-driven architecture for loose coupling
+
+# =============================================================================
+# EVENT STRUCTURE STANDARD
+# =============================================================================
+
+event_structure:
+  base_event:
+    required:
+      - event_id
+      - event_type
+      - source_portal
+      - timestamp
+      - payload
+    optional:
+      - metadata
+    properties:
+      event_id:
+        type: string
+        format: uuid
+        example: "evt_a1b2c3d4e5f6"
+      event_type:
+        type: string
+        example: "university.created"
+        description: "See event_types in shared_enums.yaml"
+      source_portal:
+        type: string
+        enum: [bitflow-admin, university-owner, super-admin, etc.]
+      timestamp:
+        type: string
+        format: date-time
+        example: "2025-01-15T10:30:00Z"
+      payload:
+        type: object
+        description: "Event-specific data"
+      metadata:
+        type: object
+        properties:
+          user_id:
+            type: string
+            nullable: true
+          tenant_id:
+            type: string
+            nullable: true
+          god_mode_context:
+            type: object
+            nullable: true
+
+# =============================================================================
+# UNIVERSITY EVENTS (Bitflow Admin → Other Portals)
+# =============================================================================
+
+university_events:
+  university_created:
+    event_type: "university.created"
+    description: "Emitted when Bitflow Admin creates a new university"
+    source_portal: "bitflow-admin"
+    payload:
+      required:
+        - university_id
+        - tenant_id
+        - owner_id
+        - name
+      optional:
+        - subscription_plan
+        - subscription_status
+      properties:
+        university_id:
+          type: string
+          example: "univ_123"
+        tenant_id:
+          type: string
+          example: "tenant_abc"
+          description: "Newly created tenant ID for this university"
+        owner_id:
+          type: string
+          example: "user_xyz"
+          description: "User ID of the University Owner"
+        name:
+          type: string
+          example: "MIT"
+        subscription_plan:
+          type: string
+          enum: [basic, standard, premium, enterprise]
+        subscription_status:
+          type: string
+          enum: [trial, active]
+          default: trial
+    consumers:
+      - university-owner
+      - super-admin
+    side_effects:
+      - Create default roles for university
+      - Send welcome email to University Owner
+      - Initialize university dashboard
+      - Create default academic calendar
+
+  university_updated:
+    event_type: "university.updated"
+    description: "Emitted when university details are updated"
+    source_portal: "bitflow-admin"
+    payload:
+      required:
+        - university_id
+        - updated_fields
+      properties:
+        university_id:
+          type: string
+        updated_fields:
+          type: object
+          description: "Only changed fields"
+    consumers:
+      - university-owner
+      - super-admin
+    side_effects:
+      - Update cached university data
+      - Notify University Owner of changes
+
+  university_subscription_changed:
+    event_type: "university.subscription_changed"
+    description: "Emitted when subscription plan or status changes"
+    source_portal: "bitflow-admin"
+    payload:
+      required:
+        - university_id
+        - old_plan
+        - new_plan
+        - old_status
+        - new_status
+      properties:
+        university_id:
+          type: string
+        old_plan:
+          type: string
+        new_plan:
+          type: string
+        old_status:
+          type: string
+        new_status:
+          type: string
+    consumers:
+      - university-owner
+      - super-admin
+      - all university portals
+    side_effects:
+      - Update feature access
+      - Notify all admins
+      - Adjust resource limits
+
+  university_deleted:
+    event_type: "university.deleted"
+    description: "Emitted when university is soft-deleted"
+    source_portal: "bitflow-admin"
+    payload:
+      required:
+        - university_id
+        - tenant_id
+        - deleted_at
+      properties:
+        university_id:
+          type: string
+        tenant_id:
+          type: string
+        deleted_at:
+          type: string
+          format: date-time
+    consumers:
+      - all portals
+    side_effects:
+      - Deactivate all users in this university
+      - Archive all data
+      - Send notification to University Owner
+
+# =============================================================================
+# COLLEGE EVENTS (University Owner → Other Portals)
+# =============================================================================
+
+college_events:
+  college_created:
+    event_type: "college.created"
+    description: "Emitted when a new college is created"
+    source_portal: "university-owner"
+    payload:
+      required:
+        - college_id
+        - university_id
+        - tenant_id
+        - name
+      optional:
+        - principal_id
+      properties:
+        college_id:
+          type: string
+        university_id:
+          type: string
+        tenant_id:
+          type: string
+        name:
+          type: string
+        principal_id:
+          type: string
+          nullable: true
+    consumers:
+      - principal
+      - super-admin
+      - college-admin
+    side_effects:
+      - Create default departments
+      - Assign principal role if principal_id provided
+      - Initialize college dashboard
+
+  college_principal_assigned:
+    event_type: "college.principal_assigned"
+    description: "Emitted when a principal is assigned to a college"
+    source_portal: "university-owner"
+    payload:
+      required:
+        - college_id
+        - principal_id
+        - assigned_at
+      properties:
+        college_id:
+          type: string
+        principal_id:
+          type: string
+        assigned_at:
+          type: string
+          format: date-time
+    consumers:
+      - principal
+      - super-admin
+    side_effects:
+      - Update user role to principal
+      - Grant principal permissions
+      - Send notification to principal
+
+# =============================================================================
+# DEPARTMENT EVENTS
+# =============================================================================
+
+department_events:
+  department_created:
+    event_type: "department.created"
+    description: "Emitted when a new department is created"
+    source_portal: "university-owner"
+    payload:
+      required:
+        - department_id
+        - college_id
+        - tenant_id
+        - name
+        - code
+      properties:
+        department_id:
+          type: string
+        college_id:
+          type: string
+        tenant_id:
+          type: string
+        name:
+          type: string
+        code:
+          type: string
+    consumers:
+      - super-academics
+      - principal
+      - college-admin
+    side_effects:
+      - Create default courses
+      - Initialize department timetable
+
+  department_hod_assigned:
+    event_type: "department.hod_assigned"
+    description: "Emitted when HOD is assigned to a department"
+    source_portal: "principal"
+    payload:
+      required:
+        - department_id
+        - hod_id
+        - assigned_at
+      properties:
+        department_id:
+          type: string
+        hod_id:
+          type: string
+        assigned_at:
+          type: string
+          format: date-time
+    consumers:
+      - faculty-teacher
+      - super-academics
+    side_effects:
+      - Grant HOD permissions
+      - Send notification to HOD
+
+# =============================================================================
+# USER EVENTS
+# =============================================================================
+
+user_events:
+  user_created:
+    event_type: "user.created"
+    description: "Emitted when a new user is created"
+    source_portal: "any"
+    payload:
+      required:
+        - user_id
+        - email
+        - role
+        - tenant_id
+      properties:
+        user_id:
+          type: string
+        email:
+          type: string
+        full_name:
+          type: string
+        role:
+          type: string
+        tenant_id:
+          type: string
+          nullable: true
+    consumers:
+      - all portals (for user cache)
+    side_effects:
+      - Send welcome email
+      - Create user profile
+      - Initialize user preferences
+
+  user_role_changed:
+    event_type: "user.role_changed"
+    description: "Emitted when user's role changes"
+    source_portal: "any"
+    payload:
+      required:
+        - user_id
+        - old_role
+        - new_role
+        - changed_at
+      properties:
+        user_id:
+          type: string
+        old_role:
+          type: string
+        new_role:
+          type: string
+        tenant_id:
+          type: string
+        changed_at:
+          type: string
+          format: date-time
+    consumers:
+      - all portals
+    side_effects:
+      - Update permissions
+      - Clear user cache
+      - Notify user of role change
+      - Force re-login
+
+  user_deleted:
+    event_type: "user.deleted"
+    description: "Emitted when user is deleted"
+    source_portal: "any"
+    payload:
+      required:
+        - user_id
+        - deleted_at
+      properties:
+        user_id:
+          type: string
+        deleted_at:
+          type: string
+          format: date-time
+    consumers:
+      - all portals
+    side_effects:
+      - Revoke all sessions
+      - Archive user data
+      - Update related records
+
+# =============================================================================
+# STUDENT EVENTS
+# =============================================================================
+
+student_events:
+  student_enrolled:
+    event_type: "student.enrolled"
+    description: "Emitted when a new student is enrolled"
+    source_portal: "admission-admin"
+    payload:
+      required:
+        - student_id
+        - user_id
+        - department_id
+        - tenant_id
+        - student_number
+      properties:
+        student_id:
+          type: string
+        user_id:
+          type: string
+        department_id:
+          type: string
+        tenant_id:
+          type: string
+        student_number:
+          type: string
+        batch:
+          type: string
+        year:
+          type: integer
+    consumers:
+      - student
+      - parent
+      - faculty-teacher
+      - super-academics
+    side_effects:
+      - Create student dashboard
+      - Assign to courses
+      - Send enrollment confirmation
+      - Notify parent if linked
+
+  student_promoted:
+    event_type: "student.promoted"
+    description: "Emitted when student is promoted to next year"
+    source_portal: "super-academics"
+    payload:
+      required:
+        - student_id
+        - old_year
+        - new_year
+        - promoted_at
+      properties:
+        student_id:
+          type: string
+        old_year:
+          type: integer
+        new_year:
+          type: integer
+        promoted_at:
+          type: string
+          format: date-time
+    consumers:
+      - student
+      - parent
+      - faculty-teacher
+    side_effects:
+      - Update course enrollments
+      - Clear old semester data
+      - Notify student and parent
+
+# =============================================================================
+# PAYMENT EVENTS
+# =============================================================================
+
+payment_events:
+  payment_received:
+    event_type: "payment.received"
+    description: "Emitted when a payment is successfully received"
+    source_portal: "college-fee-admin"
+    payload:
+      required:
+        - payment_id
+        - student_id
+        - amount
+        - fee_type
+        - received_at
+      properties:
+        payment_id:
+          type: string
+        student_id:
+          type: string
+        amount:
+          type: number
+        fee_type:
+          type: string
+        received_at:
+          type: string
+          format: date-time
+    consumers:
+      - student
+      - parent
+      - super-accountant
+      - college-accounts-admin
+    side_effects:
+      - Update payment status
+      - Generate receipt
+      - Send confirmation email
+      - Update account ledger
+
+  payment_overdue:
+    event_type: "payment.overdue"
+    description: "Emitted when a payment becomes overdue"
+    source_portal: "college-fee-admin"
+    payload:
+      required:
+        - student_id
+        - amount_due
+        - due_date
+        - days_overdue
+      properties:
+        student_id:
+          type: string
+        amount_due:
+          type: number
+        due_date:
+          type: string
+          format: date
+        days_overdue:
+          type: integer
+    consumers:
+      - student
+      - parent
+    side_effects:
+      - Send reminder notification
+      - Apply late fee if configured
+      - Flag student account
+
+# =============================================================================
+# ATTENDANCE EVENTS
+# =============================================================================
+
+attendance_events:
+  attendance_marked:
+    event_type: "attendance.marked"
+    description: "Emitted when attendance is marked for a class"
+    source_portal: "faculty-teacher"
+    payload:
+      required:
+        - course_id
+        - date
+        - marked_by
+        - attendance_records
+      properties:
+        course_id:
+          type: string
+        date:
+          type: string
+          format: date
+        marked_by:
+          type: string
+        attendance_records:
+          type: array
+          items:
+            type: object
+            properties:
+              student_id:
+                type: string
+              status:
+                type: string
+                enum: [present, absent, late, excused]
+    consumers:
+      - student
+      - parent
+      - super-academics
+    side_effects:
+      - Update attendance percentage
+      - Notify parents if absent
+      - Trigger alerts if attendance < threshold
+
+# =============================================================================
+# EVENT EMISSION & CONSUMPTION
+# =============================================================================
+
+# Backend Implementation (NestJS):
+# 
+# // Emit event
+# this.eventEmitter.emit('university.created', {
+#   event_id: uuid(),
+#   event_type: 'university.created',
+#   source_portal: 'bitflow-admin',
+#   timestamp: new Date().toISOString(),
+#   payload: { university_id, tenant_id, owner_id, name },
+#   metadata: { user_id: currentUser.id }
+# });
+#
+# // Listen for event
+# @OnEvent('university.created')
+# handleUniversityCreated(event: UniversityCreatedEvent) {
+#   // Handle event...
+# }
+
+# =============================================================================
+# EVENT STORAGE & REPLAY
+# =============================================================================
+
+# All events should be stored in an events table for:
+# 1. Audit trail
+# 2. Debugging
+# 3. Event replay (if needed)
+# 4. Analytics
+
+# events table:
+# - id
+# - event_id
+# - event_type
+# - source_portal
+# - timestamp
+# - payload (JSONB)
+# - metadata (JSONB)
+# - processed_at
+# - status (pending, processed, failed)
+
+# Version History:
+# 1.0.0 - Initial version with God Mode event contracts

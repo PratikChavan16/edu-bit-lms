@@ -1,0 +1,511 @@
+# API Response Formats - Standard Contracts
+# Version: 1.0.0
+# Last Updated: 2025-01-XX
+# Purpose: Standardized response structures for ALL portals
+
+# =============================================================================
+# CORE RESPONSE WRAPPER
+# =============================================================================
+# All API responses MUST use this structure
+
+standard_response:
+  success_response:
+    type: object
+    required:
+      - success
+      - data
+      - metadata
+    properties:
+      success:
+        type: boolean
+        example: true
+      data:
+        type: object
+        description: "Actual payload (entity, list, or result)"
+      metadata:
+        type: object
+        properties:
+          timestamp:
+            type: string
+            format: date-time
+            example: "2025-01-15T10:30:00Z"
+          request_id:
+            type: string
+            example: "req_abc123xyz"
+          portal:
+            type: string
+            enum: [bitflow-admin, university-owner, super-admin, principal, college-admin, super-academics, faculty-teacher, student, parent, admission-admin, super-accountant, college-accounts-admin, college-fee-admin, super-non-teaching-manager]
+          god_mode_context:
+            type: object
+            nullable: true
+            properties:
+              is_god_mode:
+                type: boolean
+              original_tenant_id:
+                type: string
+                nullable: true
+              viewing_tenant_id:
+                type: string
+              hierarchy_level:
+                type: string
+                enum: [platform, university, college, department]
+
+  error_response:
+    type: object
+    required:
+      - success
+      - error
+      - metadata
+    properties:
+      success:
+        type: boolean
+        example: false
+      error:
+        type: object
+        required:
+          - code
+          - message
+        properties:
+          code:
+            type: string
+            example: "ERR_UNAUTHORIZED"
+            description: "See error_codes.yaml for full list"
+          message:
+            type: string
+            example: "You do not have permission to access this resource"
+          details:
+            type: object
+            nullable: true
+            description: "Additional context (validation errors, stack trace in dev)"
+          field_errors:
+            type: array
+            nullable: true
+            items:
+              type: object
+              properties:
+                field:
+                  type: string
+                  example: "email"
+                message:
+                  type: string
+                  example: "Invalid email format"
+      metadata:
+        type: object
+        properties:
+          timestamp:
+            type: string
+            format: date-time
+          request_id:
+            type: string
+
+# =============================================================================
+# HIERARCHICAL NAVIGATION (God Mode)
+# =============================================================================
+# Used by Bitflow Admin and University Owner portals
+
+hierarchical_navigation:
+  get_universities_response:
+    type: object
+    properties:
+      success:
+        type: boolean
+      data:
+        type: object
+        properties:
+          universities:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                  example: "univ_123"
+                name:
+                  type: string
+                  example: "MIT"
+                tenant_id:
+                  type: string
+                  example: "tenant_abc"
+                stats:
+                  type: object
+                  properties:
+                    total_colleges:
+                      type: integer
+                    total_students:
+                      type: integer
+                    total_faculty:
+                      type: integer
+                access_level:
+                  type: string
+                  enum: [full, read_only, restricted]
+                  description: "God mode access level for this university"
+      metadata:
+        $ref: "#/standard_response/success_response/properties/metadata"
+
+  get_colleges_response:
+    type: object
+    properties:
+      success:
+        type: boolean
+      data:
+        type: object
+        properties:
+          university_context:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              tenant_id:
+                type: string
+          colleges:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                principal_id:
+                  type: string
+                  nullable: true
+                stats:
+                  type: object
+                  properties:
+                    total_departments:
+                      type: integer
+                    total_students:
+                      type: integer
+                    total_faculty:
+                      type: integer
+                access_level:
+                  type: string
+                  enum: [full, read_only, restricted]
+
+  get_departments_response:
+    type: object
+    properties:
+      success:
+        type: boolean
+      data:
+        type: object
+        properties:
+          college_context:
+            type: object
+            properties:
+              id:
+                type: string
+              name:
+                type: string
+              university_id:
+                type: string
+          departments:
+            type: array
+            items:
+              type: object
+              properties:
+                id:
+                  type: string
+                name:
+                  type: string
+                hod_id:
+                  type: string
+                  nullable: true
+                stats:
+                  type: object
+                  properties:
+                    total_students:
+                      type: integer
+                    total_faculty:
+                      type: integer
+                    total_courses:
+                      type: integer
+
+# =============================================================================
+# PAGINATION (Standard across all list endpoints)
+# =============================================================================
+
+pagination:
+  paginated_list_response:
+    type: object
+    properties:
+      success:
+        type: boolean
+      data:
+        type: object
+        properties:
+          items:
+            type: array
+            description: "Array of entities"
+          pagination:
+            type: object
+            required:
+              - total
+              - page
+              - page_size
+              - total_pages
+            properties:
+              total:
+                type: integer
+                example: 150
+                description: "Total number of items across all pages"
+              page:
+                type: integer
+                example: 1
+                description: "Current page number (1-indexed)"
+              page_size:
+                type: integer
+                example: 20
+                description: "Number of items per page"
+              total_pages:
+                type: integer
+                example: 8
+                description: "Total number of pages"
+              has_next:
+                type: boolean
+                example: true
+              has_previous:
+                type: boolean
+                example: false
+      metadata:
+        $ref: "#/standard_response/success_response/properties/metadata"
+
+# =============================================================================
+# AUTHENTICATION & AUTHORIZATION
+# =============================================================================
+
+auth:
+  login_response:
+    type: object
+    properties:
+      success:
+        type: boolean
+      data:
+        type: object
+        properties:
+          user:
+            type: object
+            properties:
+              id:
+                type: string
+              email:
+                type: string
+              full_name:
+                type: string
+              role:
+                type: string
+                description: "See shared_enums.yaml for role list"
+              tenant_id:
+                type: string
+                nullable: true
+              god_mode_enabled:
+                type: boolean
+                description: "True for Bitflow Admin and University Owner"
+              permissions:
+                type: array
+                items:
+                  type: string
+                description: "See master_roles_permissions.yaml"
+          tokens:
+            type: object
+            properties:
+              access_token:
+                type: string
+                example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              refresh_token:
+                type: string
+                example: "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9..."
+              expires_in:
+                type: integer
+                example: 3600
+                description: "Seconds until access token expires"
+
+  refresh_token_response:
+    type: object
+    properties:
+      success:
+        type: boolean
+      data:
+        type: object
+        properties:
+          access_token:
+            type: string
+          expires_in:
+            type: integer
+
+# =============================================================================
+# CRUD OPERATIONS (Standard patterns)
+# =============================================================================
+
+crud:
+  create_entity_response:
+    type: object
+    properties:
+      success:
+        type: boolean
+      data:
+        type: object
+        properties:
+          entity:
+            type: object
+            description: "The created entity with generated ID and timestamps"
+          message:
+            type: string
+            example: "University created successfully"
+
+  update_entity_response:
+    type: object
+    properties:
+      success:
+        type: boolean
+      data:
+        type: object
+        properties:
+          entity:
+            type: object
+            description: "The updated entity with new values"
+          message:
+            type: string
+            example: "University updated successfully"
+
+  delete_entity_response:
+    type: object
+    properties:
+      success:
+        type: boolean
+      data:
+        type: object
+        properties:
+          deleted_id:
+            type: string
+          message:
+            type: string
+            example: "University deleted successfully"
+
+  get_entity_response:
+    type: object
+    properties:
+      success:
+        type: boolean
+      data:
+        type: object
+        properties:
+          entity:
+            type: object
+            description: "The requested entity"
+
+# =============================================================================
+# BATCH OPERATIONS
+# =============================================================================
+
+batch:
+  bulk_create_response:
+    type: object
+    properties:
+      success:
+        type: boolean
+      data:
+        type: object
+        properties:
+          created:
+            type: array
+            items:
+              type: object
+          failed:
+            type: array
+            items:
+              type: object
+              properties:
+                index:
+                  type: integer
+                error:
+                  type: string
+          summary:
+            type: object
+            properties:
+              total:
+                type: integer
+              successful:
+                type: integer
+              failed:
+                type: integer
+
+# =============================================================================
+# FILE UPLOADS
+# =============================================================================
+
+file_upload:
+  upload_response:
+    type: object
+    properties:
+      success:
+        type: boolean
+      data:
+        type: object
+        properties:
+          file:
+            type: object
+            properties:
+              id:
+                type: string
+              filename:
+                type: string
+              url:
+                type: string
+              size:
+                type: integer
+              mime_type:
+                type: string
+              uploaded_at:
+                type: string
+                format: date-time
+
+# =============================================================================
+# ANALYTICS & REPORTS
+# =============================================================================
+
+analytics:
+  dashboard_stats_response:
+    type: object
+    properties:
+      success:
+        type: boolean
+      data:
+        type: object
+        properties:
+          stats:
+            type: object
+            description: "Key metrics (varies by portal)"
+          charts:
+            type: array
+            items:
+              type: object
+              properties:
+                type:
+                  type: string
+                  enum: [line, bar, pie, doughnut]
+                title:
+                  type: string
+                data:
+                  type: object
+                  properties:
+                    labels:
+                      type: array
+                    datasets:
+                      type: array
+
+# =============================================================================
+# NOTES FOR DEVELOPERS
+# =============================================================================
+
+# 1. ALWAYS wrap responses in the standard_response format
+# 2. ALWAYS include metadata with timestamp and request_id
+# 3. For God Mode operations, ALWAYS include god_mode_context
+# 4. Use pagination for any list endpoint that could return > 20 items
+# 5. Follow error_codes.yaml for consistent error handling
+# 6. Add new response patterns here if needed (discuss with team first!)
+
+# Version History:
+# 1.0.0 - Initial version with God Mode support
