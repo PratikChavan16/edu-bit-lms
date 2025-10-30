@@ -1,0 +1,127 @@
+// Simplified Bitflow LMS Schema for Initial Migration
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public", "tenant"]
+}
+
+// Multi-tenant Registry (Master Schema - Public)
+model Tenant {
+  id            String    @id @default(uuid())
+  name          String
+  slug          String    @unique
+  subdomain     String    @unique
+  
+  dbSchema      String    @unique
+  
+  subscriptionPlan  String  @default("trial")
+  subscriptionStatus String @default("active")
+  
+  maxUsers      Int       @default(100)
+  maxStorage    Int       @default(5000)
+  
+  contactEmail  String
+  contactPhone  String?
+  
+  settings      Json?
+  
+  active        Boolean   @default(true)
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("tenants")
+  @@schema("public")
+}
+
+// Tenant-specific Tables (Per-tenant Schema)
+model User {
+  id            String    @id @default(uuid())
+  email         String    @unique
+  password      String
+  
+  firstName     String
+  lastName      String
+  phone         String?
+  avatar        String?
+  
+  role          String    // platform_owner, university_owner, admin, etc.
+  
+  emailVerified Boolean   @default(false)
+  active        Boolean   @default(true)
+  
+  lastLoginAt   DateTime?
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  @@map("users")
+  @@schema("tenant")
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  name        String   @unique
+  description String?
+  permissions Json     // Array of permission strings
+  
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("roles")
+  @@schema("tenant")
+}
+
+model Course {
+  id          String   @id @default(uuid())
+  code        String   @unique
+  name        String
+  description String?
+  credits     Int
+  
+  departmentId String?
+  instructorId String?
+  
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  @@map("courses")
+  @@schema("tenant")
+}
+
+model Enrollment {
+  id          String   @id @default(uuid())
+  studentId   String
+  courseId    String
+  
+  status      String   @default("active") // active, completed, dropped
+  grade       String?
+  
+  enrolledAt  DateTime @default(now())
+  completedAt DateTime?
+  
+  @@map("enrollments")
+  @@schema("tenant")
+}
+
+model AuditLog {
+  id         String   @id @default(uuid())
+  userId     String
+  action     String
+  resource   String
+  resourceId String?
+  
+  changes    Json?
+  ipAddress  String?
+  userAgent  String?
+  
+  createdAt  DateTime @default(now())
+  
+  @@map("audit_logs")
+  @@schema("tenant")
+}

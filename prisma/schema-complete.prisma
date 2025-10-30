@@ -1,0 +1,759 @@
+// Bitflow LMS - Complete Database Schema
+// Based on: BITFLOW_OWNER_PORTAL_DATA_MODEL.md
+// Version: 2.0
+// Last Updated: October 30, 2025
+
+generator client {
+  provider        = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public", "tenant"]
+}
+
+// ============================================================================
+// MASTER SCHEMA (PUBLIC) - Platform-Level Tables
+// ============================================================================
+
+model University {
+  id                String    @id @default(uuid())
+  name              String
+  slug              String    @unique // subdomain
+  subdomain         String    @unique
+  domain            String?   @unique // custom domain
+  email             String
+  phone             String?
+  address           String?
+  establishedYear   Int?
+  timezone          String    @default("UTC")
+  status            String    @default("setup") // setup, live, suspended, archived
+  
+  storageQuotaGb    Int       @default(1000)
+  storageUsedMb     BigInt    @default(0)
+  
+  branding          Json?     // {primary_color, logo_url, favicon_url}
+  settings          Json?     // Feature flags and configurations
+  
+  active            Boolean   @default(true)
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  
+  @@map("universities")
+  @@schema("public")
+  @@index([slug])
+  @@index([status])
+}
+
+// ============================================================================
+// TENANT SCHEMA - University-Specific Tables
+// ============================================================================
+
+// Identity & Access Layer
+
+model User {
+  id                String    @id @default(uuid())
+  universityId      String
+  username          String    @unique
+  email             String    @unique
+  passwordHash      String
+  
+  firstName         String
+  lastName          String
+  phone             String?
+  photoUrl          String?
+  
+  status            String    @default("active") // active, inactive, suspended, deleted
+  emailVerifiedAt   DateTime?
+  lastLoginAt       DateTime?
+  twoFactorEnabled  Boolean   @default(false)
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  
+  roleAssignments   RoleUser[]
+  sessions          Session[]
+  student           Student?
+  faculty           Faculty?
+  staff             Staff?
+  
+  sentMessages          Message[] @relation("MessageSender")
+  conversationParticipants ConversationParticipant[]
+  messageReads          MessageRead[]
+  
+  @@map("users")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([email])
+  @@index([status])
+}
+
+model Role {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  level       Int      // 1=Bitflow Owner, 2=University Owner, etc.
+  scope       String   // global, university, college, department
+  description String?
+  
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  roleUsers      RoleUser[]
+  rolePermissions RolePermission[]
+  
+  @@map("roles")
+  @@schema("tenant")
+  @@index([slug])
+  @@index([level])
+}
+
+model Permission {
+  id          String   @id @default(uuid())
+  slug        String   @unique
+  name        String
+  resource    String
+  action      String
+  description String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+  
+  rolePermissions RolePermission[]
+  
+  @@map("permissions")
+  @@schema("tenant")
+  @@index([slug])
+  @@index([resource])
+}
+
+model RoleUser {
+  id         String    @id @default(uuid())
+  userId     String
+  roleId     String
+  assignedAt DateTime  @default(now())
+  assignedBy String?
+  expiresAt  DateTime?
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  
+  @@unique([userId, roleId])
+  @@map("role_user")
+  @@schema("tenant")
+  @@index([userId])
+  @@index([roleId])
+}
+
+model RolePermission {
+  id           String   @id @default(uuid())
+  roleId       String
+  permissionId String
+  assignedAt   DateTime @default(now())
+  
+  role       Role       @relation(fields: [roleId], references: [id], onDelete: Cascade)
+  permission Permission @relation(fields: [permissionId], references: [id], onDelete: Cascade)
+  
+  @@unique([roleId, permissionId])
+  @@map("role_permissions")
+  @@schema("tenant")
+  @@index([roleId])
+  @@index([permissionId])
+}
+
+model Session {
+  id             String    @id @default(uuid())
+  userId         String
+  refreshToken   String    @unique
+  ipAddress      String?
+  userAgent      String?
+  lastActivityAt DateTime  @default(now())
+  expiresAt      DateTime
+  
+  createdAt      DateTime  @default(now())
+  
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@map("sessions")
+  @@schema("tenant")
+  @@index([userId])
+  @@index([refreshToken])
+}
+
+// Organizational Structure
+
+model College {
+  id                String    @id @default(uuid())
+  universityId      String
+  name              String
+  code              String
+  type              String?
+  email             String?
+  phone             String?
+  address           String?
+  establishedYear   Int?
+  status            String    @default("active")
+  
+  capacity          Int?
+  currentEnrollment Int       @default(0)
+  accreditation     Json?
+  
+  createdAt         DateTime  @default(now())
+  updatedAt         DateTime  @updatedAt
+  deletedAt         DateTime?
+  
+  departments Department[]
+  students    Student[]
+  faculty     Faculty[]
+  staff       Staff[]
+  feeStructures FeeStructure[]
+  
+  @@unique([universityId, code])
+  @@map("colleges")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([status])
+}
+
+model Department {
+  id            String    @id @default(uuid())
+  universityId  String
+  collegeId     String
+  name          String
+  code          String
+  headFacultyId String?
+  email         String?
+  phone         String?
+  floorLocation String?
+  status        String    @default("active")
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  deletedAt     DateTime?
+  
+  college  College   @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  courses  Course[]
+  students Student[]
+  faculty  Faculty[]
+  
+  @@unique([collegeId, code])
+  @@map("departments")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([collegeId])
+}
+
+model Course {
+  id            String    @id @default(uuid())
+  universityId  String
+  collegeId     String
+  departmentId  String
+  code          String
+  name          String
+  description   String?
+  credits       Int
+  level         String?
+  semester      String?
+  prerequisites Json?
+  syllabusUrl   String?
+  status        String    @default("active")
+  
+  createdAt     DateTime  @default(now())
+  updatedAt     DateTime  @updatedAt
+  
+  department  Department    @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  enrollments Enrollment[]
+  
+  @@unique([departmentId, code])
+  @@map("courses")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([collegeId])
+  @@index([departmentId])
+}
+
+model AcademicYear {
+  id           String    @id @default(uuid())
+  universityId String
+  name         String
+  startDate    DateTime
+  endDate      DateTime
+  isCurrent    Boolean   @default(false)
+  status       String    @default("upcoming")
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  enrollments   Enrollment[]
+  feeStructures FeeStructure[]
+  
+  @@unique([universityId, name])
+  @@map("academic_years")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([isCurrent])
+}
+
+// Academic Operations
+
+model Student {
+  id               String    @id @default(uuid())
+  userId           String    @unique
+  universityId     String
+  collegeId        String
+  departmentId     String?
+  
+  admissionNumber  String    @unique
+  admissionDate    DateTime
+  course           String
+  year             Int
+  section          String?
+  rollNumber       String?
+  
+  bloodGroup       String?
+  dateOfBirth      DateTime?
+  gender           String?
+  nationality      String?
+  
+  emergencyContact Json?
+  guardianName     String?
+  guardianPhone    String?
+  guardianEmail    String?
+  
+  status           String    @default("active")
+  
+  createdAt        DateTime  @default(now())
+  updatedAt        DateTime  @updatedAt
+  
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  college      College      @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  department   Department?  @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  enrollments  Enrollment[]
+  feePayments  FeePayment[]
+  
+  @@map("students")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([collegeId])
+  @@index([departmentId])
+  @@index([status])
+}
+
+model Faculty {
+  id              String    @id @default(uuid())
+  userId          String    @unique
+  universityId    String
+  collegeId       String
+  departmentId    String?
+  
+  employeeId      String    @unique
+  designation     String
+  qualification   String?
+  specialization  String?
+  experienceYears Int?
+  employmentType  String?
+  joiningDate     DateTime?
+  salary          Decimal?  @db.Decimal(12, 2)
+  
+  status          String    @default("active")
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  user       User        @relation(fields: [userId], references: [id], onDelete: Cascade)
+  college    College     @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  department Department? @relation(fields: [departmentId], references: [id], onDelete: SetNull)
+  
+  @@map("faculty")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([collegeId])
+  @@index([departmentId])
+  @@index([status])
+}
+
+model Staff {
+  id             String    @id @default(uuid())
+  userId         String    @unique
+  universityId   String
+  collegeId      String?
+  
+  employeeId     String    @unique
+  designation    String
+  departmentName String?
+  employmentType String?
+  joiningDate    DateTime?
+  salary         Decimal?  @db.Decimal(12, 2)
+  
+  status         String    @default("active")
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  
+  user    User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+  college College? @relation(fields: [collegeId], references: [id], onDelete: SetNull)
+  
+  @@map("staff")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([collegeId])
+  @@index([status])
+}
+
+model Enrollment {
+  id             String    @id @default(uuid())
+  studentId      String
+  courseId       String
+  academicYearId String
+  
+  status         String    @default("active")
+  grade          String?
+  
+  enrolledAt     DateTime  @default(now())
+  completedAt    DateTime?
+  
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course       Course       @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  
+  @@map("enrollments")
+  @@schema("tenant")
+  @@index([studentId])
+  @@index([courseId])
+  @@index([academicYearId])
+}
+
+// Financial Management
+
+model FeeStructure {
+  id             String    @id @default(uuid())
+  universityId   String
+  collegeId      String
+  academicYearId String
+  
+  name           String
+  course         String
+  year           Int
+  amount         Decimal   @db.Decimal(12, 2)
+  currency       String    @default("USD")
+  installments   Int       @default(1)
+  dueDates       Json?
+  lateFeePerDay  Decimal   @default(0) @db.Decimal(8, 2)
+  components     Json?
+  
+  status         String    @default("active")
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  
+  college      College      @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  academicYear AcademicYear @relation(fields: [academicYearId], references: [id], onDelete: Cascade)
+  feePayments  FeePayment[]
+  
+  @@map("fee_structures")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([collegeId])
+  @@index([academicYearId])
+}
+
+model FeePayment {
+  id               String    @id @default(uuid())
+  universityId     String
+  studentId        String
+  feeStructureId   String
+  
+  amountPaid       Decimal   @db.Decimal(12, 2)
+  paymentDate      DateTime  @default(now())
+  paymentMethod    String
+  transactionId    String?   @unique
+  receiptNumber    String    @unique
+  installmentNumber Int?
+  lateFee          Decimal   @default(0) @db.Decimal(8, 2)
+  remarks          String?
+  
+  status           String    @default("completed")
+  recordedBy       String?
+  
+  createdAt        DateTime  @default(now())
+  
+  student      Student      @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  feeStructure FeeStructure @relation(fields: [feeStructureId], references: [id], onDelete: Cascade)
+  
+  @@map("fee_payments")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([studentId])
+  @@index([feeStructureId])
+  @@index([status])
+}
+
+model Invoice {
+  id             String    @id @default(uuid())
+  universityId   String
+  invoiceNumber  String    @unique
+  
+  entityType     String
+  entityId       String?
+  
+  issueDate      DateTime
+  dueDate        DateTime
+  totalAmount    Decimal   @db.Decimal(12, 2)
+  taxAmount      Decimal   @default(0) @db.Decimal(12, 2)
+  discountAmount Decimal   @default(0) @db.Decimal(12, 2)
+  paidAmount     Decimal   @default(0) @db.Decimal(12, 2)
+  
+  lineItems      Json?
+  status         String    @default("unpaid")
+  
+  createdAt      DateTime  @default(now())
+  updatedAt      DateTime  @updatedAt
+  
+  @@map("invoices")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([status])
+  @@index([entityType, entityId])
+}
+
+// Operations & System
+
+model AuditLog {
+  id           String    @id @default(uuid())
+  universityId String
+  userId       String?
+  
+  action       String
+  entityType   String
+  entityId     String?
+  
+  changes      Json?
+  ipAddress    String?
+  userAgent    String?
+  
+  createdAt    DateTime  @default(now())
+  
+  @@map("audit_logs")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([userId])
+  @@index([entityType, entityId])
+  @@index([createdAt])
+}
+
+model Notification {
+  id           String    @id @default(uuid())
+  universityId String
+  userId       String
+  
+  type         String
+  title        String
+  message      String
+  actionUrl    String?
+  icon         String?
+  priority     String    @default("normal")
+  
+  isRead       Boolean   @default(false)
+  readAt       DateTime?
+  channels     Json?
+  
+  sentAt       DateTime?
+  createdAt    DateTime  @default(now())
+  
+  @@map("notifications")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([userId])
+  @@index([isRead])
+}
+
+model FileUpload {
+  id               String    @id @default(uuid())
+  universityId     String
+  uploadedBy       String
+  
+  filename         String
+  originalFilename String
+  filePath         String
+  fileSizeBytes    BigInt
+  mimeType         String
+  category         String?
+  
+  entityType       String?
+  entityId         String?
+  
+  isPublic         Boolean   @default(false)
+  downloadCount    Int       @default(0)
+  
+  createdAt        DateTime  @default(now())
+  deletedAt        DateTime?
+  
+  @@map("file_uploads")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([uploadedBy])
+  @@index([entityType, entityId])
+}
+
+model Setting {
+  id           String    @id @default(uuid())
+  universityId String?
+  
+  key          String
+  value        Json
+  dataType     String
+  category     String
+  description  String?
+  isPublic     Boolean   @default(false)
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  @@unique([universityId, key])
+  @@map("settings")
+  @@schema("tenant")
+  @@index([category])
+}
+
+model Announcement {
+  id              String    @id @default(uuid())
+  universityId    String
+  collegeId       String?
+  
+  title           String
+  content         String
+  targetAudience  String
+  attachmentUrls  Json?
+  priority        String    @default("normal")
+  
+  publishedAt     DateTime?
+  expiresAt       DateTime?
+  createdBy       String
+  status          String    @default("draft")
+  
+  createdAt       DateTime  @default(now())
+  updatedAt       DateTime  @updatedAt
+  
+  @@map("announcements")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([collegeId])
+  @@index([status])
+}
+
+model ComplaintTicket {
+  id           String    @id @default(uuid())
+  universityId String
+  ticketNumber String    @unique
+  
+  raisedBy     String
+  category     String
+  subject      String
+  description  String
+  priority     String    @default("normal")
+  
+  status       String    @default("open")
+  assignedTo   String?
+  resolution   String?
+  resolvedAt   DateTime?
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  @@map("complaint_tickets")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([status])
+  @@index([priority])
+  @@index([raisedBy])
+}
+
+// Chat/Messaging Tables
+
+model Conversation {
+  id           String    @id @default(uuid())
+  universityId String
+  type         String
+  name         String?
+  description  String?
+  
+  isActive     Boolean   @default(true)
+  createdBy    String?
+  
+  createdAt    DateTime  @default(now())
+  updatedAt    DateTime  @updatedAt
+  
+  participants ConversationParticipant[]
+  messages     Message[]
+  
+  @@map("conversations")
+  @@schema("tenant")
+  @@index([universityId])
+  @@index([type])
+}
+
+model ConversationParticipant {
+  id             String    @id @default(uuid())
+  conversationId String
+  userId         String
+  
+  role           String    @default("member")
+  joinedAt       DateTime  @default(now())
+  leftAt         DateTime?
+  
+  conversation Conversation @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  user         User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([conversationId, userId])
+  @@map("conversation_participants")
+  @@schema("tenant")
+  @@index([conversationId])
+  @@index([userId])
+}
+
+model Message {
+  id             String    @id @default(uuid())
+  conversationId String
+  senderId       String
+  
+  content        String
+  messageType    String    @default("text")
+  attachments    Json?
+  
+  isEdited       Boolean   @default(false)
+  editedAt       DateTime?
+  
+  createdAt      DateTime  @default(now())
+  deletedAt      DateTime?
+  
+  conversation Conversation  @relation(fields: [conversationId], references: [id], onDelete: Cascade)
+  sender       User          @relation("MessageSender", fields: [senderId], references: [id], onDelete: Cascade)
+  reads        MessageRead[]
+  
+  @@map("messages")
+  @@schema("tenant")
+  @@index([conversationId])
+  @@index([senderId])
+  @@index([createdAt])
+}
+
+model MessageRead {
+  id        String   @id @default(uuid())
+  messageId String
+  userId    String
+  readAt    DateTime @default(now())
+  
+  message Message @relation(fields: [messageId], references: [id], onDelete: Cascade)
+  user    User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+  
+  @@unique([messageId, userId])
+  @@map("message_reads")
+  @@schema("tenant")
+  @@index([messageId])
+  @@index([userId])
+}

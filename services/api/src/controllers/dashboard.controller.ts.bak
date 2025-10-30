@@ -1,0 +1,321 @@
+import { Request, Response, NextFunction } from 'express';
+import { prisma } from '../lib/prisma';
+
+// Get dashboard analytics based on user role
+export const getDashboard = async (req: Request, res: Response, _next: NextFunction) => {
+  try {
+    // @ts-ignore - user is added by auth middleware
+    const user = req.user;
+    
+    if (!user) {
+      res.status(401).json({
+        error: 'Unauthorized',
+        message: 'User not authenticated'
+      });
+      return;
+    }
+    
+    const { id, universityId, isGodMode } = user;
+    
+    // Bitflow Owner - Platform-wide stats
+    if (isGodMode) {
+      const [
+        totalUniversities,
+        activeUniversities,
+        totalUsers,
+        totalColleges,
+        totalStudents,
+        universities
+      ] = await Promise.all([
+        prisma.university.count(),
+        prisma.university.count({ where: { status: 'live' } }),
+        prisma.user.count(),
+        prisma.college.count(),
+        prisma.student.count(),
+        prisma.university.findMany({
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            name: true,
+            slug: true,
+            status: true,
+            storageQuotaGb: true,
+            storageUsedMb: true,
+            createdAt: true
+          }
+        })
+      ]);
+      
+      res.json({
+        success: true,
+        data: {
+          overview: {
+            totalUniversities,
+            activeUniversities,
+            totalUsers,
+            totalColleges,
+            totalStudents
+          },
+          recentUniversities: universities,
+          userRole: 'bitflow-owner',
+          godMode: true
+        }
+      });
+      return;
+    }
+    
+    // University Owner/Admin - University-specific stats
+    if (universityId) {
+      const university = await prisma.university.findUnique({
+        where: { id: universityId }
+      });
+      
+      if (!university) {
+        res.status(404).json({
+          error: 'University not found'
+        });
+        return;
+      }
+      
+      const [
+        totalColleges,
+        totalStudents,
+        totalFaculty,
+        totalStaff,
+        activeEnrollments,
+        recentAuditLogs
+      ] = await Promise.all([
+        prisma.college.count({ where: { universityId } }),
+        prisma.student.count({ where: { universityId, status: 'active' } }),
+        prisma.faculty.count({ where: { universityId, status: 'active' } }),
+        prisma.staff.count({ where: { universityId, status: 'active' } }),
+        prisma.enrollment.count({ where: { student: { universityId }, status: 'active' } }),
+        prisma.auditLog.findMany({
+          where: { universityId },
+          take: 10,
+          orderBy: { createdAt: 'desc' },
+          select: {
+            id: true,
+            action: true,
+            entityType: true,
+            createdAt: true
+          }
+        })
+      ]);
+      
+      const storageUsagePercent = (Number(university.storageUsedMb) / (university.storageQuotaGb * 1024)) * 100;
+      
+      res.json({
+        success: true,
+        data: {
+          overview: {
+            university: {
+              name: university.name,
+              status: university.status,
+              establishedYear: university.establishedYear
+            },
+            totalColleges,
+            totalStudents,
+            totalFaculty,
+            totalStaff,
+            activeEnrollments,
+            storage: {
+              usedMb: university.storageUsedMb.toString(),
+              quotaGb: university.storageQuotaGb,
+              usagePercent: Math.round(storageUsagePercent * 100) / 100
+            }
+          },
+          recentActivity: recentAuditLogs,
+          userRole: 'university-user'
+        }
+      });
+      return;
+    }
+
+    // Default response for users without specific context
+    res.json({
+      success: true,
+      data: {
+        overview: {
+          message: 'Dashboard data available based on your role'
+        },
+        userRole: 'user'
+      }
+    });
+    
+  } catch (error) {
+        include: {
+          staff: true,
+          faculty: true
+        }
+      });
+      
+      const collegeId = userRecord?.staff?.collegeId || userRecord?.faculty?.collegeId;
+      
+      if (!collegeId) {
+        res.status(403).json({
+          error: 'No college assigned',
+          message: 'Your account is not associated with any college'
+        });
+        return;
+      }
+      
+      const [
+        college,
+        totalDepartments,
+        totalStudents,
+        totalFaculty,
+        activeEnrollments
+      ] = await Promise.all([
+        prisma.college.findUnique({ where: { id: collegeId } }),
+        prisma.department.count({ where: { collegeId } }),
+        prisma.student.count({ where: { collegeId, status: 'active' } }),
+        prisma.faculty.count({ where: { collegeId, status: 'active' } }),
+        prisma.enrollment.count({ 
+          where: { 
+            student: { collegeId },
+            status: 'active'
+          }
+        })
+      ]);
+      
+      res.json({
+        success: true,
+        data: {
+          overview: {
+            college: {
+              name: college?.name,
+              type: college?.type,
+              capacity: college?.capacity,
+              currentEnrollment: college?.currentEnrollment
+            },
+            totalDepartments,
+            totalStudents,
+            totalFaculty,
+            activeEnrollments
+          },
+          userRole: role
+        }
+      });
+      return;
+    }
+    
+    // Department HOD - Department-specific stats
+    if (role === 'hod') {
+      const userRecord = await prisma.user.findUnique({
+        where: { id: userId },
+        include: {
+          faculty: {
+            include: {
+              department: true
+            }
+          }
+        }
+      });
+      
+      const department = userRecord?.faculty?.department;
+      
+      if (!department) {
+        res.status(403).json({
+          error: 'No department assigned',
+          message: 'Your account is not associated with any department'
+        });
+        return;
+      }
+      
+      const [
+        totalCourses,
+        totalStudents,
+        totalFaculty
+      ] = await Promise.all([
+        prisma.course.count({ where: { departmentId: department.id } }),
+        prisma.student.count({ where: { departmentId: department.id, status: 'active' } }),
+        prisma.faculty.count({ where: { departmentId: department.id, status: 'active' } })
+      ]);
+      
+      res.json({
+        success: true,
+        data: {
+          overview: {
+            department: {
+              name: department.name,
+              code: department.code
+            },
+            totalCourses,
+            totalStudents,
+            totalFaculty
+          },
+          userRole: role
+        }
+      });
+      return;
+    }
+    
+    // Student - Personal dashboard
+    if (role === 'student') {
+      const student = await prisma.student.findUnique({
+        where: { userId },
+        include: {
+          enrollments: {
+            include: {
+              course: true
+            }
+          },
+          college: true,
+          department: true
+        }
+      });
+      
+      if (!student) {
+        res.status(404).json({
+          error: 'Student record not found'
+        });
+        return;
+      }
+      
+      res.json({
+        success: true,
+        data: {
+          overview: {
+            student: {
+              admissionNumber: student.admissionNumber,
+              course: student.course,
+              year: student.year,
+              section: student.section
+            },
+            college: student.college.name,
+            department: student.department?.name,
+            totalEnrollments: student.enrollments.length,
+            activeEnrollments: student.enrollments.filter(e => e.status === 'active').length
+          },
+          enrolledCourses: student.enrollments.map(e => ({
+            courseCode: e.course.code,
+            courseName: e.course.name,
+            credits: e.course.credits,
+            status: e.status,
+            grade: e.grade
+          })),
+          userRole: role
+        }
+      });
+      return;
+    }
+    
+    // Default response for other roles
+    res.json({
+      success: true,
+      data: {
+        message: 'Dashboard not configured for this role',
+        userRole: role
+      }
+    });
+    
+  } catch (error) {
+    console.error('Dashboard error:', error);
+    res.status(500).json({
+      error: 'Failed to fetch dashboard data',
+      message: error instanceof Error ? error.message : 'Unknown error'
+    });
+  }
+};

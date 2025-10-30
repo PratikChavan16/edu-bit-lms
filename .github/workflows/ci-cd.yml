@@ -1,0 +1,624 @@
+# ==============================================================================
+# Bitflow CI/CD Pipeline
+# Automated testing, building, and deployment to AWS
+# ==============================================================================
+
+name: CI/CD Pipeline
+
+on:
+  push:
+    branches: [main, develop]
+  pull_request:
+    branches: [main, develop]
+  workflow_dispatch: # Manual trigger
+
+env:
+  AWS_REGION: us-east-1
+  ECR_REGISTRY: ${{ secrets.AWS_ACCOUNT_ID }}.dkr.ecr.us-east-1.amazonaws.com
+  NODE_VERSION: '20'
+
+# ==============================================================================
+# JOBS
+# ==============================================================================
+
+jobs:
+  # ----------------------------------------------------------------------------
+  # JOB 1: Code Quality Checks
+  # ----------------------------------------------------------------------------
+  quality-check:
+    name: Code Quality & Security Scan
+    runs-on: ubuntu-latest
+    
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+        with:
+          fetch-depth: 0 # Full history for better analysis
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+          cache: 'npm'
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Lint code
+        run: pnpm run lint
+
+      - name: Type check
+        run: pnpm run typecheck
+
+      - name: Format check
+        run: pnpm run format:check
+
+      # Security scanning
+      - name: Run Snyk security scan
+        uses: snyk/actions/node@master
+        continue-on-error: true # Don't fail build, just report
+        env:
+          SNYK_TOKEN: ${{ secrets.SNYK_TOKEN }}
+
+      - name: GitLeaks secret scan
+        uses: gitleaks/gitleaks-action@v2
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+
+      - name: CodeQL Analysis
+        uses: github/codeql-action/init@v2
+        with:
+          languages: javascript, typescript
+
+      - name: Perform CodeQL Analysis
+        uses: github/codeql-action/analyze@v2
+
+  # ----------------------------------------------------------------------------
+  # JOB 2: Unit & Integration Tests
+  # ----------------------------------------------------------------------------
+  test:
+    name: Run Tests
+    runs-on: ubuntu-latest
+    needs: quality-check
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_PASSWORD: test_password
+          POSTGRES_DB: bitflow_test
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 5432:5432
+
+      redis:
+        image: redis:7-alpine
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+        ports:
+          - 6379:6379
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma Client
+        run: pnpm run prisma:generate
+
+      - name: Run database migrations
+        run: pnpm run prisma:migrate:test
+        env:
+          DATABASE_URL: postgresql://postgres:test_password@localhost:5432/bitflow_test
+
+      - name: Run unit tests
+        run: pnpm run test:unit
+        env:
+          DATABASE_URL: postgresql://postgres:test_password@localhost:5432/bitflow_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+
+      - name: Run integration tests
+        run: pnpm run test:integration
+        env:
+          DATABASE_URL: postgresql://postgres:test_password@localhost:5432/bitflow_test
+          REDIS_HOST: localhost
+          REDIS_PORT: 6379
+
+      - name: Upload coverage reports
+        uses: codecov/codecov-action@v3
+        with:
+          token: ${{ secrets.CODECOV_TOKEN }}
+          files: ./coverage/coverage-final.json
+          fail_ci_if_error: false
+
+  # ----------------------------------------------------------------------------
+  # JOB 3: End-to-End Tests (Playwright)
+  # ----------------------------------------------------------------------------
+  e2e-test:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: test
+    if: github.event_name == 'pull_request'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Install Playwright browsers
+        run: pnpm exec playwright install --with-deps
+
+      - name: Start test environment
+        run: docker-compose -f docker-compose.test.yml up -d
+
+      - name: Wait for services
+        run: sleep 30
+
+      - name: Run E2E tests
+        run: pnpm run test:e2e
+
+      - name: Upload test results
+        uses: actions/upload-artifact@v3
+        if: always()
+        with:
+          name: playwright-report
+          path: playwright-report/
+          retention-days: 30
+
+      - name: Cleanup
+        if: always()
+        run: docker-compose -f docker-compose.test.yml down -v
+
+  # ----------------------------------------------------------------------------
+  # JOB 4: Build Docker Images
+  # ----------------------------------------------------------------------------
+  build:
+    name: Build & Push Docker Images
+    runs-on: ubuntu-latest
+    needs: [quality-check, test]
+    if: github.ref == 'refs/heads/main' || github.ref == 'refs/heads/develop'
+
+    strategy:
+      matrix:
+        service: [api, auth, workers]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Set up Docker Buildx
+        uses: docker/setup-buildx-action@v3
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Login to Amazon ECR
+        id: login-ecr
+        uses: aws-actions/amazon-ecr-login@v2
+
+      - name: Extract metadata
+        id: meta
+        uses: docker/metadata-action@v5
+        with:
+          images: ${{ env.ECR_REGISTRY }}/bitflow-${{ matrix.service }}
+          tags: |
+            type=ref,event=branch
+            type=ref,event=pr
+            type=sha,prefix={{branch}}-
+            type=raw,value=latest,enable={{is_default_branch}}
+
+      - name: Build and push
+        uses: docker/build-push-action@v5
+        with:
+          context: ./services/${{ matrix.service }}
+          file: ./services/${{ matrix.service }}/Dockerfile
+          push: true
+          tags: ${{ steps.meta.outputs.tags }}
+          labels: ${{ steps.meta.outputs.labels }}
+          cache-from: type=gha
+          cache-to: type=gha,mode=max
+          build-args: |
+            NODE_ENV=production
+            BUILD_DATE=${{ github.event.head_commit.timestamp }}
+            VCS_REF=${{ github.sha }}
+
+      - name: Image digest
+        run: echo ${{ steps.build.outputs.digest }}
+
+  # ----------------------------------------------------------------------------
+  # JOB 5: Terraform Plan (PR only)
+  # ----------------------------------------------------------------------------
+  terraform-plan:
+    name: Terraform Plan
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.event_name == 'pull_request'
+    
+    defaults:
+      run:
+        working-directory: ./infra/terraform
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Terraform fmt check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
+
+      - name: Terraform Validate
+        run: terraform validate
+
+      - name: Terraform Plan
+        run: terraform plan -out=tfplan -var-file=environments/${{ github.base_ref == 'main' && 'prod' || 'dev' }}.tfvars
+
+      - name: Save plan
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-plan
+          path: infra/terraform/tfplan
+
+      - name: Comment PR with plan
+        uses: actions/github-script@v7
+        if: github.event_name == 'pull_request'
+        with:
+          github-token: ${{ secrets.GITHUB_TOKEN }}
+          script: |
+            const fs = require('fs');
+            const plan = fs.readFileSync('infra/terraform/tfplan.txt', 'utf8');
+            github.rest.issues.createComment({
+              issue_number: context.issue.number,
+              owner: context.repo.owner,
+              repo: context.repo.repo,
+              body: `## Terraform Plan\n\`\`\`\n${plan}\n\`\`\``
+            });
+
+  # ----------------------------------------------------------------------------
+  # JOB 6: Database Migration (with safety checks)
+  # ----------------------------------------------------------------------------
+  database-migration:
+    name: Database Migration
+    runs-on: ubuntu-latest
+    needs: build
+    if: github.ref == 'refs/heads/main'
+    environment: production # Requires manual approval
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Get RDS instance identifier
+        id: rds
+        run: |
+          INSTANCE_ID=$(aws rds describe-db-instances --query 'DBInstances[0].DBInstanceIdentifier' --output text)
+          echo "instance_id=$INSTANCE_ID" >> $GITHUB_OUTPUT
+
+      - name: Create RDS snapshot before migration
+        run: |
+          SNAPSHOT_ID="pre-migration-$(date +%Y%m%d-%H%M%S)"
+          aws rds create-db-snapshot \
+            --db-instance-identifier ${{ steps.rds.outputs.instance_id }} \
+            --db-snapshot-identifier $SNAPSHOT_ID
+          echo "Created snapshot: $SNAPSHOT_ID"
+
+      - name: Wait for snapshot completion
+        run: |
+          aws rds wait db-snapshot-completed \
+            --db-snapshot-identifier $SNAPSHOT_ID
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: ${{ env.NODE_VERSION }}
+
+      - name: Install pnpm
+        uses: pnpm/action-setup@v2
+        with:
+          version: 8
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Run migrations
+        run: pnpm run migrate:production
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+
+      - name: Verify migrations
+        run: pnpm run migrate:status
+        env:
+          DATABASE_URL: ${{ secrets.PRODUCTION_DATABASE_URL }}
+
+  # ----------------------------------------------------------------------------
+  # JOB 7: Deploy to ECS
+  # ----------------------------------------------------------------------------
+  deploy:
+    name: Deploy to AWS ECS
+    runs-on: ubuntu-latest
+    needs: [build, database-migration]
+    if: github.ref == 'refs/heads/main'
+    environment: production # Requires manual approval
+
+    strategy:
+      matrix:
+        service: [api, auth, workers]
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Download task definition
+        run: |
+          aws ecs describe-task-definition \
+            --task-definition bitflow-${{ matrix.service }} \
+            --query taskDefinition > task-definition.json
+
+      - name: Fill in new image ID
+        id: task-def
+        uses: aws-actions/amazon-ecs-render-task-definition@v1
+        with:
+          task-definition: task-definition.json
+          container-name: bitflow-${{ matrix.service }}
+          image: ${{ env.ECR_REGISTRY }}/bitflow-${{ matrix.service }}:${{ github.sha }}
+
+      - name: Deploy to ECS
+        uses: aws-actions/amazon-ecs-deploy-task-definition@v1
+        with:
+          task-definition: ${{ steps.task-def.outputs.task-definition }}
+          service: bitflow-${{ matrix.service }}-service
+          cluster: bitflow-cluster
+          wait-for-service-stability: true
+
+      - name: Verify deployment
+        run: |
+          # Wait for new tasks to start
+          sleep 60
+          
+          # Check service health
+          RUNNING_COUNT=$(aws ecs describe-services \
+            --cluster bitflow-cluster \
+            --services bitflow-${{ matrix.service }}-service \
+            --query 'services[0].runningCount' \
+            --output text)
+          
+          DESIRED_COUNT=$(aws ecs describe-services \
+            --cluster bitflow-cluster \
+            --services bitflow-${{ matrix.service }}-service \
+            --query 'services[0].desiredCount' \
+            --output text)
+          
+          if [ "$RUNNING_COUNT" != "$DESIRED_COUNT" ]; then
+            echo "Deployment verification failed!"
+            echo "Running: $RUNNING_COUNT, Desired: $DESIRED_COUNT"
+            exit 1
+          fi
+          
+          echo "Deployment successful!"
+
+  # ----------------------------------------------------------------------------
+  # JOB 8: Terraform Apply (main branch only)
+  # ----------------------------------------------------------------------------
+  terraform-apply:
+    name: Terraform Apply
+    runs-on: ubuntu-latest
+    needs: [terraform-plan]
+    if: github.ref == 'refs/heads/main' && github.event_name == 'push'
+    environment: production # Requires manual approval
+
+    defaults:
+      run:
+        working-directory: ./infra/terraform
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Configure AWS credentials
+        uses: aws-actions/configure-aws-credentials@v4
+        with:
+          aws-access-key-id: ${{ secrets.AWS_ACCESS_KEY_ID }}
+          aws-secret-access-key: ${{ secrets.AWS_SECRET_ACCESS_KEY }}
+          aws-region: ${{ env.AWS_REGION }}
+
+      - name: Setup Terraform
+        uses: hashicorp/setup-terraform@v3
+        with:
+          terraform_version: 1.6.0
+
+      - name: Terraform Init
+        run: terraform init -backend-config="bucket=${{ secrets.TF_STATE_BUCKET }}"
+
+      - name: Download plan
+        uses: actions/download-artifact@v3
+        with:
+          name: terraform-plan
+          path: infra/terraform/
+
+      - name: Terraform Apply
+        run: terraform apply -auto-approve tfplan
+
+      - name: Output changes
+        run: terraform output -json > terraform-outputs.json
+
+      - name: Upload outputs
+        uses: actions/upload-artifact@v3
+        with:
+          name: terraform-outputs
+          path: infra/terraform/terraform-outputs.json
+
+  # ----------------------------------------------------------------------------
+  # JOB 9: Smoke Tests (Post-deployment)
+  # ----------------------------------------------------------------------------
+  smoke-tests:
+    name: Post-Deployment Smoke Tests
+    runs-on: ubuntu-latest
+    needs: deploy
+    if: github.ref == 'refs/heads/main'
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Wait for deployment to stabilize
+        run: sleep 120
+
+      - name: Health check - API
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://api.bitflow.com/health)
+          if [ $response != "200" ]; then
+            echo "API health check failed with status $response"
+            exit 1
+          fi
+
+      - name: Health check - Auth
+        run: |
+          response=$(curl -s -o /dev/null -w "%{http_code}" https://auth.bitflow.com/health)
+          if [ $response != "200" ]; then
+            echo "Auth health check failed with status $response"
+            exit 1
+          fi
+
+      - name: Critical path test
+        run: |
+          # Test login endpoint
+          response=$(curl -X POST https://api.bitflow.com/api/v1/auth/login \
+            -H "Content-Type: application/json" \
+            -d '{"email":"test@example.com","password":"test"}' \
+            -s -o /dev/null -w "%{http_code}")
+          
+          if [ $response != "200" ] && [ $response != "401" ]; then
+            echo "Login endpoint failed with status $response"
+            exit 1
+          fi
+
+      - name: Notify on failure
+        if: failure()
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: '🚨 Deployment smoke tests failed!'
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+# ==============================================================================
+# NOTIFICATIONS
+# ==============================================================================
+
+  notify:
+    name: Send Notifications
+    runs-on: ubuntu-latest
+    needs: [deploy, smoke-tests]
+    if: always()
+
+    steps:
+      - name: Slack notification
+        uses: 8398a7/action-slack@v3
+        with:
+          status: ${{ job.status }}
+          text: |
+            Deployment Status: ${{ job.status }}
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+          webhook_url: ${{ secrets.SLACK_WEBHOOK }}
+
+      - name: Send email notification
+        uses: dawidd6/action-send-mail@v3
+        with:
+          server_address: smtp.gmail.com
+          server_port: 465
+          username: ${{ secrets.EMAIL_USERNAME }}
+          password: ${{ secrets.EMAIL_PASSWORD }}
+          subject: 'Bitflow Deployment: ${{ job.status }}'
+          to: devops@bitflow.com
+          from: ci-cd@bitflow.com
+          body: |
+            Deployment completed with status: ${{ job.status }}
+            
+            Commit: ${{ github.sha }}
+            Author: ${{ github.actor }}
+            Branch: ${{ github.ref }}
+
+# ==============================================================================
+# REQUIRED SECRETS (Configure in GitHub Settings)
+# ==============================================================================
+#
+# AWS_ACCESS_KEY_ID          - AWS IAM access key
+# AWS_SECRET_ACCESS_KEY      - AWS IAM secret key
+# AWS_ACCOUNT_ID             - AWS account number
+# TF_STATE_BUCKET            - S3 bucket for Terraform state
+# PRODUCTION_DATABASE_URL    - PostgreSQL connection string
+# SNYK_TOKEN                 - Snyk API token
+# CODECOV_TOKEN              - Codecov token
+# SLACK_WEBHOOK              - Slack webhook URL
+# EMAIL_USERNAME             - SMTP username
+# EMAIL_PASSWORD             - SMTP password
+#
+# ==============================================================================

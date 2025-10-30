@@ -1,0 +1,882 @@
+# ==============================================================================
+# Bitflow Prisma Schema
+# Database: PostgreSQL with Schema-Per-Tenant Architecture
+# ==============================================================================
+#
+# Multi-Tenancy Strategy:
+# - Master database contains tenant registry (public schema)
+# - Each tenant gets dedicated schema (tenant_xxx)
+# - Connection string includes search_path for tenant isolation
+# - Row-Level Security (RLS) as additional security layer
+#
+# ==============================================================================
+
+generator client {
+  provider = "prisma-client-js"
+  previewFeatures = ["multiSchema"]
+}
+
+datasource db {
+  provider = "postgresql"
+  url      = env("DATABASE_URL")
+  schemas  = ["public", "tenant"]
+}
+
+# ==============================================================================
+# MASTER SCHEMA (public) - Platform-Level Tables
+# ==============================================================================
+
+/// Tenant registry - stores all universities (tenants)
+model Tenant {
+  id               String   @id @default(uuid())
+  name             String   // University name
+  domain           String   @unique // Subdomain (e.g., "stanford" for stanford.bitflow.com)
+  schemaName       String   @unique // PostgreSQL schema name (e.g., "tenant_stanford")
+  subscriptionPlan String   @default("basic") // basic, professional, enterprise
+  maxUsers         Int?     // User limit based on plan
+  maxStorage       BigInt?  // Storage limit in bytes
+  active           Boolean  @default(true)
+  suspended        Boolean  @default(false)
+  suspensionReason String?
+  
+  // Billing
+  stripeCustomerId String?  @unique
+  stripeSub scriptionId String? @unique
+  
+  // Metadata
+  settings         Json?    // Tenant-specific configuration
+  metadata         Json?    // Additional tenant info
+  
+  // Timestamps
+  createdAt        DateTime @default(now())
+  updatedAt        DateTime @updatedAt
+  lastLoginAt      DateTime?
+  expiresAt        DateTime? // For trial accounts
+
+  // Indexes for performance
+  @@index([domain])
+  @@index([active, suspended])
+  @@map("tenants")
+  @@schema("public")
+}
+
+/// Platform-level audit log (tracks all tenant operations)
+model PlatformAuditLog {
+  id        String   @id @default(uuid())
+  tenantId  String?  // null for platform-level actions
+  userId    String?
+  action    String   // created_tenant, suspended_tenant, etc.
+  entity    String   // tenant, user, etc.
+  entityId  String?
+  changes   Json?    // Before/after snapshot
+  ipAddress String
+  userAgent String
+  timestamp DateTime @default(now())
+
+  @@index([tenantId, timestamp])
+  @@index([userId, timestamp])
+  @@index([action, timestamp])
+  @@map("platform_audit_logs")
+  @@schema("public")
+}
+
+# ==============================================================================
+# TENANT SCHEMA - Replicated for Each Tenant
+# All models below exist in each tenant's dedicated schema
+# ==============================================================================
+
+# ------------------------------------------------------------------------------
+# USER MANAGEMENT & AUTHENTICATION
+# ------------------------------------------------------------------------------
+
+/// Unified user model - represents students, faculty, staff, admins, parents
+model User {
+  id           String   @id @default(uuid())
+  email        String   // Not globally unique, unique per tenant
+  passwordHash String   // bcrypt or argon2id
+  
+  // Personal Information
+  firstName    String
+  middleName   String?
+  lastName     String
+  displayName  String?
+  dateOfBirth  DateTime?
+  gender       String?
+  phone        String?
+  alternatePhone String?
+  
+  // Address
+  address      Json?    // Flexible structure for different address formats
+  
+  // Profile
+  avatar       String?  // S3 URL
+  bio          String?
+  
+  // Status
+  active       Boolean  @default(true)
+  verified     Boolean  @default(false)
+  emailVerified Boolean @default(false)
+  phoneVerified Boolean @default(false)
+  
+  // Security
+  mfaEnabled   Boolean  @default(false)
+  mfaSecret    String?
+  lastLoginAt  DateTime?
+  lastLoginIp  String?
+  passwordChangedAt DateTime?
+  failedLoginAttempts Int @default(0)
+  lockedUntil  DateTime?
+  
+  // Metadata
+  metadata     Json?
+  preferences  Json?    // User preferences (theme, language, etc.)
+  
+  // Timestamps
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+  deletedAt    DateTime? // Soft delete
+
+  // Relations
+  roleAssignments     UserRoleAssignment[]
+  attendanceRecords   AttendanceRecord[]
+  leaveApplications   LeaveApplication[]
+  createdCourses      Course[] @relation("CourseCreator")
+  enrollments         Enrollment[]
+  grades              Grade[]
+  assignmentSubmissions AssignmentSubmission[]
+  parentLinks         ParentStudentLink[] @relation("Student")
+  childLinks          ParentStudentLink[] @relation("Parent")
+  sentMessages        Message[] @relation("Sender")
+  receivedMessages    Message[] @relation("Receiver")
+  auditLogs           AuditLog[]
+  refreshTokens       RefreshToken[]
+
+  @@unique([email])
+  @@index([email])
+  @@index([active, deletedAt])
+  @@map("users")
+  @@schema("tenant")
+}
+
+/// Roles definition (22 portals)
+model Role {
+  id          String   @id @default(uuid())
+  code        String   @unique // bitflow_owner, university_owner, principal, faculty, student, etc.
+  name        String
+  description String?
+  level       String   // platform, university, college, department, individual
+  permissions Json     // Flexible permission structure
+  godMode     Boolean  @default(false) // Owner-level roles
+  
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  assignments UserRoleAssignment[]
+
+  @@index([code])
+  @@map("roles")
+  @@schema("tenant")
+}
+
+/// User role assignments with scope
+model UserRoleAssignment {
+  id            String   @id @default(uuid())
+  userId        String
+  roleId        String
+  
+  // Scope definition
+  scopeType     String   // platform, university, college, department, self
+  scopeEntityId String?  // ID of university/college/department
+  
+  active        Boolean  @default(true)
+  assignedBy    String?  // User ID who assigned this role
+  assignedAt    DateTime @default(now())
+  expiresAt     DateTime? // For temporary roles
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  role Role @relation(fields: [roleId], references: [id], onDelete: Cascade)
+
+  @@unique([userId, roleId, scopeType, scopeEntityId])
+  @@index([userId, active])
+  @@index([roleId])
+  @@map("user_role_assignments")
+  @@schema("tenant")
+}
+
+/// Refresh tokens for JWT authentication
+model RefreshToken {
+  id        String   @id @default(uuid())
+  userId    String
+  token     String   @unique
+  expiresAt DateTime
+  revoked   Boolean  @default(false)
+  revokedAt DateTime?
+  createdAt DateTime @default(now())
+  ipAddress String?
+  userAgent String?
+
+  user User @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@index([userId, revoked])
+  @@index([token])
+  @@map("refresh_tokens")
+  @@schema("tenant")
+}
+
+# ------------------------------------------------------------------------------
+# ORGANIZATIONAL STRUCTURE
+# ------------------------------------------------------------------------------
+
+/// Universities (top-level organization)
+model University {
+  id          String   @id @default(uuid())
+  name        String
+  code        String   @unique
+  description String?
+  
+  // Contact
+  email       String?
+  phone       String?
+  website     String?
+  
+  // Address
+  address     Json?
+  
+  // Metadata
+  logo        String?  // S3 URL
+  established DateTime?
+  accreditation Json? // Accreditation details
+  
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  colleges College[]
+
+  @@index([code])
+  @@map("universities")
+  @@schema("tenant")
+}
+
+/// Colleges within universities
+model College {
+  id           String   @id @default(uuid())
+  universityId String
+  name         String
+  code         String
+  description  String?
+  
+  // Contact
+  email        String?
+  phone        String?
+  
+  // Address
+  address      Json?
+  
+  // Metadata
+  logo         String?
+  established  DateTime?
+  
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  university  University @relation(fields: [universityId], references: [id], onDelete: Cascade)
+  departments Department[]
+  classes     Class[]
+
+  @@unique([universityId, code])
+  @@index([universityId, active])
+  @@map("colleges")
+  @@schema("tenant")
+}
+
+/// Departments within colleges
+model Department {
+  id          String   @id @default(uuid())
+  collegeId   String
+  name        String
+  code        String
+  description String?
+  
+  // Head of Department
+  hodUserId   String?
+  
+  // Contact
+  email       String?
+  phone       String?
+  
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  college College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  courses Course[]
+
+  @@unique([collegeId, code])
+  @@index([collegeId, active])
+  @@map("departments")
+  @@schema("tenant")
+}
+
+# ------------------------------------------------------------------------------
+# ACADEMIC MANAGEMENT (LMS Core)
+# ------------------------------------------------------------------------------
+
+/// Courses/Subjects
+model Course {
+  id           String   @id @default(uuid())
+  departmentId String
+  code         String
+  name         String
+  description  String?
+  credits      Int
+  hours        Int?     // Contact hours per week
+  syllabus     String?  // S3 URL or text
+  
+  // Prerequisites
+  prerequisites Json?   // Array of course IDs
+  
+  // Metadata
+  level        String?  // undergraduate, postgraduate, doctorate
+  semester     Int?     // Which semester this course belongs to
+  
+  createdBy    String
+  active       Boolean  @default(true)
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  department   Department @relation(fields: [departmentId], references: [id], onDelete: Cascade)
+  creator      User @relation("CourseCreator", fields: [createdBy], references: [id])
+  classes      Class[]
+  enrollments  Enrollment[]
+  assignments  Assignment[]
+
+  @@unique([departmentId, code])
+  @@index([departmentId, active])
+  @@map("courses")
+  @@schema("tenant")
+}
+
+/// Classes (specific course offerings in a semester)
+model Class {
+  id            String   @id @default(uuid())
+  courseId      String
+  collegeId     String
+  facultyId     String   // Primary instructor
+  
+  // Scheduling
+  academicYear  String   // e.g., "2024-2025"
+  semester      String   // Fall, Spring, Summer
+  section       String?  // A, B, C
+  schedule      Json     // { day: "Monday", startTime: "09:00", endTime: "10:30", room: "101" }
+  
+  // Capacity
+  maxStudents   Int?
+  
+  // Status
+  active        Boolean  @default(true)
+  createdAt     DateTime @default(now())
+  updatedAt     DateTime @updatedAt
+
+  course       Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  college      College @relation(fields: [collegeId], references: [id], onDelete: Cascade)
+  enrollments  Enrollment[]
+  attendances  AttendanceRecord[]
+  assignments  Assignment[]
+
+  @@index([courseId, academicYear, semester])
+  @@index([facultyId])
+  @@map("classes")
+  @@schema("tenant")
+}
+
+/// Student enrollments in courses/classes
+model Enrollment {
+  id            String   @id @default(uuid())
+  studentId     String
+  courseId      String
+  classId       String
+  
+  // Enrollment details
+  academicYear  String
+  semester      String
+  status        String   @default("active") // active, dropped, completed, failed
+  
+  // Grades
+  midtermGrade  Float?
+  finalGrade    Float?
+  overallGrade  String?  // A+, A, B+, etc.
+  gpa           Float?
+  
+  enrolledAt    DateTime @default(now())
+  completedAt   DateTime?
+  droppedAt     DateTime?
+
+  student User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+  course  Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  class   Class @relation(fields: [classId], references: [id], onDelete: Cascade)
+  grades  Grade[]
+
+  @@unique([studentId, courseId, academicYear, semester])
+  @@index([studentId, status])
+  @@index([classId])
+  @@map("enrollments")
+  @@schema("tenant")
+}
+
+/// Attendance tracking
+model AttendanceRecord {
+  id         String   @id @default(uuid())
+  userId     String   // Student or Employee ID
+  classId    String?  // For student attendance
+  
+  date       DateTime
+  status     String   // present, absent, late, excused
+  
+  // For employee attendance
+  checkIn    DateTime?
+  checkOut   DateTime?
+  
+  remarks    String?
+  markedBy   String   // User ID who marked attendance
+  markedAt   DateTime @default(now())
+  
+  // Location (for geo-fencing)
+  latitude   Float?
+  longitude  Float?
+
+  user  User @relation(fields: [userId], references: [id], onDelete: Cascade)
+  class Class? @relation(fields: [classId], references: [id], onDelete: SetNull)
+
+  @@unique([userId, classId, date])
+  @@index([userId, date])
+  @@index([classId, date])
+  @@map("attendance_records")
+  @@schema("tenant")
+}
+
+/// Grades for various assessments
+model Grade {
+  id           String   @id @default(uuid())
+  enrollmentId String
+  studentId    String   // Denormalized for quick lookup
+  
+  examType     String   // midterm, final, quiz, assignment, project
+  examName     String?
+  maxMarks     Float
+  marksObtained Float
+  percentage   Float?
+  grade        String?  // A+, A, B+, etc.
+  
+  gradedBy     String
+  gradedAt     DateTime @default(now())
+  publishedAt  DateTime?
+  
+  remarks      String?
+
+  enrollment Enrollment @relation(fields: [enrollmentId], references: [id], onDelete: Cascade)
+  student    User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@index([enrollmentId])
+  @@index([studentId, examType])
+  @@map("grades")
+  @@schema("tenant")
+}
+
+/// Assignments
+model Assignment {
+  id          String   @id @default(uuid())
+  courseId    String
+  classId     String?
+  title       String
+  description String?
+  
+  // Files
+  attachments Json?    // Array of S3 URLs
+  
+  // Dates
+  assignedDate DateTime @default(now())
+  dueDate      DateTime
+  lateSubmissionAllowed Boolean @default(false)
+  lateDueDate  DateTime?
+  
+  // Grading
+  maxMarks     Float
+  weightage    Float?   // Percentage contribution to final grade
+  
+  createdBy    String
+  createdAt    DateTime @default(now())
+  updatedAt    DateTime @updatedAt
+
+  course      Course @relation(fields: [courseId], references: [id], onDelete: Cascade)
+  class       Class? @relation(fields: [classId], references: [id], onDelete: SetNull)
+  submissions AssignmentSubmission[]
+
+  @@index([courseId, dueDate])
+  @@index([classId])
+  @@map("assignments")
+  @@schema("tenant")
+}
+
+/// Assignment submissions
+model AssignmentSubmission {
+  id           String   @id @default(uuid())
+  assignmentId String
+  studentId    String
+  
+  // Submission
+  content      String?
+  attachments  Json?    // Array of S3 URLs
+  submittedAt  DateTime @default(now())
+  isLate       Boolean  @default(false)
+  
+  // Grading
+  marksObtained Float?
+  grade        String?
+  feedback     String?
+  gradedBy     String?
+  gradedAt     DateTime?
+  
+  status       String   @default("submitted") // submitted, graded, returned
+
+  assignment Assignment @relation(fields: [assignmentId], references: [id], onDelete: Cascade)
+  student    User @relation(fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([assignmentId, studentId])
+  @@index([studentId])
+  @@map("assignment_submissions")
+  @@schema("tenant")
+}
+
+# ------------------------------------------------------------------------------
+# HR MANAGEMENT (HRMS Core)
+# ------------------------------------------------------------------------------
+
+/// Leave applications
+model LeaveApplication {
+  id          String   @id @default(uuid())
+  employeeId  String
+  leaveType   String   // casual, sick, earned, maternity, etc.
+  
+  startDate   DateTime
+  endDate     DateTime
+  days        Float    // Can be fractional (0.5 for half day)
+  
+  reason      String
+  status      String   @default("pending") // pending, approved, rejected, cancelled
+  
+  // Approval workflow
+  approvedBy  String?
+  approvedAt  DateTime?
+  rejectedBy  String?
+  rejectedAt  DateTime?
+  rejectionReason String?
+  
+  // Metadata
+  attachments Json?    // Medical certificates, etc.
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  employee User @relation(fields: [employeeId], references: [id], onDelete: Cascade)
+
+  @@index([employeeId, status])
+  @@index([startDate, endDate])
+  @@map("leave_applications")
+  @@schema("tenant")
+}
+
+/// Payroll records
+model PayrollRecord {
+  id          String   @id @default(uuid())
+  employeeId  String
+  
+  // Period
+  month       Int      // 1-12
+  year        Int
+  paymentDate DateTime?
+  
+  // Salary components
+  basicSalary Float
+  allowances  Json     // { hra: 5000, da: 3000, ta: 2000 }
+  deductions  Json     // { pf: 1800, tax: 5000, insurance: 1000 }
+  grossSalary Float
+  netSalary   Float
+  
+  // Payment
+  paymentMode String?  // bank_transfer, cash, cheque
+  paymentReference String?
+  paid        Boolean  @default(false)
+  paidAt      DateTime?
+  
+  // Metadata
+  remarks     String?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@unique([employeeId, month, year])
+  @@index([employeeId, year, month])
+  @@map("payroll_records")
+  @@schema("tenant")
+}
+
+/// Performance reviews
+model PerformanceReview {
+  id          String   @id @default(uuid())
+  employeeId  String
+  reviewerId  String
+  
+  // Review period
+  periodStart DateTime
+  periodEnd   DateTime
+  
+  // Ratings
+  ratings     Json     // { technical: 4, communication: 5, teamwork: 4 }
+  overallRating Float?
+  
+  // Feedback
+  strengths   String?
+  improvements String?
+  goals       String?
+  comments    String?
+  
+  status      String   @default("draft") // draft, submitted, acknowledged
+  
+  submittedAt DateTime?
+  acknowledgedAt DateTime?
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([employeeId, periodEnd])
+  @@map("performance_reviews")
+  @@schema("tenant")
+}
+
+# ------------------------------------------------------------------------------
+# SUPPORT SERVICES
+# ------------------------------------------------------------------------------
+
+/// Library books
+model LibraryBook {
+  id          String   @id @default(uuid())
+  isbn        String?
+  title       String
+  author      String
+  publisher   String?
+  edition     String?
+  category    String?
+  
+  totalCopies Int
+  availableCopies Int
+  
+  location    String?  // Shelf/rack location
+  
+  active      Boolean  @default(true)
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  transactions LibraryTransaction[]
+
+  @@index([isbn])
+  @@index([title])
+  @@map("library_books")
+  @@schema("tenant")
+}
+
+/// Library transactions (issue/return)
+model LibraryTransaction {
+  id          String   @id @default(uuid())
+  bookId      String
+  userId      String
+  
+  issuedAt    DateTime @default(now())
+  dueDate     DateTime
+  returnedAt  DateTime?
+  
+  fine        Float?   // Late return fine
+  finePaid    Boolean  @default(false)
+  
+  status      String   @default("issued") // issued, returned, lost
+
+  book LibraryBook @relation(fields: [bookId], references: [id], onDelete: Cascade)
+
+  @@index([userId, status])
+  @@index([bookId, status])
+  @@map("library_transactions")
+  @@schema("tenant")
+}
+
+/// Placement records
+model PlacementRecord {
+  id          String   @id @default(uuid())
+  studentId   String
+  
+  company     String
+  role        String
+  package     Float    // Annual package
+  location    String?
+  
+  offerDate   DateTime
+  joiningDate DateTime?
+  
+  internship  Boolean  @default(false)
+  
+  status      String   @default("offered") // offered, joined, declined
+  
+  createdAt   DateTime @default(now())
+  updatedAt   DateTime @updatedAt
+
+  @@index([studentId])
+  @@map("placement_records")
+  @@schema("tenant")
+}
+
+# ------------------------------------------------------------------------------
+# COMMUNICATION & NOTIFICATIONS
+# ------------------------------------------------------------------------------
+
+/// Messages between users
+model Message {
+  id         String   @id @default(uuid())
+  senderId   String
+  receiverId String
+  
+  subject    String?
+  body       String
+  attachments Json?
+  
+  read       Boolean  @default(false)
+  readAt     DateTime?
+  
+  parentId   String?  // For threading
+  
+  createdAt  DateTime @default(now())
+
+  sender   User @relation("Sender", fields: [senderId], references: [id], onDelete: Cascade)
+  receiver User @relation("Receiver", fields: [receiverId], references: [id], onDelete: Cascade)
+
+  @@index([receiverId, read])
+  @@index([senderId])
+  @@map("messages")
+  @@schema("tenant")
+}
+
+/// System notifications
+model Notification {
+  id        String   @id @default(uuid())
+  userId    String
+  
+  type      String   // announcement, alert, reminder, etc.
+  title     String
+  message   String
+  
+  read      Boolean  @default(false)
+  readAt    DateTime?
+  
+  actionUrl String?
+  metadata  Json?
+  
+  createdAt DateTime @default(now())
+  expiresAt DateTime?
+
+  @@index([userId, read, createdAt])
+  @@map("notifications")
+  @@schema("tenant")
+}
+
+# ------------------------------------------------------------------------------
+# PARENT-STUDENT LINKING
+# ------------------------------------------------------------------------------
+
+model ParentStudentLink {
+  id        String   @id @default(uuid())
+  parentId  String
+  studentId String
+  
+  relationship String // father, mother, guardian
+  
+  active    Boolean  @default(true)
+  createdAt DateTime @default(now())
+
+  parent  User @relation("Parent", fields: [parentId], references: [id], onDelete: Cascade)
+  student User @relation("Student", fields: [studentId], references: [id], onDelete: Cascade)
+
+  @@unique([parentId, studentId])
+  @@index([studentId])
+  @@map("parent_student_links")
+  @@schema("tenant")
+}
+
+# ------------------------------------------------------------------------------
+# AUDIT & COMPLIANCE
+# ------------------------------------------------------------------------------
+
+/// Tenant-level audit log
+model AuditLog {
+  id        String   @id @default(uuid())
+  userId    String?
+  action    String   // created, updated, deleted, accessed
+  entity    String   // user, course, grade, etc.
+  entityId  String
+  changes   Json?    // { before: {...}, after: {...} }
+  
+  ipAddress String
+  userAgent String
+  timestamp DateTime @default(now())
+
+  user User? @relation(fields: [userId], references: [id], onDelete: SetNull)
+
+  @@index([userId, timestamp])
+  @@index([entity, entityId, timestamp])
+  @@index([action, timestamp])
+  @@map("audit_logs")
+  @@schema("tenant")
+}
+
+# ==============================================================================
+# NOTES & OPERATIONAL GUIDELINES
+# ==============================================================================
+#
+# 1. TENANT ISOLATION:
+#    - Each tenant has a dedicated PostgreSQL schema
+#    - Connection string: DATABASE_URL?schema=tenant_xxx
+#    - Set search_path at connection time based on subdomain
+#
+# 2. MIGRATIONS:
+#    - Run migrations for master schema (public) normally
+#    - Use script to run tenant schema migrations for all tenants
+#    - Always backup before migration
+#
+# 3. SEED DATA:
+#    - Master: Create initial tenant(s)
+#    - Tenant: Create roles, permissions, default users
+#
+# 4. INDEXES:
+#    - Add indexes for common query patterns
+#    - Monitor slow queries and add indexes as needed
+#    - Use partial indexes for status-based queries
+#
+# 5. SOFT DELETES:
+#    - Use deletedAt for soft deletes where data retention required
+#    - Create views to filter out deleted records
+#
+# 6. JSON FIELDS:
+#    - Use Json type for flexible/dynamic data
+#    - Don't overuse - extract to proper columns if queried frequently
+#
+# 7. SECURITY:
+#    - Enable RLS (Row-Level Security) on sensitive tables
+#    - Never expose Prisma Client directly to frontend
+#    - Validate all inputs at API boundary with Zod
+#
+# 8. PERFORMANCE:
+#    - Use connection pooling (PgBouncer)
+#    - Enable query logging in dev, disable in prod
+#    - Monitor connection count and slow queries
+#    - Consider read replicas for reporting queries
+#
+# ==============================================================================
