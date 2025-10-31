@@ -30,11 +30,13 @@ class ResolveTenantContext
                 $decoded = $this->jwtService->verifyToken($token);
                 
                 if (isset($decoded->university_id)) {
-                    // Store university_id in request for UniversityScope
-                    $request->merge(['university_id' => $decoded->university_id]);
+                    // Store the user's university_id in a separate key to avoid conflicts
+                    // with query parameters used for filtering (e.g., Bitflow Admin filtering by university)
+                    $request->merge(['user_university_id' => $decoded->university_id]);
                     
-                    // Also store in request attributes for easier access
-                    $request->attributes->set('university_id', $decoded->university_id);
+                    // Store in request attributes for easier access
+                    $request->attributes->set('user_university_id', $decoded->university_id);
+                    $request->attributes->set('university_id', $decoded->university_id); // Keep for backward compatibility
                     $request->attributes->set('user_id', $decoded->sub);
                     $request->attributes->set('user_roles', $decoded->roles ?? []);
                     $request->attributes->set('user_permissions', $decoded->permissions ?? []);

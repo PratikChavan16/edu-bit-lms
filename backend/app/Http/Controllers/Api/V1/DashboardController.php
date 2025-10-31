@@ -304,4 +304,112 @@ class DashboardController extends Controller
             return $this->error('Failed to fetch revenue data: ' . $e->getMessage(), 500);
         }
     }
+
+    /**
+     * Get University Owner dashboard statistics
+     * Shows stats for their specific university only
+     */
+    public function universityOwnerDashboard(): JsonResponse
+    {
+        try {
+            $user = auth()->user();
+            
+            // Get the university for this owner
+            $university = University::where('id', $user->university_id)
+                ->with(['colleges', 'users'])
+                ->first();
+
+            if (!$university) {
+                return $this->error('University not found', 404);
+            }
+
+            // Get all colleges for this university
+            $colleges = College::where('university_id', $university->id)->get();
+            
+            // Get all users for this university
+            $totalUsers = User::where('university_id', $university->id)->count();
+            $activeUsers30d = User::where('university_id', $university->id)
+                ->where('last_login_at', '>=', now()->subDays(30))
+                ->count();
+
+            // Recent activity (last 24 hours and last 7 days)
+            $recentColleges24h = College::where('university_id', $university->id)
+                ->where('created_at', '>=', now()->subDay())
+                ->count();
+            $recentUsers24h = User::where('university_id', $university->id)
+                ->where('created_at', '>=', now()->subDay())
+                ->count();
+            $recentColleges7d = College::where('university_id', $university->id)
+                ->where('created_at', '>=', now()->subDays(7))
+                ->count();
+            $recentUsers7d = User::where('university_id', $university->id)
+                ->where('created_at', '>=', now()->subDays(7))
+                ->count();
+
+            // Top colleges by user count
+            $topCollegesByUsers = College::where('university_id', $university->id)
+                ->withCount('users')
+                ->orderBy('users_count', 'desc')
+                ->take(5)
+                ->get()
+                ->map(function ($college) {
+                    return [
+                        'id' => $college->id,
+                        'name' => $college->name,
+                        'users_count' => $college->users_count,
+                        'status' => $college->status,
+                    ];
+                });
+
+            // Storage usage
+            $storageUsedMb = $university->storage_used_mb ?? 0;
+            $storageQuotaGb = $university->storage_quota_gb ?? 100;
+            $storageUsedGb = round($storageUsedMb / 1024, 2);
+            $storageUsagePercent = $storageQuotaGb > 0 ? round(($storageUsedGb / $storageQuotaGb) * 100, 2) : 0;
+
+            $stats = [
+                'university' => [
+                    'id' => $university->id,
+                    'name' => $university->name,
+                    'domain' => $university->domain,
+                    'status' => $university->status,
+                    'established_year' => $university->established_year,
+                ],
+                'totals' => [
+                    'colleges' => $colleges->count(),
+                    'users' => $totalUsers,
+                    'active_users_30d' => $activeUsers30d,
+                    'active_colleges' => $colleges->where('status', 'active')->count(),
+                ],
+                'storage' => [
+                    'used_gb' => $storageUsedGb,
+                    'quota_gb' => $storageQuotaGb,
+                    'available_gb' => round($storageQuotaGb - $storageUsedGb, 2),
+                    'usage_percent' => $storageUsagePercent,
+                    'status' => $storageUsagePercent > 90 ? 'critical' : ($storageUsagePercent > 75 ? 'warning' : 'ok'),
+                ],
+                'activity' => [
+                    'last_24h' => [
+                        'colleges' => $recentColleges24h,
+                        'users' => $recentUsers24h,
+                    ],
+                    'last_7d' => [
+                        'colleges' => $recentColleges7d,
+                        'users' => $recentUsers7d,
+                    ],
+                ],
+                'top_colleges' => $topCollegesByUsers,
+                'status_distribution' => [
+                    'active' => $colleges->where('status', 'active')->count(),
+                    'inactive' => $colleges->where('status', 'inactive')->count(),
+                    'suspended' => $colleges->where('status', 'suspended')->count(),
+                ],
+            ];
+
+            return $this->success($stats, 'University owner dashboard retrieved');
+        } catch (\Exception $e) {
+            return $this->error('Failed to fetch dashboard: ' . $e->getMessage(), 500);
+        }
+    }
 }
+

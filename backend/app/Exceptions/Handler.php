@@ -8,6 +8,7 @@ use Illuminate\Database\Eloquent\ModelNotFoundException;
 use Illuminate\Auth\AuthenticationException;
 use Symfony\Component\HttpKernel\Exception\NotFoundHttpException;
 use Symfony\Component\HttpKernel\Exception\HttpException;
+use App\Http\Responses\ApiResponse;
 use Throwable;
 
 class Handler extends ExceptionHandler
@@ -77,49 +78,42 @@ class Handler extends ExceptionHandler
      */
     protected function handleApiException($request, Throwable $e)
     {
+        // Custom API Exception
+        if ($e instanceof ApiException) {
+            return $e->render();
+        }
+
         // Validation Exception
         if ($e instanceof ValidationException) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $e->errors(),
-            ], 422);
+            return ApiResponse::validationError($e->errors());
         }
 
         // Model Not Found Exception
         if ($e instanceof ModelNotFoundException) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Resource not found',
-                'error' => class_basename($e->getModel()) . ' not found',
-            ], 404);
+            $model = class_basename($e->getModel());
+            return ApiResponse::notFound("{$model} not found");
         }
 
         // Not Found Exception (Route not found)
         if ($e instanceof NotFoundHttpException) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Endpoint not found',
-                'error' => 'The requested resource does not exist',
-            ], 404);
+            return ApiResponse::notFound('The requested endpoint does not exist');
         }
 
         // Authentication Exception
         if ($e instanceof AuthenticationException) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthenticated',
-                'error' => 'You must be authenticated to access this resource',
-            ], 401);
+            return ApiResponse::unauthorized('You must be authenticated to access this resource');
         }
 
         // HTTP Exception (Custom status codes)
         if ($e instanceof HttpException) {
-            return response()->json([
-                'success' => false,
-                'message' => $e->getMessage() ?: 'An error occurred',
-                'error' => $e->getMessage(),
-            ], $e->getStatusCode());
+            $message = $e->getMessage() ?: 'An error occurred';
+            $statusCode = $e->getStatusCode();
+            
+            return ApiResponse::error(
+                $message,
+                $statusCode,
+                'HTTP_ERROR'
+            );
         }
 
         // Database Exception
@@ -129,23 +123,35 @@ class Handler extends ExceptionHandler
                 ? $e->getMessage()
                 : 'A database error occurred';
 
-            return response()->json([
-                'success' => false,
-                'message' => 'Database error',
-                'error' => $message,
-            ], 500);
+            return ApiResponse::error(
+                'Database error',
+                500,
+                'DATABASE_ERROR',
+                config('app.debug') ? ['details' => $message] : []
+            );
         }
 
         // Generic Exception
         $statusCode = method_exists($e, 'getStatusCode') ? $e->getStatusCode() : 500;
         $message = config('app.debug') ? $e->getMessage() : 'An unexpected error occurred';
 
-        return response()->json([
-            'success' => false,
-            'message' => 'Server error',
-            'error' => $message,
-            'trace' => config('app.debug') ? $e->getTraceAsString() : null,
-        ], $statusCode);
+        $meta = [];
+        if (config('app.debug')) {
+            $meta['debug'] = [
+                'exception' => get_class($e),
+                'file' => $e->getFile(),
+                'line' => $e->getLine(),
+                'trace' => collect($e->getTrace())->take(5)->toArray(),
+            ];
+        }
+
+        return ApiResponse::error(
+            $message,
+            $statusCode,
+            'SERVER_ERROR',
+            [],
+            $meta
+        );
     }
 
     /**
@@ -158,11 +164,7 @@ class Handler extends ExceptionHandler
     protected function unauthenticated($request, AuthenticationException $exception)
     {
         if ($request->expectsJson() || $request->is('api/*')) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Unauthenticated',
-                'error' => 'You must be authenticated to access this resource',
-            ], 401);
+            return ApiResponse::unauthorized('You must be authenticated to access this resource');
         }
 
         return redirect()->guest(route('login'));

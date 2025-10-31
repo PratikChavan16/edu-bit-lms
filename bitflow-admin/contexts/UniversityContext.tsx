@@ -1,6 +1,8 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { apiClient } from '@/lib/api-client';
+import type { ApiResponse } from '@/types';
 
 interface UniversityStats {
   colleges_count: number;
@@ -20,7 +22,7 @@ interface University {
   status: 'active' | 'inactive' | 'suspended';
   subscription_tier: string;
   subscription_status: string;
-  stats: UniversityStats;
+  stats?: UniversityStats;
 }
 
 interface UniversityContextType {
@@ -47,19 +49,8 @@ export function UniversityProvider({ universityId, children }: UniversityProvide
       setLoading(true);
       setError(null);
 
-      const response = await fetch(`/api/admin/universities/${universityId}`, {
-        headers: {
-          'Authorization': `Bearer ${localStorage.getItem('token')}`,
-          'Content-Type': 'application/json',
-        },
-      });
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch university');
-      }
-
-      const data = await response.json();
-      setUniversity(data.data);
+      const response = await apiClient.get<ApiResponse<University>>(`/universities/${universityId}`);
+      setUniversity(response.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       console.error('Error fetching university:', err);

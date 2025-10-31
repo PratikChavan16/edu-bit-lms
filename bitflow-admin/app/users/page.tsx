@@ -10,6 +10,8 @@ import CreatePlatformUserModal from '@/components/users/CreatePlatformUserModal'
 import { Button } from '@/components/ui/button'
 import { Card } from '@/components/ui/card'
 import { Pagination } from '@/components/ui/pagination'
+import { TableSkeleton } from '@/components/ui/SkeletonLayouts'
+import { ButtonLoading } from '@/components/ui/LoadingStates'
 import { Users, UserCheck, Lock, UserCog, Search, Plus } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 
@@ -24,6 +26,7 @@ export default function UsersPage() {
   const [searchQuery, setSearchQuery] = useState('')
   const [roleFilter, setRoleFilter] = useState<string>('all')
   const [statusFilter, setStatusFilter] = useState<string>('all')
+  const [isCreating, setIsCreating] = useState(false)
   
   // Pagination
   const [currentPage, setCurrentPage] = useState(1)
@@ -65,15 +68,22 @@ export default function UsersPage() {
         `/admin/users?${params.toString()}`
       )
 
-      setUsers(response.data)
-      setCurrentPage(response.meta.current_page)
-      setTotalPages(response.meta.last_page)
-      setTotal(response.meta.total)
+      // Handle new API response format
+      const apiResponse = response as any
+      if (apiResponse.success) {
+        const data = apiResponse.data as any
+        const users = data?.users || data || []
+        setUsers(users)
+        setCurrentPage(apiResponse.meta?.current_page || 1)
+        setTotalPages(apiResponse.meta?.last_page || 1)
+        setTotal(apiResponse.meta?.total || 0)
 
-      // Calculate stats
-      calculateStats(response.data)
+        // Calculate stats
+        calculateStats(users)
+      }
     } catch (error) {
       console.error('Failed to fetch users:', error)
+      toast.error('Failed to load users')
     } finally {
       setLoading(false)
     }
@@ -110,6 +120,7 @@ export default function UsersPage() {
   }
 
   const handleCreateUser = async (data: CreatePlatformUserRequest) => {
+    setIsCreating(true)
     try {
       await apiClient.post('/admin/users', data)
       toast.success(`User "${data.name}" created successfully`)
@@ -117,6 +128,8 @@ export default function UsersPage() {
       setIsCreateModalOpen(false)
     } catch (error) {
       throw error
+    } finally {
+      setIsCreating(false)
     }
   }
 
@@ -276,36 +289,47 @@ export default function UsersPage() {
             </select>
 
             {/* Create User Button */}
-            <Button onClick={() => setIsCreateModalOpen(true)} className="whitespace-nowrap">
+            <ButtonLoading 
+              onClick={() => setIsCreateModalOpen(true)} 
+              className="whitespace-nowrap"
+              isLoading={isCreating}
+              loadingText="Creating..."
+            >
               <Plus className="h-4 w-4 mr-2" />
               Create User
-            </Button>
+            </ButtonLoading>
           </div>
         </Card>
 
         {/* Users Table */}
         <Card className="overflow-hidden">
-          <GlobalUsersTable
-            users={users}
-            loading={loading}
-            onViewDetails={handleViewDetails}
-            onResetPassword={handleResetPassword}
-            onToggleLock={handleToggleLock}
-            onDelete={handleDeleteUser}
-          />
-
-          {/* Pagination */}
-          {!loading && users.length > 0 && (
-            <div className="border-t border-gray-200 px-6 py-4">
-              <Pagination
-                currentPage={currentPage}
-                totalPages={totalPages}
-                onPageChange={setCurrentPage}
-                itemsPerPage={perPage}
-                onItemsPerPageChange={setPerPage}
-                totalItems={total}
+          {loading ? (
+            <TableSkeleton rows={10} columns={6} />
+          ) : (
+            <>
+              <GlobalUsersTable
+                users={users}
+                loading={loading}
+                onViewDetails={handleViewDetails}
+                onResetPassword={handleResetPassword}
+                onToggleLock={handleToggleLock}
+                onDelete={handleDeleteUser}
               />
-            </div>
+
+              {/* Pagination */}
+              {users.length > 0 && (
+                <div className="border-t border-gray-200 px-6 py-4">
+                  <Pagination
+                    currentPage={currentPage}
+                    totalPages={totalPages}
+                    onPageChange={setCurrentPage}
+                    itemsPerPage={perPage}
+                    onItemsPerPageChange={setPerPage}
+                    totalItems={total}
+                  />
+                </div>
+              )}
+            </>
           )}
         </Card>
 

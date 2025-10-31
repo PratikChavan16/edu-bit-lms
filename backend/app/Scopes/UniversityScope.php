@@ -13,12 +13,34 @@ class UniversityScope implements Scope
      */
     public function apply(Builder $builder, Model $model): void
     {
+        // BYPASS SCOPING FOR GOD MODE (Bitflow Owner)
+        $user = auth()->user();
+        
+        // Skip scoping if user has bitflow_owner role (God Mode)
+        if ($user && $this->hasGodMode($user)) {
+            // Bitflow Owners see ALL data across ALL universities
+            return;
+        }
+
         // Get university_id from authenticated user's JWT token
         $universityId = $this->getUniversityIdFromContext();
 
         if ($universityId && $this->modelHasUniversityId($model)) {
             $builder->where($model->getTable() . '.university_id', $universityId);
         }
+    }
+
+    /**
+     * Check if user has God Mode (bitflow_owner role)
+     */
+    private function hasGodMode($user): bool
+    {
+        if (!$user) {
+            return false;
+        }
+
+        // Check if user has bitflow_owner role
+        return $user->hasRole('bitflow_owner');
     }
 
     /**

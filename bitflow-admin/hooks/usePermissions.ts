@@ -81,7 +81,7 @@ export function usePermissions() {
   /**
    * Check if user can manage users
    */
-  const canManageUsers = hasPermission(['bitflow_owner', 'university_owner', 'super_admin'])
+  const canManageUsers = hasPermission(['bitflow_owner', 'university_owner', 'super_admin', 'principal', 'college_admin'])
 
   /**
    * Check if user can manage colleges

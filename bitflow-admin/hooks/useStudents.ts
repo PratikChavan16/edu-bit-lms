@@ -51,19 +51,27 @@ export function useStudents(params: UseStudentsParams): UseStudentsReturn {
       queryParams.append('per_page', String(params.per_page || 20))
 
       const response = await apiClient.get<{
+        success: boolean
         data: Student[]
-        pagination: {
-          current_page: number
-          per_page: number
-          total: number
-          last_page: number
+        metadata: {
+          pagination: {
+            current_page: number
+            per_page: number
+            total: number
+            last_page: number
+          }
         }
       }>(
         `/admin/universities/${params.universityId}/colleges/${params.collegeId}/students?${queryParams.toString()}`
       )
 
-      setStudents(response.data)
-      setPagination(response.pagination)
+      setStudents(response.data || [])
+      setPagination(response.metadata?.pagination || {
+        current_page: 1,
+        per_page: 20,
+        total: 0,
+        last_page: 1,
+      })
     } catch (err: any) {
       setError(err.response?.data?.message || 'Failed to fetch students')
     } finally {

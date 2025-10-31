@@ -5,10 +5,12 @@ import { usePathname } from 'next/navigation'
 import { Faculty } from '@/types'
 import { Card } from '@/components/ui/card'
 import { Badge } from '@/components/ui/badge'
-import { Mail, Phone, GraduationCap, Briefcase, BookOpen } from 'lucide-react'
+import { Mail, Phone, GraduationCap, Briefcase, BookOpen, Edit, Trash2 } from 'lucide-react'
 
 interface FacultyCardProps {
   faculty: Faculty
+  onEdit?: () => void
+  onDelete?: () => void
 }
 
 const statusColors = {
@@ -24,68 +26,68 @@ const designationColors = {
   'Lecturer': 'bg-gray-100 text-gray-800',
 }
 
-export function FacultyCard({ faculty }: FacultyCardProps) {
+export function FacultyCard({ faculty, onEdit, onDelete }: FacultyCardProps) {
   const pathname = usePathname()
 
-  return (
-    <Link href={`${pathname}/${faculty.id}`}>
-      <Card className="hover:shadow-lg transition-shadow cursor-pointer p-6">
-        <div className="flex items-start space-x-4">
-          {/* Faculty Photo */}
-          <div className="flex-shrink-0">
-            {faculty.photo_url ? (
-              <img
-                src={faculty.photo_url}
-                alt={faculty.name}
-                className="w-16 h-16 rounded-full object-cover"
-              />
-            ) : (
-              <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
-                <GraduationCap className="w-8 h-8 text-blue-600" />
+  const cardContent = (
+    <Card className="hover:shadow-lg transition-shadow p-6">
+      <div className="flex items-start space-x-4">
+        {/* Faculty Photo */}
+        <div className="flex-shrink-0">
+          {faculty.photo_url ? (
+            <img
+              src={faculty.photo_url}
+              alt={faculty.name}
+              className="w-16 h-16 rounded-full object-cover"
+            />
+          ) : (
+            <div className="w-16 h-16 rounded-full bg-blue-100 flex items-center justify-center">
+              <GraduationCap className="w-8 h-8 text-blue-600" />
+            </div>
+          )}
+        </div>
+
+        {/* Faculty Info */}
+        <div className="flex-1 min-w-0">
+          <div className="flex items-start justify-between">
+            <div>
+              <h3 className="text-lg font-semibold text-gray-900 truncate">
+                {faculty.name}
+              </h3>
+              <p className="text-sm text-gray-600">{faculty.employee_id}</p>
+            </div>
+            <Badge className={statusColors[faculty.status]}>
+              {faculty.status.replace('_', ' ')}
+            </Badge>
+          </div>
+
+          <div className="mt-3 space-y-2">
+            <Badge className={designationColors[faculty.designation]}>
+              {faculty.designation}
+            </Badge>
+            
+            <div className="flex items-center text-sm text-gray-600">
+              <GraduationCap className="w-4 h-4 mr-2" />
+              <span>{faculty.department_name}</span>
+            </div>
+            
+            {faculty.specialization && (
+              <div className="flex items-center text-sm text-gray-600">
+                <Briefcase className="w-4 h-4 mr-2" />
+                <span className="truncate">{faculty.specialization}</span>
+              </div>
+            )}
+            
+            {faculty.email && (
+              <div className="flex items-center text-sm text-gray-600">
+                <Mail className="w-4 h-4 mr-2" />
+                <span className="truncate">{faculty.email}</span>
               </div>
             )}
           </div>
 
-          {/* Faculty Info */}
-          <div className="flex-1 min-w-0">
-            <div className="flex items-start justify-between">
-              <div>
-                <h3 className="text-lg font-semibold text-gray-900 truncate">
-                  {faculty.name}
-                </h3>
-                <p className="text-sm text-gray-600">{faculty.employee_id}</p>
-              </div>
-              <Badge className={statusColors[faculty.status]}>
-                {faculty.status.replace('_', ' ')}
-              </Badge>
-            </div>
-
-            <div className="mt-3 space-y-2">
-              <Badge className={designationColors[faculty.designation]}>
-                {faculty.designation}
-              </Badge>
-              
-              <div className="flex items-center text-sm text-gray-600">
-                <GraduationCap className="w-4 h-4 mr-2" />
-                <span>{faculty.department_name}</span>
-              </div>
-              
-              {faculty.specialization && (
-                <div className="flex items-center text-sm text-gray-600">
-                  <Briefcase className="w-4 h-4 mr-2" />
-                  <span className="truncate">{faculty.specialization}</span>
-                </div>
-              )}
-              
-              {faculty.email && (
-                <div className="flex items-center text-sm text-gray-600">
-                  <Mail className="w-4 h-4 mr-2" />
-                  <span className="truncate">{faculty.email}</span>
-                </div>
-              )}
-            </div>
-
-            {/* Stats */}
+          {/* Stats */}
+          {faculty.experience_years !== undefined && faculty.courses_assigned !== undefined && (
             <div className="mt-4 flex items-center space-x-4 text-sm">
               <div>
                 <span className="text-gray-500">Experience:</span>
@@ -100,9 +102,49 @@ export function FacultyCard({ faculty }: FacultyCardProps) {
                 </span>
               </div>
             </div>
-          </div>
+          )}
         </div>
-      </Card>
-    </Link>
+      </div>
+
+      {/* Action Buttons */}
+      {(onEdit || onDelete) && (
+        <div className="flex items-center gap-2 mt-4 pt-4 border-t border-gray-200">
+          {onEdit && (
+            <button
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onEdit()
+              }}
+              className="flex-1 px-3 py-2 text-sm text-blue-600 hover:bg-blue-50 rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <Edit className="w-4 h-4" />
+              Edit
+            </button>
+          )}
+          {onDelete && (
+            <button
+              onClick={(e) => {
+                e.preventDefault()
+                e.stopPropagation()
+                onDelete()
+              }}
+              className="flex-1 px-3 py-2 text-sm text-red-600 hover:bg-red-50 rounded-lg transition-colors flex items-center justify-center gap-2"
+            >
+              <Trash2 className="w-4 h-4" />
+              Delete
+            </button>
+          )}
+        </div>
+      )}
+    </Card>
   )
+
+  // If no edit/delete actions, wrap in Link
+  if (!onEdit && !onDelete) {
+    return <Link href={`${pathname}/${faculty.id}`}>{cardContent}</Link>
+  }
+
+  // Otherwise just return the card with buttons
+  return cardContent
 }

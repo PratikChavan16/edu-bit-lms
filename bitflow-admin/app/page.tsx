@@ -1,6 +1,7 @@
 'use client'
 
 import { useEffect, useState } from 'react'
+import { useAuth } from '@/contexts/AuthContext'
 import { Card, CardContent, CardHeader, CardTitle } from '@/components/ui/card'
 import { PlatformStatsGrid } from '@/components/platform/PlatformStatsGrid'
 import { UniversityActivityFeed } from '@/components/platform/UniversityActivityFeed'
@@ -23,6 +24,7 @@ interface DashboardStats {
 }
 
 export default function Dashboard() {
+  const { isAuthenticated, isLoading: authLoading } = useAuth()
   const [stats, setStats] = useState<DashboardStats>({
     totalUniversities: 0,
     totalColleges: 0,
@@ -45,6 +47,12 @@ export default function Dashboard() {
   const [isLoading, setIsLoading] = useState(true)
 
   useEffect(() => {
+    // Only fetch data if user is authenticated
+    if (!isAuthenticated || authLoading) {
+      setIsLoading(false)
+      return
+    }
+
     const fetchStats = async () => {
       try {
         // Fetch dashboard stats
@@ -89,7 +97,7 @@ export default function Dashboard() {
     }
 
     fetchStats()
-  }, [])
+  }, [isAuthenticated, authLoading])
 
   const statCards = [
     {

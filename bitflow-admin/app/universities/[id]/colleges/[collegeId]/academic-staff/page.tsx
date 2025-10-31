@@ -1,11 +1,14 @@
 'use client'
 
-import { useState, useEffect } from 'react'
+import { use, useState, useEffect } from 'react'
 import { useUniversity } from '@/contexts/UniversityContext'
 import { useCollege } from '@/contexts/CollegeContext'
 import { useFaculty } from '@/hooks/useFaculty'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useToast } from '@/components/ui/toast'
+import { handleError, confirmAction, SUCCESS_MESSAGES } from '@/lib/errorHandler'
 import { FacultyCard } from '@/components/faculty/FacultyCard'
+import FacultyFormModal from '@/components/faculty/FacultyFormModal'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectOption } from '@/components/ui/select'
@@ -14,10 +17,16 @@ import { Search, Plus, GraduationCap, Lock } from 'lucide-react'
 import { apiClient } from '@/lib/api-client'
 import { Department } from '@/types'
 
-export default function AcademicStaffListPage() {
+export default function AcademicStaffListPage({
+  params,
+}: {
+  params: Promise<{ id: string; collegeId: string }>
+}) {
+  const { id, collegeId } = use(params)
   const { university } = useUniversity()
   const { college } = useCollege()
   const { canCreateFaculty } = usePermissions()
+  const toast = useToast()
   
   const [search, setSearch] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
@@ -26,6 +35,8 @@ export default function AcademicStaffListPage() {
     designation: '',
   })
   const [departments, setDepartments] = useState<Department[]>([])
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedFaculty, setSelectedFaculty] = useState<any>(null)
 
   // Debounce search
   useEffect(() => {
@@ -42,30 +53,74 @@ export default function AcademicStaffListPage() {
     const fetchDepartments = async () => {
       try {
         const response = await apiClient.get<{ data: Department[] }>(
-          `/admin/universities/${university.id}/colleges/${college.id}/departments`
+          `/admin/universities/${id}/colleges/${collegeId}/departments`
         )
         setDepartments(response.data)
-      } catch (error) {
-        console.error('Failed to fetch departments:', error)
+      } catch (error: any) {
+        // Silently handle 404 - departments might not exist yet
+        if (error.response?.status === 404) {
+          setDepartments([])
+        } else {
+          // Only show error for non-404 errors
+          handleError(error, toast, { 
+            customMessage: 'Failed to fetch departments',
+            logError: true,
+            showToast: false // Don't spam user with error toast
+          })
+        }
       }
     }
     fetchDepartments()
-  }, [university, college])
+  }, [id, collegeId])
+
+  const { faculty, isLoading, error, refetch } = useFaculty({
+    universityId: id,
+    collegeId: collegeId,
+    search: searchDebounced,
+    department: filters.department,
+    designation: filters.designation,
+  })
+
+  const handleAddFaculty = () => {
+    setSelectedFaculty(null)
+    setIsModalOpen(true)
+  }
+
+  const handleEditFaculty = (facultyMember: any) => {
+    setSelectedFaculty(facultyMember)
+    setIsModalOpen(true)
+  }
+
+  const handleDeleteFaculty = async (facultyId: string) => {
+    const confirmed = await confirmAction({
+      message: 'Are you sure you want to delete this faculty member? This action cannot be undone.',
+      danger: true
+    })
+    
+    if (!confirmed) return
+
+    try {
+      await apiClient.delete(
+        `/admin/universities/${id}/colleges/${collegeId}/academic-staff/${facultyId}`
+      )
+      toast.success(SUCCESS_MESSAGES.FACULTY_DELETED)
+      refetch()
+    } catch (err) {
+      handleError(err, toast, { customMessage: 'Failed to delete faculty member' })
+    }
+  }
+
+  const handleModalSuccess = () => {
+    refetch()
+  }
 
   if (!university || !college) {
     return <div>Loading...</div>
   }
 
-  const { faculty, isLoading, error } = useFaculty({
-    universityId: university.id,
-    collegeId: college.id,
-    search: searchDebounced,
-    ...filters,
-  })
-
   const departmentOptions: SelectOption[] = [
     { label: 'All Departments', value: '' },
-    ...departments.map(dept => ({
+    ...departments.map((dept: any) => ({
       label: dept.name,
       value: dept.id,
     })),
@@ -90,14 +145,14 @@ export default function AcademicStaffListPage() {
           </p>
         </div>
         {canCreateFaculty ? (
-          <Button className="flex items-center space-x-2">
+          <Button onClick={handleAddFaculty} className="flex items-center space-x-2">
             <Plus className="w-4 h-4" />
             <span>Add Faculty</span>
           </Button>
         ) : (
           <Button disabled className="flex items-center space-x-2 opacity-50 cursor-not-allowed">
-            <Lock className="w-4 h-4" />
-            <span>No Permission</span>
+            <Plus className="w-4 h-4" />
+            <span>No Permission to Add Faculty</span>
           </Button>
         )}
       </div>
@@ -156,12 +211,27 @@ export default function AcademicStaffListPage() {
 
       {/* Faculty Grid */}
       {!isLoading && faculty.length > 0 && (
-        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
+        <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-6">
           {faculty.map((member) => (
-            <FacultyCard key={member.id} faculty={member} />
+            <FacultyCard
+              key={member.id}
+              faculty={member}
+              onEdit={() => handleEditFaculty(member)}
+              onDelete={() => handleDeleteFaculty(member.id)}
+            />
           ))}
         </div>
       )}
+
+      {/* Faculty Form Modal */}
+      <FacultyFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={handleModalSuccess}
+        faculty={selectedFaculty}
+        universityId={id}
+        collegeId={collegeId}
+      />
 
       {/* Empty State */}
       {!isLoading && faculty.length === 0 && (

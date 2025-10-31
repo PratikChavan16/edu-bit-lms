@@ -1,0 +1,479 @@
+# Shared Enums - Standard Constants
+# Version: 1.0.0
+# Last Updated: 2025-01-XX
+# Purpose: All enums and constants used across ALL portals
+# CRITICAL: Keep synchronized with shared_types.ts!
+
+# =============================================================================
+# USER ROLES
+# =============================================================================
+
+user_roles:
+  - value: bitflow_admin
+    label: Bitflow Admin
+    description: Platform-level superuser with God Mode across all universities
+    hierarchy_level: platform
+    god_mode_enabled: true
+    
+  - value: university_owner
+    label: University Owner
+    description: University-level superuser with God Mode within their university
+    hierarchy_level: university
+    god_mode_enabled: true
+    
+  - value: super_admin
+    label: Super Admin
+    description: University-wide administrator (below University Owner)
+    hierarchy_level: university
+    god_mode_enabled: false
+    
+  - value: principal
+    label: Principal
+    description: College-level administrator
+    hierarchy_level: college
+    god_mode_enabled: false
+    
+  - value: college_admin
+    label: College Admin
+    description: College-level administrative staff
+    hierarchy_level: college
+    god_mode_enabled: false
+    
+  - value: super_academics
+    label: Super Academics
+    description: University-wide academic coordinator
+    hierarchy_level: university
+    god_mode_enabled: false
+    
+  - value: faculty_teacher
+    label: Faculty/Teacher
+    description: Teaching staff at department level
+    hierarchy_level: department
+    god_mode_enabled: false
+    
+  - value: student
+    label: Student
+    description: Enrolled student
+    hierarchy_level: department
+    god_mode_enabled: false
+    
+  - value: parent
+    label: Parent
+    description: Parent/Guardian of a student
+    hierarchy_level: department
+    god_mode_enabled: false
+    
+  - value: admission_admin
+    label: Admission Admin
+    description: Manages student admissions
+    hierarchy_level: college
+    god_mode_enabled: false
+    
+  - value: super_accountant
+    label: Super Accountant
+    description: University-wide financial administrator
+    hierarchy_level: university
+    god_mode_enabled: false
+    
+  - value: college_accounts_admin
+    label: College Accounts Admin
+    description: College-level financial administrator
+    hierarchy_level: college
+    god_mode_enabled: false
+    
+  - value: college_fee_admin
+    label: College Fee Admin
+    description: College-level fee collection administrator
+    hierarchy_level: college
+    god_mode_enabled: false
+    
+  - value: super_non_teaching_manager
+    label: Super Non-Teaching Manager
+    description: University-wide non-teaching staff manager
+    hierarchy_level: university
+    god_mode_enabled: false
+
+# =============================================================================
+# PORTAL TYPES (URL slugs)
+# =============================================================================
+
+portal_types:
+  - bitflow-admin
+  - university-owner
+  - super-admin
+  - principal
+  - college-admin
+  - super-academics
+  - faculty-teacher
+  - student
+  - parent
+  - admission-admin
+  - super-accountant
+  - college-accounts-admin
+  - college-fee-admin
+  - super-non-teaching-manager
+
+# =============================================================================
+# HIERARCHY LEVELS
+# =============================================================================
+
+hierarchy_levels:
+  - value: platform
+    label: Platform Level
+    description: Bitflow Admin level (cross-tenant)
+    
+  - value: university
+    label: University Level
+    description: University Owner and Super Admin level
+    
+  - value: college
+    label: College Level
+    description: Principal and College Admin level
+    
+  - value: department
+    label: Department Level
+    description: Faculty and Student level
+
+# =============================================================================
+# ACCESS LEVELS (for God Mode)
+# =============================================================================
+
+access_levels:
+  - value: full
+    label: Full Access
+    description: Can create, read, update, delete all resources
+    
+  - value: read_only
+    label: Read Only
+    description: Can only view resources, no modifications
+    
+  - value: restricted
+    label: Restricted
+    description: Limited access to specific resources only
+
+# =============================================================================
+# SUBSCRIPTION STATUS
+# =============================================================================
+
+subscription_status:
+  - value: trial
+    label: Trial
+    description: Free trial period (14 days)
+    color: blue
+    
+  - value: active
+    label: Active
+    description: Paid and active subscription
+    color: green
+    
+  - value: suspended
+    label: Suspended
+    description: Temporarily suspended due to payment issues
+    color: orange
+    
+  - value: cancelled
+    label: Cancelled
+    description: Subscription cancelled by user
+    color: red
+
+# =============================================================================
+# SUBSCRIPTION PLANS
+# =============================================================================
+
+subscription_plans:
+  - value: basic
+    label: Basic Plan
+    description: Up to 500 students
+    price_monthly: 99
+    price_yearly: 999
+    features:
+      - Basic attendance tracking
+      - Grade management
+      - 2 colleges max
+      
+  - value: standard
+    label: Standard Plan
+    description: Up to 2000 students
+    price_monthly: 299
+    price_yearly: 2999
+    features:
+      - All Basic features
+      - Advanced analytics
+      - 5 colleges max
+      - Email support
+      
+  - value: premium
+    label: Premium Plan
+    description: Up to 10000 students
+    price_monthly: 699
+    price_yearly: 6999
+    features:
+      - All Standard features
+      - Custom branding
+      - 20 colleges max
+      - Priority support
+      - API access
+      
+  - value: enterprise
+    label: Enterprise Plan
+    description: Unlimited students
+    price_monthly: null
+    price_yearly: null
+    features:
+      - All Premium features
+      - Unlimited colleges
+      - Dedicated support
+      - Custom integrations
+      - SLA guarantee
+
+# =============================================================================
+# GENDER
+# =============================================================================
+
+gender:
+  - value: male
+    label: Male
+    
+  - value: female
+    label: Female
+    
+  - value: other
+    label: Other
+
+# =============================================================================
+# ENTITY STATUS (common across many entities)
+# =============================================================================
+
+entity_status:
+  - value: active
+    label: Active
+    color: green
+    
+  - value: inactive
+    label: Inactive
+    color: gray
+    
+  - value: suspended
+    label: Suspended
+    color: orange
+    
+  - value: archived
+    label: Archived
+    color: red
+
+# =============================================================================
+# ATTENDANCE STATUS
+# =============================================================================
+
+attendance_status:
+  - value: present
+    label: Present
+    color: green
+    abbreviation: P
+    
+  - value: absent
+    label: Absent
+    color: red
+    abbreviation: A
+    
+  - value: late
+    label: Late
+    color: orange
+    abbreviation: L
+    
+  - value: excused
+    label: Excused
+    color: blue
+    abbreviation: E
+
+# =============================================================================
+# GRADE STATUS
+# =============================================================================
+
+grade_status:
+  - value: draft
+    label: Draft
+    color: gray
+    
+  - value: submitted
+    label: Submitted
+    color: blue
+    
+  - value: published
+    label: Published
+    color: green
+
+# =============================================================================
+# PAYMENT STATUS
+# =============================================================================
+
+payment_status:
+  - value: pending
+    label: Pending
+    color: orange
+    
+  - value: paid
+    label: Paid
+    color: green
+    
+  - value: partial
+    label: Partially Paid
+    color: blue
+    
+  - value: overdue
+    label: Overdue
+    color: red
+    
+  - value: refunded
+    label: Refunded
+    color: gray
+
+# =============================================================================
+# NOTIFICATION TYPES
+# =============================================================================
+
+notification_types:
+  - value: info
+    label: Information
+    icon: info-circle
+    color: blue
+    
+  - value: success
+    label: Success
+    icon: check-circle
+    color: green
+    
+  - value: warning
+    label: Warning
+    icon: exclamation-triangle
+    color: orange
+    
+  - value: error
+    label: Error
+    icon: times-circle
+    color: red
+
+# =============================================================================
+# EVENT TYPES (for integration events)
+# =============================================================================
+
+event_types:
+  # User events
+  - user.created
+  - user.updated
+  - user.deleted
+  - user.role_changed
+  - user.login
+  - user.logout
+  
+  # University events
+  - university.created
+  - university.updated
+  - university.deleted
+  - university.subscription_changed
+  
+  # College events
+  - college.created
+  - college.updated
+  - college.deleted
+  - college.principal_assigned
+  
+  # Department events
+  - department.created
+  - department.updated
+  - department.deleted
+  - department.hod_assigned
+  
+  # Student events
+  - student.enrolled
+  - student.promoted
+  - student.graduated
+  - student.suspended
+  
+  # Faculty events
+  - faculty.hired
+  - faculty.resigned
+  - faculty.course_assigned
+  
+  # Payment events
+  - payment.received
+  - payment.refunded
+  - payment.overdue
+
+# =============================================================================
+# DAYS OF WEEK
+# =============================================================================
+
+days_of_week:
+  - value: monday
+    label: Monday
+    abbreviation: Mon
+    numeric: 1
+    
+  - value: tuesday
+    label: Tuesday
+    abbreviation: Tue
+    numeric: 2
+    
+  - value: wednesday
+    label: Wednesday
+    abbreviation: Wed
+    numeric: 3
+    
+  - value: thursday
+    label: Thursday
+    abbreviation: Thu
+    numeric: 4
+    
+  - value: friday
+    label: Friday
+    abbreviation: Fri
+    numeric: 5
+    
+  - value: saturday
+    label: Saturday
+    abbreviation: Sat
+    numeric: 6
+    
+  - value: sunday
+    label: Sunday
+    abbreviation: Sun
+    numeric: 0
+
+# =============================================================================
+# ACADEMIC TERMS
+# =============================================================================
+
+academic_terms:
+  - value: semester_1
+    label: Semester 1
+    abbreviation: Sem 1
+    
+  - value: semester_2
+    label: Semester 2
+    abbreviation: Sem 2
+    
+  - value: trimester_1
+    label: Trimester 1
+    abbreviation: Tri 1
+    
+  - value: trimester_2
+    label: Trimester 2
+    abbreviation: Tri 2
+    
+  - value: trimester_3
+    label: Trimester 3
+    abbreviation: Tri 3
+
+# =============================================================================
+# NOTES FOR DEVELOPERS
+# =============================================================================
+
+# 1. Keep this file synchronized with shared_types.ts enums
+# 2. When adding a new enum, add it to BOTH files
+# 3. Use these values consistently across all portals
+# 4. Never hardcode enum values - import from this file
+# 5. If you need a new enum, discuss with team first!
+
+# Version History:
+# 1.0.0 - Initial version with God Mode support

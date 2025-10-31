@@ -3,6 +3,7 @@
 import Link from 'next/link'
 import { usePathname, useRouter } from 'next/navigation'
 import { useAuthStore } from '@/stores/auth-store'
+import { GodModeSelector } from '@/components/GodModeSelector'
 import { cn } from '@/lib/utils'
 import { 
   LayoutDashboard, 
@@ -52,6 +53,11 @@ export function Sidebar() {
         >
           <X className="h-6 w-6" />
         </button>
+      </div>
+
+      {/* God Mode Selector */}
+      <div className="p-4 border-b bg-gradient-to-r from-yellow-50 to-amber-50">
+        <GodModeSelector />
       </div>
 
       <nav className="flex-1 p-4 space-y-1">

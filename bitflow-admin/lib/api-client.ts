@@ -1,5 +1,6 @@
 import axios, { AxiosInstance, AxiosError } from 'axios'
 import { API_URL, AUTH_TOKEN_KEY, REFRESH_TOKEN_KEY } from './constants'
+import { useGodModeStore } from '@/stores/god-mode-store'
 
 class ApiClient {
   private client: AxiosInstance
@@ -12,13 +13,23 @@ class ApiClient {
       },
     })
 
-    // Request interceptor to add auth token
+    // Request interceptor to add auth token and God Mode parameters
     this.client.interceptors.request.use(
       (config) => {
         if (typeof window !== 'undefined') {
           const token = localStorage.getItem(AUTH_TOKEN_KEY)
           if (token) {
             config.headers.Authorization = `Bearer ${token}`
+          }
+
+          // Add God Mode university_id parameter if specific university is selected
+          const { isGodMode, selectedUniversityId } = useGodModeStore.getState()
+          if (isGodMode && selectedUniversityId) {
+            // Add university_id as query parameter
+            config.params = {
+              ...config.params,
+              university_id: selectedUniversityId,
+            }
           }
         }
         return config
@@ -49,14 +60,14 @@ class ApiClient {
               }
             } catch {
               // Refresh failed, redirect to login
-              if (typeof window !== 'undefined') {
+              if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
                 localStorage.clear()
                 window.location.href = '/login'
               }
             }
           } else {
-            // No refresh token, redirect to login
-            if (typeof window !== 'undefined') {
+            // No refresh token, redirect to login (but avoid loop)
+            if (typeof window !== 'undefined' && window.location.pathname !== '/login') {
               localStorage.clear()
               window.location.href = '/login'
             }

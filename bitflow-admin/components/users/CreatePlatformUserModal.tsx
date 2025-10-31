@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { Modal } from '@/components/ui/modal'
 import { Button } from '@/components/ui/button'
+import { ButtonLoading } from '@/components/ui/LoadingStates'
 import { CreatePlatformUserRequest } from '@/types'
 
 interface CreatePlatformUserModalProps {
@@ -183,9 +184,13 @@ export default function CreatePlatformUserModal({
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={isLoading}>
-            {isLoading ? 'Creating...' : 'Create User'}
-          </Button>
+          <ButtonLoading 
+            type="submit" 
+            isLoading={isLoading}
+            loadingText="Creating..."
+          >
+            Create User
+          </ButtonLoading>
         </div>
       </form>
     </Modal>

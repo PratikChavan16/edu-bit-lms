@@ -15,6 +15,8 @@ class User extends Authenticatable
 
     protected $fillable = [
         'university_id',
+        'college_id',
+        'department_id',
         'username',
         'email',
         'password',
@@ -22,6 +24,13 @@ class User extends Authenticatable
         'last_name',
         'phone',
         'photo_url',
+        'employee_id',
+        'role',
+        'designation',
+        'employee_type',
+        'joining_date',
+        'shift',
+        'supervisor_name',
         'status',
         'email_verified_at',
         'last_login_at',
@@ -39,6 +48,7 @@ class User extends Authenticatable
         'email_verified_at' => 'datetime',
         'last_login_at' => 'datetime',
         'password_changed_at' => 'datetime',
+        'joining_date' => 'date',
         'two_factor_enabled' => 'boolean',
         'deleted_at' => 'datetime',
     ];
@@ -72,6 +82,22 @@ class User extends Authenticatable
     public function university()
     {
         return $this->belongsTo(University::class);
+    }
+
+    /**
+     * Get the college that owns the user (for staff)
+     */
+    public function college()
+    {
+        return $this->belongsTo(College::class);
+    }
+
+    /**
+     * Get the department that owns the user (for staff)
+     */
+    public function department()
+    {
+        return $this->belongsTo(Department::class);
     }
 
     /**

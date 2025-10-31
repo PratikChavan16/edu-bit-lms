@@ -5,11 +5,13 @@ namespace App\Models;
 use Illuminate\Database\Eloquent\Concerns\HasUuids;
 use Illuminate\Database\Eloquent\Factories\HasFactory;
 use Illuminate\Database\Eloquent\Model;
+use Illuminate\Database\Eloquent\SoftDeletes;
 use App\Scopes\UniversityScope;
+use App\Traits\OptimizesQueries;
 
 class College extends Model
 {
-    use HasFactory, HasUuids;
+    use HasFactory, HasUuids, SoftDeletes, OptimizesQueries;
 
     protected $fillable = [
         'university_id',
@@ -31,6 +33,7 @@ class College extends Model
         'established_year' => 'integer',
         'capacity' => 'integer',
         'current_enrollment' => 'integer',
+        'deleted_at' => 'datetime',
     ];
 
     public bool $universityScoped = true;

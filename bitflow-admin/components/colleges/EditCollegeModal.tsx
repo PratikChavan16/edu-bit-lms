@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Modal, ModalFooter } from '@/components/ui/modal'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { ButtonLoading } from '@/components/ui/LoadingStates'
 import { AlertTriangle } from 'lucide-react'
 import type { College } from '@/types'
 
@@ -238,9 +239,13 @@ export function EditCollegeModal({
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Saving...' : 'Save Changes'}
-          </Button>
+          <ButtonLoading 
+            type="submit" 
+            isLoading={isSubmitting}
+            loadingText="Saving..."
+          >
+            Save Changes
+          </ButtonLoading>
         </ModalFooter>
       </form>
     </Modal>

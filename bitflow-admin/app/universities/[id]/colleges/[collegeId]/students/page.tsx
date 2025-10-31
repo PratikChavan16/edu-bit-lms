@@ -5,7 +5,10 @@ import { useUniversity } from '@/contexts/UniversityContext'
 import { useCollege } from '@/contexts/CollegeContext'
 import { useStudents } from '@/hooks/useStudents'
 import { usePermissions } from '@/hooks/usePermissions'
+import { useToast } from '@/components/ui/toast'
+import { handleError, confirmAction, SUCCESS_MESSAGES } from '@/lib/errorHandler'
 import { StudentCard } from '@/components/students/StudentCard'
+import StudentFormModal from '@/components/students/StudentFormModal'
 import { Card } from '@/components/ui/card'
 import { Input } from '@/components/ui/input'
 import { Select, SelectOption } from '@/components/ui/select'
@@ -18,6 +21,7 @@ export default function StudentsListPage() {
   const { university } = useUniversity()
   const { college } = useCollege()
   const { canCreateStudent } = usePermissions()
+  const toast = useToast()
   
   const [search, setSearch] = useState('')
   const [searchDebounced, setSearchDebounced] = useState('')
@@ -28,6 +32,8 @@ export default function StudentsListPage() {
   })
   const [currentPage, setCurrentPage] = useState(1)
   const [departments, setDepartments] = useState<Department[]>([])
+  const [isModalOpen, setIsModalOpen] = useState(false)
+  const [selectedStudent, setSelectedStudent] = useState<any>(null)
 
   // Debounce search
   useEffect(() => {
@@ -49,7 +55,7 @@ export default function StudentsListPage() {
         )
         setDepartments(response.data)
       } catch (error) {
-        console.error('Failed to fetch departments:', error)
+        handleError(error, toast, { customMessage: 'Failed to fetch departments' })
       }
     }
     fetchDepartments()
@@ -59,7 +65,7 @@ export default function StudentsListPage() {
     return <div>Loading...</div>
   }
 
-  const { students, pagination, isLoading, error } = useStudents({
+  const { students, pagination, isLoading, error, refetch } = useStudents({
     universityId: university.id,
     collegeId: college.id,
     search: searchDebounced,
@@ -67,6 +73,40 @@ export default function StudentsListPage() {
     page: currentPage,
     per_page: 20,
   })
+
+  // Handler functions
+  const handleAddStudent = () => {
+    setSelectedStudent(null)
+    setIsModalOpen(true)
+  }
+
+  const handleEditStudent = (student: any) => {
+    setSelectedStudent(student)
+    setIsModalOpen(true)
+  }
+
+  const handleDeleteStudent = async (studentId: string) => {
+    const confirmed = await confirmAction({
+      message: 'Are you sure you want to delete this student? This action cannot be undone.',
+      danger: true
+    })
+
+    if (!confirmed) return
+
+    try {
+      await apiClient.delete(
+        `/admin/universities/${university.id}/colleges/${college.id}/students/${studentId}`
+      )
+      toast.success(SUCCESS_MESSAGES.STUDENT_DELETED)
+      refetch()
+    } catch (error) {
+      handleError(error, toast, { customMessage: 'Failed to delete student' })
+    }
+  }
+
+  const handleModalSuccess = () => {
+    refetch()
+  }
 
   const departmentOptions: SelectOption[] = [
     { label: 'All Departments', value: '' },
@@ -114,7 +154,7 @@ export default function StudentsListPage() {
                 <Upload className="w-4 h-4" />
                 <span>Bulk Import</span>
               </Button>
-              <Button className="flex items-center space-x-2">
+              <Button onClick={handleAddStudent} className="flex items-center space-x-2">
                 <Plus className="w-4 h-4" />
                 <span>Enroll Student</span>
               </Button>
@@ -201,7 +241,12 @@ export default function StudentsListPage() {
         <>
           <div className="grid grid-cols-1 md:grid-cols-2 lg:grid-cols-3 gap-4">
             {students.map((student) => (
-              <StudentCard key={student.id} student={student} />
+              <StudentCard
+                key={student.id}
+                student={student}
+                onEdit={() => handleEditStudent(student)}
+                onDelete={() => handleDeleteStudent(student.id)}
+              />
             ))}
           </div>
 
@@ -278,13 +323,23 @@ export default function StudentsListPage() {
               : 'Get started by enrolling your first student'}
           </p>
           {!searchDebounced && !filters.department && !filters.year && (
-            <Button className="flex items-center space-x-2 mx-auto">
+            <Button onClick={handleAddStudent} className="flex items-center space-x-2 mx-auto">
               <Plus className="w-4 h-4" />
               <span>Enroll First Student</span>
             </Button>
           )}
         </Card>
       )}
+
+      {/* Student Form Modal */}
+      <StudentFormModal
+        isOpen={isModalOpen}
+        onClose={() => setIsModalOpen(false)}
+        onSuccess={handleModalSuccess}
+        student={selectedStudent}
+        universityId={university.id}
+        collegeId={college.id}
+      />
     </div>
   )
 }

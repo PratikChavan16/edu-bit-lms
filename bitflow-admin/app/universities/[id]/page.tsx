@@ -3,9 +3,26 @@
 import { useUniversity } from '@/contexts/UniversityContext';
 import Breadcrumb from '@/components/Breadcrumb';
 import Link from 'next/link';
-import { Building2, Users, GraduationCap, UserCog, Settings, AlertCircle } from 'lucide-react';
+import { use } from 'react';
+import { 
+  Building2, 
+  Users, 
+  GraduationCap, 
+  UserCog, 
+  Settings, 
+  AlertCircle,
+  ArrowRight,
+  MapPin,
+  Globe,
+  Mail,
+  Phone,
+  Calendar,
+  Database,
+  Activity
+} from 'lucide-react';
 
-export default function UniversityHubPage({ params }: { params: { id: string } }) {
+export default function UniversityHubPage({ params }: { params: Promise<{ id: string }> }) {
+  const { id } = use(params);
   const { university, loading, error } = useUniversity();
 
   if (loading) {
@@ -87,7 +104,7 @@ export default function UniversityHubPage({ params }: { params: { id: string } }
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Colleges</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                {university.stats.colleges_count}
+                {university.stats?.colleges_count || 0}
               </p>
             </div>
             <Building2 className="w-12 h-12 text-blue-500" />
@@ -99,7 +116,7 @@ export default function UniversityHubPage({ params }: { params: { id: string } }
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Students</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                {university.stats.students_count.toLocaleString()}
+                {(university.stats?.students_count || 0).toLocaleString()}
               </p>
             </div>
             <GraduationCap className="w-12 h-12 text-green-500" />
@@ -111,7 +128,7 @@ export default function UniversityHubPage({ params }: { params: { id: string } }
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Faculty</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                {university.stats.faculty_count}
+                {university.stats?.faculty_count || 0}
               </p>
             </div>
             <Users className="w-12 h-12 text-purple-500" />
@@ -123,7 +140,7 @@ export default function UniversityHubPage({ params }: { params: { id: string } }
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Staff</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                {university.stats.staff_count}
+                {university.stats?.staff_count || 0}
               </p>
             </div>
             <UserCog className="w-12 h-12 text-orange-500" />
@@ -134,7 +151,7 @@ export default function UniversityHubPage({ params }: { params: { id: string } }
       {/* Quick Actions */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Link
-          href={`/universities/${params.id}/management`}
+          href={`/universities/${id}/management`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <Users className="w-12 h-12 text-blue-600 mb-4" />
@@ -150,7 +167,7 @@ export default function UniversityHubPage({ params }: { params: { id: string } }
         </Link>
 
         <Link
-          href={`/universities/${params.id}/colleges`}
+          href={`/universities/${id}/colleges`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <Building2 className="w-12 h-12 text-green-600 mb-4" />
@@ -158,7 +175,7 @@ export default function UniversityHubPage({ params }: { params: { id: string } }
             Colleges
           </h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Browse all {university.stats.colleges_count} colleges and manage their structure
+            Browse all {university.stats?.colleges_count || 0} colleges and manage their structure
           </p>
           <span className="text-green-600 dark:text-green-400 font-semibold">
             Browse Colleges →
@@ -166,7 +183,7 @@ export default function UniversityHubPage({ params }: { params: { id: string } }
         </Link>
 
         <Link
-          href={`/universities/${params.id}/settings`}
+          href={`/universities/${id}/settings`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <Settings className="w-12 h-12 text-purple-600 mb-4" />

@@ -9,6 +9,79 @@ export interface User {
   status?: string
 }
 
+// Helper to get primary role (highest level role)
+// Overload: accepts User object
+export function getPrimaryRole(user: User): string
+// Overload: accepts array of role strings
+export function getPrimaryRole(roles: string[]): string | undefined
+export function getPrimaryRole(userOrRoles: User | string[]): string | undefined {
+  // Handle array of roles
+  if (Array.isArray(userOrRoles)) {
+    const roles = userOrRoles
+    if (roles.length === 0) return undefined
+    
+    const roleHierarchy: Record<string, number> = {
+      bitflow_admin: 100,
+      bitflow_owner: 100,
+      university_owner: 90,
+      super_admin: 80,
+      principal: 70,
+      vice_principal: 65,
+      college_admin: 60,
+      hod: 58,
+      super_academics: 55,
+      admission_admin: 50,
+      super_accountant: 45,
+      college_accounts_admin: 40,
+      college_fee_admin: 35,
+      super_non_teaching_manager: 30,
+      faculty: 20,
+      teacher: 20,
+      student: 10,
+      parent: 5,
+    }
+    
+    // Return highest level role
+    return roles.reduce((highest, role) => {
+      const currentLevel = roleHierarchy[role] || 0
+      const highestLevel = roleHierarchy[highest] || 0
+      return currentLevel > highestLevel ? role : highest
+    }, roles[0])
+  }
+  
+  // Handle User object
+  const user = userOrRoles
+  if (!user.roles || user.roles.length === 0) return 'unknown'
+  
+  const roleHierarchy: Record<string, number> = {
+    bitflow_admin: 100,
+    bitflow_owner: 100,
+    university_owner: 90,
+    super_admin: 80,
+    principal: 70,
+    vice_principal: 65,
+    college_admin: 60,
+    hod: 58,
+    super_academics: 55,
+    admission_admin: 50,
+    super_accountant: 45,
+    college_accounts_admin: 40,
+    college_fee_admin: 35,
+    super_non_teaching_manager: 30,
+    faculty: 20,
+    teacher: 20,
+    student: 10,
+    parent: 5,
+  }
+  
+  // Return highest level role
+  return user.roles.reduce((highest, role) => {
+    const currentLevel = roleHierarchy[role] || 0
+    const highestLevel = roleHierarchy[highest] || 0
+    return currentLevel > highestLevel ? role : highest
+  }, user.roles[0])
+}
+
 export interface LoginResponse {
   success: boolean
   message: string

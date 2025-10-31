@@ -4,6 +4,9 @@ namespace App\Http\Controllers\Api\V1;
 
 use App\Http\Controllers\Controller;
 use App\Models\User;
+use App\Events\Broadcasting\UserCreated;
+use App\Http\Responses\ApiResponse;
+use App\Exceptions\ApiException;
 use Illuminate\Http\Request;
 use Illuminate\Http\JsonResponse;
 use Illuminate\Support\Facades\Hash;
@@ -15,6 +18,9 @@ class UserController extends Controller
 {
     /**
      * List all users with pagination and filters
+     * 
+     * God Mode: bitflow_owner role sees ALL users across all universities.
+     * Regular users: Scoped to their university_id via UniversityScope.
      */
     public function index(Request $request): JsonResponse
     {
@@ -22,10 +28,16 @@ class UserController extends Controller
         $search = $request->input('search');
         $role = $request->input('role');
         $status = $request->input('status');
+        $universityId = $request->input('university_id');
 
-        // Disable global university scope for platform-level user management
-        $query = User::withoutGlobalScope(\App\Scopes\UniversityScope::class)
-            ->with(['university:id,name', 'roles']);
+        // UniversityScope automatically handles God Mode bypass
+        // bitflow_owner sees all users, others see only their university's users
+        $query = User::withUserRelations();
+
+        // Optional filter by specific university (for God Mode users)
+        if ($universityId) {
+            $query->where('university_id', $universityId);
+        }
 
         // Search by name or email
         if ($search) {
@@ -69,15 +81,15 @@ class UserController extends Controller
             ];
         });
 
-        return response()->json([
-            'data' => $transformedData,
+        return ApiResponse::success([
+            'users' => $transformedData,
             'meta' => [
                 'current_page' => $users->currentPage(),
                 'last_page' => $users->lastPage(),
                 'per_page' => $users->perPage(),
                 'total' => $users->total(),
             ],
-        ]);
+        ], 'Users retrieved successfully');
     }
 
     /**
@@ -85,12 +97,11 @@ class UserController extends Controller
      */
     public function show(string $id): JsonResponse
     {
-        $user = User::with(['university:id,name', 'roles'])->findOrFail($id);
-        $role = $user->roles->first();
+        try {
+            $user = User::withUserRelations()->findOrFail($id);
+            $role = $user->roles->first();
 
-        return response()->json([
-            'success' => true,
-            'data' => [
+            return ApiResponse::success([
                 'id' => $user->id,
                 'name' => $user->full_name,
                 'email' => $user->email,
@@ -103,8 +114,13 @@ class UserController extends Controller
                 'last_login' => $user->last_login_at?->toISOString(),
                 'created_at' => $user->created_at->toISOString(),
                 'updated_at' => $user->updated_at->toISOString(),
-            ],
-        ]);
+            ], 'User retrieved successfully');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            throw ApiException::notFound('User');
+        } catch (\Exception $e) {
+            \Log::error('Failed to retrieve user: ' . $e->getMessage());
+            throw ApiException::serverError('Failed to retrieve user');
+        }
     }
 
     /**
@@ -120,11 +136,7 @@ class UserController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
+            throw ApiException::validation($validator->errors()->toArray());
         }
 
         // Generate password if not provided
@@ -171,18 +183,17 @@ class UserController extends Controller
 
         // TODO: Send welcome email with password to user
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User created successfully',
-            'data' => [
-                'id' => $user->id,
-                'name' => $user->full_name,
-                'email' => $user->email,
-                'role' => $role ? $role->slug : $request->input('role'),
-                'status' => $user->status,
-                'created_at' => $user->created_at->toISOString(),
-            ],
-        ], 201);
+        // Broadcast event for real-time updates
+        broadcast(new UserCreated($user))->toOthers();
+
+        return ApiResponse::created([
+            'id' => $user->id,
+            'name' => $user->full_name,
+            'email' => $user->email,
+            'role' => $role ? $role->slug : $request->input('role'),
+            'status' => $user->status,
+            'created_at' => $user->created_at->toISOString(),
+        ], 'User created successfully');
     }
 
     /**
@@ -199,11 +210,7 @@ class UserController extends Controller
         ]);
 
         if ($validator->fails()) {
-            return response()->json([
-                'success' => false,
-                'message' => 'Validation failed',
-                'errors' => $validator->errors(),
-            ], 422);
+            throw ApiException::validation($validator->errors()->toArray());
         }
 
         if ($request->has('name')) {
@@ -233,17 +240,13 @@ class UserController extends Controller
         $user->load('roles');
         $role = $user->roles->first();
 
-        return response()->json([
-            'success' => true,
-            'message' => 'User updated successfully',
-            'data' => [
-                'id' => $user->id,
-                'name' => $user->full_name,
-                'email' => $user->email,
-                'role' => $role ? $role->slug : 'user',
-                'status' => $user->status,
-            ],
-        ]);
+        return ApiResponse::updated([
+            'id' => $user->id,
+            'name' => $user->full_name,
+            'email' => $user->email,
+            'role' => $role ? $role->slug : 'user',
+            'status' => $user->status,
+        ], 'User updated successfully');
     }
 
     /**
@@ -251,22 +254,23 @@ class UserController extends Controller
      */
     public function destroy(string $id): JsonResponse
     {
-        $user = User::findOrFail($id);
+        try {
+            $user = User::findOrFail($id);
 
-        // Prevent deleting yourself
-        if (auth()->id() === $user->id) {
-            return response()->json([
-                'success' => false,
-                'message' => 'You cannot delete your own account',
-            ], 403);
+            // Prevent deleting yourself
+            if (auth()->id() === $user->id) {
+                throw ApiException::forbidden('You cannot delete your own account');
+            }
+
+            $user->delete();
+
+            return ApiResponse::deleted('User deleted successfully');
+        } catch (\Illuminate\Database\Eloquent\ModelNotFoundException $e) {
+            throw ApiException::notFound('User');
+        } catch (\Exception $e) {
+            \Log::error('Failed to delete user: ' . $e->getMessage());
+            throw ApiException::serverError('Failed to delete user');
         }
-
-        $user->delete();
-
-        return response()->json([
-            'success' => true,
-            'message' => 'User deleted successfully',
-        ]);
     }
 
     /**

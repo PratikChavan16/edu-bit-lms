@@ -1,6 +1,8 @@
 'use client';
 
 import { createContext, useContext, useState, useEffect, ReactNode } from 'react';
+import { apiClient } from '@/lib/api-client';
+import type { ApiResponse } from '@/types';
 
 interface CollegeStats {
   departments_count: number;
@@ -21,7 +23,7 @@ interface College {
   established_year: number;
   accreditation?: string;
   status: 'active' | 'inactive';
-  stats: CollegeStats;
+  stats?: CollegeStats;
 }
 
 interface CollegeContextType {
@@ -45,26 +47,18 @@ export function CollegeProvider({ universityId, collegeId, children }: CollegePr
   const [error, setError] = useState<string | null>(null);
 
   const fetchCollege = async () => {
+    // Skip fetching if we're on the create page
+    if (collegeId === 'create') {
+      setLoading(false);
+      return;
+    }
+
     try {
       setLoading(true);
       setError(null);
 
-      const response = await fetch(
-        `/api/admin/universities/${universityId}/colleges/${collegeId}`,
-        {
-          headers: {
-            'Authorization': `Bearer ${localStorage.getItem('token')}`,
-            'Content-Type': 'application/json',
-          },
-        }
-      );
-
-      if (!response.ok) {
-        throw new Error('Failed to fetch college');
-      }
-
-      const data = await response.json();
-      setCollege(data.data);
+      const response = await apiClient.get<ApiResponse<College>>(`/colleges/${collegeId}`);
+      setCollege(response.data);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'An error occurred');
       console.error('Error fetching college:', err);

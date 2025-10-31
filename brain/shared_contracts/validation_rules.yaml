@@ -1,0 +1,408 @@
+# Validation Rules - Shared Validation Standards
+# Version: 1.0.0
+# Last Updated: 2025-01-XX
+# Purpose: Consistent validation rules across ALL portals
+# Usage: Use these rules in both frontend and backend validation
+
+# =============================================================================
+# STRING VALIDATION
+# =============================================================================
+
+string_validation:
+  email:
+    pattern: "^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\\.[a-zA-Z]{2,}$"
+    max_length: 255
+    case_sensitive: false
+    example: "john.doe@example.com"
+    error_message: "Please enter a valid email address"
+    
+  phone:
+    patterns:
+      india: "^[6-9]\\d{9}$"
+      international: "^\\+[1-9]\\d{1,14}$"
+    max_length: 15
+    example: "9876543210"
+    error_message: "Please enter a valid phone number"
+    
+  password:
+    min_length: 8
+    max_length: 128
+    required_patterns:
+      - pattern: "[a-z]"
+        description: "At least one lowercase letter"
+      - pattern: "[A-Z]"
+        description: "At least one uppercase letter"
+      - pattern: "[0-9]"
+        description: "At least one number"
+      - pattern: "[!@#$%^&*(),.?\":{}|<>]"
+        description: "At least one special character"
+    error_message: "Password must be 8-128 characters with uppercase, lowercase, number, and special character"
+    
+  username:
+    min_length: 3
+    max_length: 50
+    pattern: "^[a-zA-Z0-9._-]+$"
+    error_message: "Username must be 3-50 characters (letters, numbers, ., _, - only)"
+    
+  name:
+    min_length: 2
+    max_length: 100
+    pattern: "^[a-zA-Z\\s.'-]+$"
+    trim: true
+    error_message: "Name must be 2-100 characters (letters, spaces, and . ' - only)"
+    
+  code:
+    min_length: 2
+    max_length: 20
+    pattern: "^[A-Z0-9_-]+$"
+    case_transform: uppercase
+    error_message: "Code must be 2-20 characters (uppercase letters, numbers, _, - only)"
+    
+  url:
+    pattern: "^https?://[^\\s/$.?#].[^\\s]*$"
+    max_length: 2048
+    example: "https://example.com"
+    error_message: "Please enter a valid URL"
+    
+  postal_code:
+    patterns:
+      india: "^[1-9][0-9]{5}$"
+      us: "^[0-9]{5}(-[0-9]{4})?$"
+    max_length: 10
+    error_message: "Please enter a valid postal code"
+
+# =============================================================================
+# NUMBER VALIDATION
+# =============================================================================
+
+number_validation:
+  student_year:
+    type: integer
+    min: 1
+    max: 6
+    error_message: "Year must be between 1 and 6"
+    
+  semester:
+    type: integer
+    min: 1
+    max: 12
+    error_message: "Semester must be between 1 and 12"
+    
+  credits:
+    type: integer
+    min: 1
+    max: 10
+    error_message: "Credits must be between 1 and 10"
+    
+  percentage:
+    type: float
+    min: 0
+    max: 100
+    decimal_places: 2
+    error_message: "Percentage must be between 0 and 100"
+    
+  age:
+    type: integer
+    min: 15
+    max: 100
+    error_message: "Age must be between 15 and 100"
+    
+  amount:
+    type: float
+    min: 0
+    max: 10000000
+    decimal_places: 2
+    error_message: "Amount must be a positive number"
+
+# =============================================================================
+# DATE VALIDATION
+# =============================================================================
+
+date_validation:
+  date_of_birth:
+    format: "YYYY-MM-DD"
+    min_age: 15
+    max_age: 100
+    error_message: "Student must be between 15 and 100 years old"
+    
+  future_date:
+    min: "today"
+    error_message: "Date must be in the future"
+    
+  past_date:
+    max: "today"
+    error_message: "Date must be in the past"
+    
+  academic_year:
+    format: "YYYY-YYYY"
+    pattern: "^20\\d{2}-20\\d{2}$"
+    example: "2024-2025"
+    error_message: "Academic year must be in format YYYY-YYYY (e.g., 2024-2025)"
+
+# =============================================================================
+# FILE VALIDATION
+# =============================================================================
+
+file_validation:
+  profile_image:
+    allowed_types:
+      - image/jpeg
+      - image/png
+      - image/gif
+      - image/webp
+    max_size_mb: 5
+    min_width_px: 100
+    min_height_px: 100
+    max_width_px: 4000
+    max_height_px: 4000
+    error_message: "Image must be JPG/PNG/GIF/WebP, max 5MB, min 100x100px, max 4000x4000px"
+    
+  document:
+    allowed_types:
+      - application/pdf
+      - application/msword
+      - application/vnd.openxmlformats-officedocument.wordprocessingml.document
+    max_size_mb: 10
+    error_message: "Document must be PDF or Word, max 10MB"
+    
+  csv:
+    allowed_types:
+      - text/csv
+      - application/vnd.ms-excel
+    max_size_mb: 50
+    error_message: "CSV file max 50MB"
+
+# =============================================================================
+# ARRAY VALIDATION
+# =============================================================================
+
+array_validation:
+  tags:
+    min_items: 0
+    max_items: 10
+    item_max_length: 50
+    error_message: "Maximum 10 tags, each max 50 characters"
+    
+  course_selection:
+    min_items: 1
+    max_items: 10
+    error_message: "Select between 1 and 10 courses"
+    
+  bulk_upload:
+    min_items: 1
+    max_items: 1000
+    error_message: "Bulk upload supports 1-1000 records at a time"
+
+# =============================================================================
+# ENTITY-SPECIFIC VALIDATION
+# =============================================================================
+
+entity_validation:
+  university:
+    name:
+      min_length: 2
+      max_length: 200
+      required: true
+    website:
+      pattern: "^https?://[^\\s/$.?#].[^\\s]*$"
+      required: false
+    address:
+      max_length: 500
+      required: false
+      
+  college:
+    name:
+      min_length: 2
+      max_length: 200
+      required: true
+    university_id:
+      required: true
+      exists_in: universities
+      
+  department:
+    name:
+      min_length: 2
+      max_length: 100
+      required: true
+    code:
+      min_length: 2
+      max_length: 20
+      pattern: "^[A-Z0-9_-]+$"
+      required: true
+      unique_within: college_id
+    college_id:
+      required: true
+      exists_in: colleges
+      
+  student:
+    student_id:
+      min_length: 5
+      max_length: 20
+      pattern: "^[A-Z0-9-]+$"
+      required: true
+      unique: true
+    year:
+      min: 1
+      max: 6
+      required: true
+    semester:
+      min: 1
+      max: 12
+      required: true
+    department_id:
+      required: true
+      exists_in: departments
+      
+  faculty:
+    employee_id:
+      min_length: 5
+      max_length: 20
+      pattern: "^[A-Z0-9-]+$"
+      required: true
+      unique: true
+    department_id:
+      required: true
+      exists_in: departments
+    designation:
+      min_length: 2
+      max_length: 100
+      required: true
+
+# =============================================================================
+# CROSS-FIELD VALIDATION
+# =============================================================================
+
+cross_field_validation:
+  password_confirmation:
+    rule: "password === password_confirmation"
+    error_message: "Passwords do not match"
+    
+  date_range:
+    rule: "start_date < end_date"
+    error_message: "Start date must be before end date"
+    
+  academic_year_format:
+    rule: "parseInt(end_year) === parseInt(start_year) + 1"
+    example: "2024-2025"
+    error_message: "Academic year must be consecutive (e.g., 2024-2025)"
+    
+  age_verification:
+    rule: "date_of_birth results in age >= min_age"
+    error_message: "Student must be at least 15 years old"
+
+# =============================================================================
+# SANITIZATION RULES
+# =============================================================================
+
+sanitization:
+  html_escape:
+    fields:
+      - description
+      - bio
+      - notes
+    method: "escape HTML special characters"
+    
+  trim_whitespace:
+    fields:
+      - name
+      - email
+      - address
+    method: "trim leading and trailing whitespace"
+    
+  uppercase_transform:
+    fields:
+      - code
+      - student_id
+      - employee_id
+    method: "convert to uppercase"
+    
+  lowercase_transform:
+    fields:
+      - email
+    method: "convert to lowercase"
+
+# =============================================================================
+# BACKEND VALIDATION MIDDLEWARE (NestJS)
+# =============================================================================
+
+# Example DTOs using class-validator:
+# 
+# export class CreateStudentDto {
+#   @IsNotEmpty()
+#   @Length(2, 100)
+#   @Matches(/^[a-zA-Z\s.'-]+$/)
+#   full_name: string;
+#
+#   @IsEmail()
+#   @MaxLength(255)
+#   email: string;
+#
+#   @IsInt()
+#   @Min(1)
+#   @Max(6)
+#   year: number;
+# }
+
+# =============================================================================
+# FRONTEND VALIDATION (React Hook Form + Yup)
+# =============================================================================
+
+# Example validation schema:
+# 
+# const studentSchema = yup.object({
+#   full_name: yup.string()
+#     .min(2, 'Name must be at least 2 characters')
+#     .max(100, 'Name must be at most 100 characters')
+#     .matches(/^[a-zA-Z\s.'-]+$/, 'Name contains invalid characters')
+#     .required('Name is required'),
+#   
+#   email: yup.string()
+#     .email('Invalid email format')
+#     .max(255, 'Email too long')
+#     .required('Email is required'),
+#   
+#   year: yup.number()
+#     .integer('Year must be a whole number')
+#     .min(1, 'Year must be at least 1')
+#     .max(6, 'Year cannot exceed 6')
+#     .required('Year is required')
+# });
+
+# =============================================================================
+# CUSTOM VALIDATION RULES
+# =============================================================================
+
+custom_validation:
+  unique_email:
+    description: "Email must be unique in the system"
+    database_check: true
+    query: "SELECT COUNT(*) FROM users WHERE email = ?"
+    rule: "count === 0"
+    error_message: "This email is already registered"
+    
+  unique_student_id:
+    description: "Student ID must be unique within the university"
+    database_check: true
+    query: "SELECT COUNT(*) FROM students WHERE student_id = ? AND tenant_id = ?"
+    rule: "count === 0"
+    error_message: "This student ID is already in use"
+    
+  valid_tenant:
+    description: "Tenant ID must exist and be active"
+    database_check: true
+    query: "SELECT is_active FROM universities WHERE tenant_id = ?"
+    rule: "is_active === true"
+    error_message: "Invalid or inactive university"
+
+# =============================================================================
+# USAGE GUIDELINES
+# =============================================================================
+
+# 1. ALWAYS validate on both frontend and backend
+# 2. Frontend validation = UX (instant feedback)
+# 3. Backend validation = SECURITY (never trust client)
+# 4. Use these shared rules for consistency
+# 5. Add new rules here if needed (discuss with team first!)
+
+# Version History:
+# 1.0.0 - Initial version with comprehensive validation rules

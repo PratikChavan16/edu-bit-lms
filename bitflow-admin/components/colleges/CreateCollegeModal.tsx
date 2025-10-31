@@ -4,6 +4,7 @@ import { useState } from 'react'
 import { Modal, ModalFooter } from '@/components/ui/modal'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { ButtonLoading } from '@/components/ui/LoadingStates'
 import { AlertTriangle } from 'lucide-react'
 
 interface CreateCollegeModalProps {
@@ -241,9 +242,14 @@ export function CreateCollegeModal({
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting || !formData.university_id}>
-            {isSubmitting ? 'Creating...' : 'Create College'}
-          </Button>
+          <ButtonLoading 
+            type="submit" 
+            disabled={!formData.university_id}
+            isLoading={isSubmitting}
+            loadingText="Creating..."
+          >
+            Create College
+          </ButtonLoading>
         </ModalFooter>
       </form>
     </Modal>

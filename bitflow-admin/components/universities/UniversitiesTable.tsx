@@ -1,10 +1,12 @@
 'use client'
 
-import { useState } from 'react'
+import { useState, useEffect } from 'react'
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from '@/components/ui/table'
 import { Badge } from '@/components/ui/badge'
 import { Button } from '@/components/ui/button'
+import { Checkbox } from '@/components/ui/checkbox'
 import { MoreVertical, Pencil, Trash2, RefreshCw } from 'lucide-react'
+import { useBulkSelectionStore } from '@/stores/useBulkSelectionStore'
 import type { University } from '@/types'
 
 interface UniversitiesTableProps {
@@ -13,6 +15,7 @@ interface UniversitiesTableProps {
   onEdit: (university: University) => void
   onDelete: (id: string) => void
   onRestore: (id: string) => void
+  onRowClick?: (universityId: string) => void
 }
 
 export function UniversitiesTable({
@@ -21,8 +24,51 @@ export function UniversitiesTable({
   onEdit,
   onDelete,
   onRestore,
+  onRowClick,
 }: UniversitiesTableProps) {
   const [openMenuId, setOpenMenuId] = useState<string | null>(null)
+  
+  // Bulk selection state
+  const selectedUniversities = useBulkSelectionStore((state) => state.selectedUniversities)
+  const toggleUniversity = useBulkSelectionStore((state) => state.toggleUniversity)
+  const selectAllUniversities = useBulkSelectionStore((state) => state.selectAllUniversities)
+  const clearUniversitySelection = useBulkSelectionStore((state) => state.clearUniversitySelection)
+  
+  // Get IDs of universities on current page
+  const currentPageIds = universities.map((u) => u.id)
+  
+  // Check if all on current page are selected
+  const allOnPageSelected = currentPageIds.length > 0 && 
+    currentPageIds.every((id) => selectedUniversities.has(id))
+  
+  // Check if some (but not all) on current page are selected
+  const someOnPageSelected = currentPageIds.some((id) => selectedUniversities.has(id)) && 
+    !allOnPageSelected
+  
+  // Handle select all checkbox
+  const handleSelectAll = () => {
+    if (allOnPageSelected) {
+      // Deselect all on current page
+      const newSelection = new Set(selectedUniversities)
+      currentPageIds.forEach((id) => newSelection.delete(id))
+      selectAllUniversities(Array.from(newSelection))
+    } else {
+      // Select all on current page (preserving selections from other pages)
+      const newSelection = new Set([...Array.from(selectedUniversities), ...currentPageIds])
+      selectAllUniversities(Array.from(newSelection))
+    }
+  }
+  
+  // Clear selection when universities list changes (pagination, search)
+  useEffect(() => {
+    // Only clear if no universities on current page are selected
+    const hasSelectionOnCurrentPage = currentPageIds.some((id) => selectedUniversities.has(id))
+    if (!hasSelectionOnCurrentPage && selectedUniversities.size > 0) {
+      // Optional: You may want to keep selections across pages
+      // Comment out the line below if you want persistent selection
+      // clearUniversitySelection()
+    }
+  }, [currentPageIds.join(',')]) // Only trigger when page IDs change
 
   const getStatusBadge = (status: string) => {
     switch (status) {
@@ -64,6 +110,14 @@ export function UniversitiesTable({
     <Table>
       <TableHeader>
         <TableRow>
+          <TableHead className="w-12">
+            <Checkbox
+              checked={allOnPageSelected}
+              onCheckedChange={handleSelectAll}
+              aria-label="Select all universities on this page"
+              className={someOnPageSelected ? 'data-[state=checked]:bg-blue-400' : ''}
+            />
+          </TableHead>
           <TableHead>Name</TableHead>
           <TableHead>Domain</TableHead>
           <TableHead>Email</TableHead>
@@ -74,9 +128,31 @@ export function UniversitiesTable({
         </TableRow>
       </TableHeader>
       <TableBody>
-        {universities.map((university) => (
-          <TableRow key={university.id}>
-            <TableCell className="font-medium">{university.name}</TableCell>
+        {universities.map((university) => {
+          const isSelected = selectedUniversities.has(university.id)
+          
+          return (
+            <TableRow 
+              key={university.id}
+              className={`${onRowClick ? "cursor-pointer hover:bg-gray-50 transition-colors" : ""} ${
+                isSelected ? "bg-blue-50 hover:bg-blue-100" : ""
+              }`}
+              onClick={(e) => {
+                // Don't trigger row click if clicking checkbox or actions menu
+                if (!(e.target as HTMLElement).closest('button') && 
+                    !(e.target as HTMLElement).closest('[role="checkbox"]')) {
+                  onRowClick?.(university.id)
+                }
+              }}
+            >
+              <TableCell onClick={(e) => e.stopPropagation()}>
+                <Checkbox
+                  checked={isSelected}
+                  onCheckedChange={() => toggleUniversity(university.id)}
+                  aria-label={`Select ${university.name}`}
+                />
+              </TableCell>
+              <TableCell className="font-medium">{university.name}</TableCell>
             <TableCell className="text-gray-500">{university.domain}</TableCell>
             <TableCell className="text-gray-500">{university.email}</TableCell>
             <TableCell>{getStatusBadge(university.status)}</TableCell>
@@ -144,7 +220,8 @@ export function UniversitiesTable({
               </div>
             </TableCell>
           </TableRow>
-        ))}
+          )
+        })}
       </TableBody>
     </Table>
   )

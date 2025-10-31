@@ -4,11 +4,15 @@ import { usePathname } from 'next/navigation'
 import { useEffect } from 'react'
 import { Sidebar } from './Sidebar'
 import { useAuthStore } from '@/stores/auth-store'
+import { useWebSocket } from '@/hooks/useWebSocket'
 
 export function LayoutWrapper({ children }: { children: React.ReactNode }) {
   const pathname = usePathname()
   const loadUser = useAuthStore((state) => state.loadUser)
   const isLoginPage = pathname === '/login'
+
+  // Initialize WebSocket connection
+  useWebSocket()
 
   useEffect(() => {
     loadUser()

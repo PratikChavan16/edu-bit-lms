@@ -4,6 +4,7 @@ import { useCollege } from '@/contexts/CollegeContext';
 import { useUniversity } from '@/contexts/UniversityContext';
 import Breadcrumb from '@/components/Breadcrumb';
 import Link from 'next/link';
+import { use } from 'react';
 import {
   Building2,
   Users,
@@ -19,7 +20,8 @@ import {
   ClipboardList
 } from 'lucide-react';
 
-export default function CollegeHubPage({ params }: { params: { id: string; collegeId: string } }) {
+export default function CollegeHubPage({ params }: { params: Promise<{ id: string; collegeId: string }> }) {
+  const { id, collegeId } = use(params);
   const { university } = useUniversity();
   const { college, loading, error } = useCollege();
 
@@ -48,8 +50,8 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
       <Breadcrumb
         items={[
           { label: 'Universities', href: '/universities' },
-          { label: university?.name || 'University', href: `/universities/${params.id}` },
-          { label: 'Colleges', href: `/universities/${params.id}/colleges` },
+          { label: university?.name || 'University', href: `/universities/${id}` },
+          { label: 'Colleges', href: `/universities/${id}/colleges` },
           { label: college.name, current: true },
         ]}
       />
@@ -93,7 +95,7 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Departments</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                {college.stats.departments_count}
+                {college.stats?.departments_count || 0}
               </p>
             </div>
             <Building2 className="w-12 h-12 text-blue-500" />
@@ -105,7 +107,7 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Students</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                {college.stats.students_count.toLocaleString()}
+                {(college.stats?.students_count || 0).toLocaleString()}
               </p>
             </div>
             <GraduationCap className="w-12 h-12 text-green-500" />
@@ -117,7 +119,7 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Faculty</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                {college.stats.faculty_count}
+                {college.stats?.faculty_count || 0}
               </p>
             </div>
             <Users className="w-12 h-12 text-purple-500" />
@@ -129,7 +131,7 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
             <div>
               <p className="text-sm text-gray-600 dark:text-gray-400">Courses</p>
               <p className="text-3xl font-bold text-gray-900 dark:text-white mt-1">
-                {college.stats.courses_count}
+                {college.stats?.courses_count || 0}
               </p>
             </div>
             <BookOpen className="w-12 h-12 text-orange-500" />
@@ -140,7 +142,7 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
       {/* Sections - Everything from 13 Portals */}
       <div className="grid grid-cols-1 md:grid-cols-3 gap-6">
         <Link
-          href={`/universities/${params.id}/colleges/${params.collegeId}/leadership`}
+          href={`/universities/${id}/colleges/${collegeId}/leadership`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <Users className="w-12 h-12 text-blue-600 mb-4" />
@@ -152,31 +154,31 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
         </Link>
 
         <Link
-          href={`/universities/${params.id}/colleges/${params.collegeId}/departments`}
+          href={`/universities/${id}/colleges/${collegeId}/departments`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <Building2 className="w-12 h-12 text-green-600 mb-4" />
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Departments</h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Manage {college.stats.departments_count} departments and HODs
+            Manage {college.stats?.departments_count || 0} departments and HODs
           </p>
           <span className="text-green-600 dark:text-green-400 font-semibold">Manage →</span>
         </Link>
 
         <Link
-          href={`/universities/${params.id}/colleges/${params.collegeId}/academic-staff`}
+          href={`/universities/${id}/colleges/${collegeId}/academic-staff`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <GraduationCap className="w-12 h-12 text-purple-600 mb-4" />
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Academic Staff</h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            Faculty, teachers, and {college.stats.faculty_count} academic staff
+            Faculty, teachers, and {college.stats?.faculty_count || 0} academic staff
           </p>
           <span className="text-purple-600 dark:text-purple-400 font-semibold">View Staff →</span>
         </Link>
 
         <Link
-          href={`/universities/${params.id}/colleges/${params.collegeId}/administrative-staff`}
+          href={`/universities/${id}/colleges/${collegeId}/administrative-staff`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <UserCog className="w-12 h-12 text-orange-600 mb-4" />
@@ -188,7 +190,7 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
         </Link>
 
         <Link
-          href={`/universities/${params.id}/colleges/${params.collegeId}/non-teaching-staff`}
+          href={`/universities/${id}/colleges/${collegeId}/non-teaching-staff`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <Wrench className="w-12 h-12 text-red-600 mb-4" />
@@ -200,19 +202,19 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
         </Link>
 
         <Link
-          href={`/universities/${params.id}/colleges/${params.collegeId}/students`}
+          href={`/universities/${id}/colleges/${collegeId}/students`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <GraduationCap className="w-12 h-12 text-indigo-600 mb-4" />
           <h3 className="text-xl font-bold text-gray-900 dark:text-white mb-2">Students</h3>
           <p className="text-gray-600 dark:text-gray-400 mb-4">
-            All {college.stats.students_count.toLocaleString()} enrolled students
+            All {(college.stats?.students_count || 0).toLocaleString()} enrolled students
           </p>
           <span className="text-indigo-600 dark:text-indigo-400 font-semibold">View Students →</span>
         </Link>
 
         <Link
-          href={`/universities/${params.id}/colleges/${params.collegeId}/curriculum`}
+          href={`/universities/${id}/colleges/${collegeId}/curriculum`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <BookOpen className="w-12 h-12 text-cyan-600 mb-4" />
@@ -224,7 +226,7 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
         </Link>
 
         <Link
-          href={`/universities/${params.id}/colleges/${params.collegeId}/library`}
+          href={`/universities/${id}/colleges/${collegeId}/library`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <BookMarked className="w-12 h-12 text-pink-600 mb-4" />
@@ -236,7 +238,7 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
         </Link>
 
         <Link
-          href={`/universities/${params.id}/colleges/${params.collegeId}/transport`}
+          href={`/universities/${id}/colleges/${collegeId}/transport`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <Bus className="w-12 h-12 text-yellow-600 mb-4" />
@@ -248,7 +250,7 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
         </Link>
 
         <Link
-          href={`/universities/${params.id}/colleges/${params.collegeId}/hostel`}
+          href={`/universities/${id}/colleges/${collegeId}/hostel`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <HomeIcon className="w-12 h-12 text-teal-600 mb-4" />
@@ -260,7 +262,7 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
         </Link>
 
         <Link
-          href={`/universities/${params.id}/colleges/${params.collegeId}/attendance`}
+          href={`/universities/${id}/colleges/${collegeId}/attendance`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <ClipboardList className="w-12 h-12 text-lime-600 mb-4" />
@@ -272,7 +274,7 @@ export default function CollegeHubPage({ params }: { params: { id: string; colle
         </Link>
 
         <Link
-          href={`/universities/${params.id}/colleges/${params.collegeId}/settings`}
+          href={`/universities/${id}/colleges/${collegeId}/settings`}
           className="bg-white dark:bg-gray-800 rounded-lg shadow-sm p-6 hover:shadow-md transition-shadow"
         >
           <Settings className="w-12 h-12 text-gray-600 mb-4" />

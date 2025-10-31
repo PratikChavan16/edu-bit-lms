@@ -20,7 +20,7 @@ return new class extends Migration
             $table->string('user_role', 50)->nullable();
             
             // Action details
-            $table->enum('action', ['CREATE', 'READ', 'UPDATE', 'DELETE', 'LOGIN', 'LOGOUT'])->index();
+            $table->string('action', 100)->index(); // Flexible action field
             $table->string('resource_type', 100)->index(); // University, User, Settings, etc
             $table->uuid('resource_id')->nullable();
             

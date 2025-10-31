@@ -4,6 +4,7 @@ import { useState, useEffect } from 'react'
 import { Modal, ModalFooter } from '@/components/ui/modal'
 import { Input } from '@/components/ui/input'
 import { Button } from '@/components/ui/button'
+import { ButtonLoading } from '@/components/ui/LoadingStates'
 import { University } from '@/types'
 
 interface EditUniversityModalProps {
@@ -154,9 +155,13 @@ export function EditUniversityModal({
           >
             Cancel
           </Button>
-          <Button type="submit" disabled={isSubmitting}>
-            {isSubmitting ? 'Updating...' : 'Update University'}
-          </Button>
+          <ButtonLoading 
+            type="submit" 
+            isLoading={isSubmitting}
+            loadingText="Updating..."
+          >
+            Update University
+          </ButtonLoading>
         </ModalFooter>
       </form>
     </Modal>

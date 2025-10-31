@@ -5,8 +5,14 @@ import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Pagination } from '@/components/ui/pagination'
 import { useToast } from '@/components/ui/toast'
+import { CollegesTable } from '@/components/colleges/CollegesTable'
+import { TableSkeleton } from '@/components/ui/SkeletonLayouts'
+import { ButtonLoading } from '@/components/ui/LoadingStates'
 import { CreateCollegeModal, type CreateCollegeData } from '@/components/colleges/CreateCollegeModal'
 import { EditCollegeModal, type UpdateCollegeData } from '@/components/colleges/EditCollegeModal'
+import { SelectionCounter } from '@/components/common/SelectionCounter'
+import { BulkActionsToolbar } from '@/components/common/BulkActionsToolbar'
+import { useBulkSelectionStore, useCollegeSelectionCount } from '@/stores/useBulkSelectionStore'
 import { apiClient } from '@/lib/api-client'
 import type { ApiResponse, College, University } from '@/types'
 import { Plus, Search, Edit, Trash2, RotateCcw, Building2, Users, TrendingUp, AlertCircle, Shield } from 'lucide-react'
@@ -26,6 +32,15 @@ export default function CollegesPage() {
   const [isCreateModalOpen, setIsCreateModalOpen] = useState(false)
   const [isEditModalOpen, setIsEditModalOpen] = useState(false)
   const [selectedCollege, setSelectedCollege] = useState<College | null>(null)
+  const [isCreating, setIsCreating] = useState(false)
+  
+  // Bulk selection state
+  const selectionCount = useCollegeSelectionCount()
+  const selectedColleges = useBulkSelectionStore((state) => state.selectedColleges)
+  const clearCollegeSelection = useBulkSelectionStore((state) => state.clearCollegeSelection)
+  
+  // Get array of selected IDs
+  const selectedIds = Array.from(selectedColleges)
 
   const fetchColleges = async () => {
     setIsLoading(true)
@@ -42,9 +57,14 @@ export default function CollegesPage() {
       const response = await apiClient.get<ApiResponse<College[]>>(
         `/colleges?${params.toString()}`
       )
-      setColleges(response.data)
-      setTotalPages(response.meta?.last_page || 1)
-      setTotalItems(response.meta?.total || 0)
+      // Handle new API response format
+      if (response.success) {
+        const data = response.data as any
+        const colleges = data?.colleges || data || []
+        setColleges(colleges)
+        setTotalPages(response.meta?.last_page || 1)
+        setTotalItems(response.meta?.total || 0)
+      }
     } catch (error) {
       console.error('Failed to fetch colleges:', error)
       toast.error('Failed to fetch colleges')
@@ -56,7 +76,12 @@ export default function CollegesPage() {
   const fetchUniversities = async () => {
     try {
       const response = await apiClient.get<ApiResponse<University[]>>('/universities?per_page=100')
-      setUniversities(response.data)
+      // Handle new API response format
+      if (response.success) {
+        const data = response.data as any
+        const universities = data?.universities || data || []
+        setUniversities(universities)
+      }
     } catch (error) {
       console.error('Failed to fetch universities:', error)
     }
@@ -77,9 +102,14 @@ export default function CollegesPage() {
   }
 
   const handleCreate = async (data: CreateCollegeData) => {
-    await apiClient.post('/colleges', data)
-    toast.success(`College "${data.name}" created successfully`)
-    fetchColleges()
+    setIsCreating(true)
+    try {
+      await apiClient.post('/colleges', data)
+      toast.success(`College "${data.name}" created successfully`)
+      fetchColleges()
+    } finally {
+      setIsCreating(false)
+    }
   }
 
   const handleEdit = (college: College) => {
@@ -117,15 +147,6 @@ export default function CollegesPage() {
     }
   }
 
-  const getStatusBadge = (status: string) => {
-    const statusStyles = {
-      active: 'bg-green-100 text-green-800 border-green-200',
-      inactive: 'bg-gray-100 text-gray-800 border-gray-200',
-      suspended: 'bg-red-100 text-red-800 border-red-200',
-    }
-    return statusStyles[status as keyof typeof statusStyles] || statusStyles.inactive
-  }
-
   return (
     <div className="space-y-6">
       {/* Header */}
@@ -136,10 +157,14 @@ export default function CollegesPage() {
             Manage all colleges across universities (God Mode)
           </p>
         </div>
-        <Button onClick={() => setIsCreateModalOpen(true)}>
+        <ButtonLoading 
+          onClick={() => setIsCreateModalOpen(true)}
+          isLoading={isCreating}
+          loadingText="Creating..."
+        >
           <Plus className="h-4 w-4 mr-2" />
           Create College
-        </Button>
+        </ButtonLoading>
       </div>
 
       {/* God Mode Info Banner */}
@@ -250,155 +275,50 @@ export default function CollegesPage() {
         </form>
       </div>
 
+      {/* Selection Counter */}
+      <SelectionCounter
+        count={selectionCount}
+        totalCount={colleges.length}
+        onClear={clearCollegeSelection}
+        resourceType="colleges"
+      />
+
+      {/* Bulk Actions Toolbar */}
+      <BulkActionsToolbar
+        selectedIds={selectedIds}
+        resourceType="colleges"
+        onActionComplete={() => {
+          fetchColleges()
+          clearCollegeSelection()
+        }}
+      />
+
       {/* Table */}
       <div className="bg-white rounded-lg border">
-        <div className="overflow-x-auto">
-          <table className="w-full">
-            <thead className="bg-gray-50 border-b">
-              <tr>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  College
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  University
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Status
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Students
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Capacity
-                </th>
-                <th className="px-6 py-3 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Contact
-                </th>
-                <th className="px-6 py-3 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">
-                  Actions
-                </th>
-              </tr>
-            </thead>
-            <tbody className="bg-white divide-y divide-gray-200">
-              {isLoading ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center text-gray-500">
-                    Loading colleges...
-                  </td>
-                </tr>
-              ) : colleges.length === 0 ? (
-                <tr>
-                  <td colSpan={7} className="px-6 py-12 text-center">
-                    <div className="flex flex-col items-center justify-center">
-                      <Building2 className="h-12 w-12 text-gray-400 mb-4" />
-                      <p className="text-gray-500">No colleges found</p>
-                      <p className="text-sm text-gray-400 mt-1">
-                        {searchQuery || selectedUniversity || selectedStatus
-                          ? 'Try adjusting your filters'
-                          : 'Colleges will appear here once universities create them'}
-                      </p>
-                    </div>
-                  </td>
-                </tr>
-              ) : (
-                colleges.map((college) => (
-                  <tr key={college.id} className="hover:bg-gray-50">
-                    <td className="px-6 py-4">
-                      <div>
-                        <div className="font-medium text-gray-900">{college.name}</div>
-                        <div className="text-sm text-gray-500">Code: {college.code}</div>
-                        {college.established_year && (
-                          <div className="text-xs text-gray-400">Est. {college.established_year}</div>
-                        )}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">
-                        {college.university?.name || universities.find(u => u.id === college.university_id)?.name || 'N/A'}
-                      </div>
-                    </td>
-                    <td className="px-6 py-4">
-                      <span className={`px-2 py-1 inline-flex text-xs leading-5 font-semibold rounded-full border ${getStatusBadge(college.status)}`}>
-                        {college.status}
-                      </span>
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">
-                        {college.current_enrollment?.toLocaleString() || 0}
-                      </div>
-                      {college.stats && (
-                        <div className="text-xs text-gray-500">
-                          {college.stats.enrollment_percentage.toFixed(1)}% filled
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">
-                        {college.capacity?.toLocaleString() || 'N/A'}
-                      </div>
-                      {college.capacity && college.current_enrollment && (
-                        <div className="text-xs text-gray-500">
-                          {college.capacity - college.current_enrollment} available
-                        </div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4">
-                      <div className="text-sm text-gray-900">{college.email}</div>
-                      {college.phone && (
-                        <div className="text-xs text-gray-500">{college.phone}</div>
-                      )}
-                    </td>
-                    <td className="px-6 py-4 text-right">
-                      <div className="flex justify-end gap-2">
-                        {college.status !== 'suspended' ? (
-                          <>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleEdit(college)}
-                              title="Edit College"
-                            >
-                              <Edit className="h-4 w-4" />
-                            </Button>
-                            <Button
-                              variant="ghost"
-                              size="sm"
-                              onClick={() => handleDelete(college.id)}
-                              className="text-red-600 hover:text-red-700"
-                              title="Delete College"
-                            >
-                              <Trash2 className="h-4 w-4" />
-                            </Button>
-                          </>
-                        ) : (
-                          <Button
-                            variant="ghost"
-                            size="sm"
-                            onClick={() => handleRestore(college.id)}
-                            className="text-blue-600 hover:text-blue-700"
-                            title="Restore College"
-                          >
-                            <RotateCcw className="h-4 w-4" />
-                          </Button>
-                        )}
-                      </div>
-                    </td>
-                  </tr>
-                ))
-              )}
-            </tbody>
-          </table>
-        </div>
+        {isLoading ? (
+          <TableSkeleton rows={10} columns={8} />
+        ) : (
+          <>
+            <CollegesTable
+              colleges={colleges}
+              universities={universities}
+              isLoading={isLoading}
+              onEdit={handleEdit}
+              onDelete={handleDelete}
+              onRestore={handleRestore}
+            />
 
-        {!isLoading && colleges.length > 0 && (
-          <Pagination
-            currentPage={currentPage}
-            totalPages={totalPages}
-            totalItems={totalItems}
-            itemsPerPage={itemsPerPage}
-            onPageChange={setCurrentPage}
-            onItemsPerPageChange={setItemsPerPage}
-          />
+            {colleges.length > 0 && (
+              <Pagination
+                currentPage={currentPage}
+                totalPages={totalPages}
+                totalItems={totalItems}
+                itemsPerPage={itemsPerPage}
+                onPageChange={setCurrentPage}
+                onItemsPerPageChange={setItemsPerPage}
+              />
+            )}
+          </>
         )}
       </div>
 
